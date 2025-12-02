@@ -74,6 +74,12 @@ specs/001-sms-outreach-integration/
 └── tasks.md             # Phase 2 - implementation tasks (NOT in this phase)
 ```
 
+### Build Configuration (repository root)
+
+```text
+open-next.config.ts           # OpenNext configuration for AWS Lambda deployment
+```
+
 ### Source Code (repository root)
 
 ```text

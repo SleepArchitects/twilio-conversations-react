@@ -38,6 +38,7 @@ Based on plan.md structure:
 - [ ] T007 [P] Configure tsconfig.json with path aliases (@/components, @/lib, @/hooks, @/types)
 - [ ] T008 [P] Create .env.example with all required environment variables per quickstart.md
 - [ ] T009 [P] Configure ESLint and Prettier matching sleepconnect patterns
+- [ ] T009a Document PostgreSQL stored procedures required by tasks (insert_sms_conversation, get_sms_messages_for_conversation, mark_sms_conversation_read, insert_sms_response_metric, complete_sms_response_metric, archive_sms_conversation, unarchive_sms_conversation, increment_sms_template_usage, update_sms_message_sentiment) - coordinate with sleepconnect Lambda layer
 
 ---
 
@@ -70,6 +71,7 @@ Based on plan.md structure:
 ### Implementation for User Story 1
 
 - [ ] T019 [P] [US1] Create components/conversations/MessageBubble.tsx with sender identification, timestamp, and delivery status indicator
+- [ ] T019a [P] [US1] Implement lib/datetime.ts with UTC-to-local timezone conversion utilities using Intl.DateTimeFormat (FR-008a, FR-008b, Constitution VII)
 - [ ] T020 [P] [US1] Create components/conversations/MessageComposer.tsx with textarea, character count, segment display, and send button
 - [ ] T021 [US1] Implement app/api/outreach/conversations/[conversationId]/messages/route.ts (GET list, POST send) per sms-api.yaml
 - [ ] T022 [US1] Implement app/api/outreach/webhook/route.ts for Twilio inbound messages and status callbacks
@@ -78,6 +80,7 @@ Based on plan.md structure:
 - [ ] T025 [US1] Implement message delivery status updates (sending → sent → delivered → read → failed) via Twilio webhooks
 - [ ] T026 [US1] Add US phone number validation (+1 format) in lib/validation.ts
 - [ ] T027 [US1] Handle SMS character limits and segment counting in MessageComposer (160 char segments)
+- [ ] T027a [US1] Handle patient opt-out (STOP message) in webhook - mark conversation opted-out, prevent outbound (FR-004a) - HIPAA compliance critical
 
 **Checkpoint**: Coordinators can send SMS messages and receive patient replies in real-time
 
@@ -239,7 +242,6 @@ Based on plan.md structure:
 - [ ] T086 [P] Add audit logging for all API operations per HIPAA requirements (FR-036) - verify encryption at rest (FR-035) and TLS (FR-037)
 - [ ] T087 Validate quickstart.md setup instructions work end-to-end
 - [ ] T088 Performance optimization - ensure conversation list loads <2 seconds with 500+ messages
-- [ ] T089 [US1] Handle patient opt-out (STOP message) in webhook - mark conversation opted-out, prevent outbound (FR-004a)
 - [ ] T090 Implement conversation unarchive functionality via unarchive_sms_conversation (FR-013a)
 - [ ] T091 Configure SleepConnect multi-zone rewrites in `/home/dan/code/SAX/sleepconnect/next.config.js`: add rewrites for `/outreach/:path*` → Outreach zone, `/outreach-static/_next/:path+` → Outreach zone assets (FR-031a)
 - [ ] T092 Document cross-zone navigation: use `<a href>` instead of `<Link>` for navigation between sleepconnect and Outreach zone per Next.js multi-zones guide
@@ -257,6 +259,7 @@ Based on plan.md structure:
 - [ ] T097 [P] Create `.github/workflows/deploy-production.yml` with production config and 5-second confirmation delay
 - [ ] T098 Add Outreach zone environment variables to sleepconnect GitHub workflow secrets: OUTREACH_ZONE_URL (Lambda function URL per environment)
 - [ ] T099 Request AWS resources: Lambda functions, S3 buckets, CloudFront distributions for develop/staging/production
+- [ ] T099a **GATE** Verify Twilio Business Associate Agreement (BAA) is in place before production deployment (FR-038, HIPAA compliance)
 - [ ] T100 Configure Twilio webhook URLs to point to deployed Lambda function URLs per environment
 - [ ] T101 [P] Integrate AWS CloudWatch RUM by copying `providers/RumProvider.tsx` and `utils/rum-user-context.ts` patterns from sleepconnect (low priority, staging/production only)
 
@@ -393,10 +396,10 @@ Developer C: US3 (View History)
 
 | Metric | Value |
 |--------|-------|
-| **Total Tasks** | 101 |
-| **Phase 1 (Setup)** | 9 tasks |
+| **Total Tasks** | 104 |
+| **Phase 1 (Setup)** | 10 tasks (T001-T009a) |
 | **Phase 2 (Foundational)** | 9 tasks |
-| **Phase 3 (US1)** | 9 tasks |
+| **Phase 3 (US1)** | 11 tasks (T019-T027a, includes T019a datetime utils, T027a opt-out handling) |
 | **Phase 4 (US2)** | 5 tasks |
 | **Phase 5 (US3)** | 8 tasks |
 | **Phase 6 (US4)** | 8 tasks |
@@ -404,10 +407,10 @@ Developer C: US3 (View History)
 | **Phase 8 (US6)** | 7 tasks |
 | **Phase 9 (US7)** | 8 tasks |
 | **Phase 10 (US8)** | 7 tasks |
-| **Phase 11 (Polish)** | 15 tasks (includes T089-T092) |
-| **Phase 12 (Deployment)** | 9 tasks (T093-T101, includes RUM) |
-| **Parallel Opportunities** | 35 tasks marked [P] |
-| **MVP Scope** | T001-T040 (40 tasks) |
+| **Phase 11 (Polish)** | 14 tasks (T078-T088, T090-T092; T089 moved to T027a) |
+| **Phase 12 (Deployment)** | 10 tasks (T093-T101, includes T099a BAA gate) |
+| **Parallel Opportunities** | 36 tasks marked [P] |
+| **MVP Scope** | T001-T040 (42 tasks with T019a, T027a) |
 | **Multi-Zone Integration** | T091 configures sleepconnect rewrites for /outreach |
 
 ### Format Validation ✅
@@ -415,7 +418,7 @@ Developer C: US3 (View History)
 All tasks follow the required checklist format:
 
 - ✅ Checkbox prefix `- [ ]`
-- ✅ Task ID (T001-T088)
+- ✅ Task ID (T001-T101, with T009a, T027a, T099a additions)
 - ✅ [P] marker for parallelizable tasks
 - ✅ [US#] label for user story phase tasks
 - ✅ Description with file paths
@@ -425,8 +428,9 @@ All tasks follow the required checklist format:
 ## Notes
 
 - All API routes follow OpenAPI spec in `contracts/sms-api.yaml`
-- Database functions referenced (e.g., `insert_sms_*`, `get_sms_*`, `update_sms_*`) are PostgreSQL stored procedures defined in the database schema, executed via sleepconnect's Lambda API layer
+- Database functions referenced (e.g., `insert_sms_*`, `get_sms_*`, `update_sms_*`) are PostgreSQL stored procedures defined in the database schema, executed via sleepconnect's Lambda API layer - see T009a for full list
 - Twilio SDK patterns from `research.md` section 4
 - Auth0 integration patterns from `research.md` section 3
 - UI components use Flowbite React matching sleepconnect
+- **Prerequisites**: Twilio BAA must be verified before production launch (T099a gate, HIPAA compliance)
 - **Prerequisites**: Twilio BAA must be verified before production launch (HIPAA compliance)
