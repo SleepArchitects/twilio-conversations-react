@@ -171,6 +171,68 @@ src/                          # Original CRA structure (reference only)
 
 **Structure Decision**: Converting to Next.js App Router structure to enable multi-zones integration with sleepconnect. The existing `src/` directory is retained as reference for patterns but will not be deployed. Components will use Flowbite React to match sleepconnect's visual language.
 
+## Phase 2 Technical Decisions
+
+*Documenting implementation decisions for foundational infrastructure (T010-T018).*
+
+### Authentication (T012, T018)
+
+- **Auth0 Claims**: Session must include `sax_id`, `tenant_id`, `practice_id` for multi-tenant isolation
+- **Error Responses**: 401 for missing/expired session, 403 for valid session but missing claims
+- **Session Validation**: Per-request validation via `withApiAuthRequired` wrapper (not cached)
+- **Protected Routes**: All `/outreach/*` routes require auth except:
+  - `/api/outreach/webhook` (Twilio callbacks, validated by signature)
+  - `/api/auth/*` (Auth0 login/logout/callback)
+
+### Twilio Integration (T013, T016, T017)
+
+- **Environment Variables** (5 required):
+  - `TWILIO_ACCOUNT_SID` - Account identifier
+  - `TWILIO_AUTH_TOKEN` - REST API authentication (server-side only)
+  - `TWILIO_API_KEY_SID` - API key for access tokens
+  - `TWILIO_API_KEY_SECRET` - API key secret for access tokens
+  - `TWILIO_CONVERSATIONS_SERVICE_SID` - Conversations service ID
+- **Token TTL**: 3600 seconds (1 hour)
+- **Token Refresh Strategy**: Refresh at 50% TTL (30 minutes) via `tokenAboutToExpire` event
+- **ChatGrant Scope**: Conversations service access only (no Voice/Video)
+- **SDK Events to Handle**: `connectionStateChanged`, `tokenAboutToExpire`, `tokenExpired`
+- **Cleanup on Unmount**: Call `client.shutdown()`, clear refresh timers
+
+### API Client (T014)
+
+- **Base URL**: `NEXT_PUBLIC_API_BASE_URL` environment variable
+- **Error Format**: `ApiError { status: number, message: string, code?: string }`
+- **Timeout**: 30 seconds for Lambda calls (default fetch timeout)
+- **Retry**: No automatic retry (handled at UI layer with user feedback)
+
+### UI Components (T015)
+
+- **Source**: Copied from sleepconnect main branch (shadcn/ui base)
+- **Required Variants**:
+  - Button: default, destructive, outline, secondary, ghost, link
+  - Badge: default, secondary, destructive, outline
+  - Card: Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter
+- **Utility**: `cn()` from `lib/utils.ts` for className merging
+
+### Dark Mode (T011)
+
+- **Default State**: Dark mode enabled (`className="dark"` on `<html>`)
+- **Persistence**: localStorage key `color-theme` (light/dark)
+- **Theme Variables**: Shared with sleepconnect via CSS custom properties in globals.css
+
+### Validation Constants (T010)
+
+- **Phone Regex**: `/^\+1[2-9]\d{9}$/` (US E.164 format)
+- **Message Limit**: 160 characters per SMS segment
+- **SLA Threshold**: 600 seconds (10 minutes)
+- **Template Variable Pattern**: `/\{\{(\w+)\}\}/g`
+
+### Timezone Handling (Constitution VII)
+
+- **Storage**: All timestamps in UTC (ISO 8601)
+- **Display**: Convert to user's browser timezone via `Intl.DateTimeFormat`
+- **Implementation**: `lib/datetime.ts` utility (T019a in Phase 3)
+
 ## Complexity Tracking
 
 > **No constitution violations identified.** The approach uses existing patterns from sleepconnect and standard Next.js conventions.
