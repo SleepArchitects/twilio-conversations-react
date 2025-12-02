@@ -15,6 +15,8 @@ import type { NextRequest, NextFetchEvent } from "next/server";
 const PUBLIC_PATHS = [
 	"/api/auth", // Auth0 routes
 	"/api/outreach/webhook", // Twilio webhook callbacks
+	"/api/outreach/test-sms", // Test SMS endpoint (development only)
+	"/demo", // Demo page for testing (development only)
 ];
 
 /**

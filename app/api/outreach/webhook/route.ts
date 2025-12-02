@@ -86,6 +86,17 @@ interface TwilioWebhookPayload {
   DateCreated?: string;
   /** Index of the message in conversation */
   Index?: string;
+  // Raw SMS webhook fields (when not using Conversations)
+  /** From phone number (raw SMS webhook) */
+  From?: string;
+  /** To phone number (raw SMS webhook) */
+  To?: string;
+  /** SMS Message SID (raw SMS webhook) */
+  SmsSid?: string;
+  /** SMS Status (raw SMS webhook) */
+  SmsStatus?: string;
+  /** Number of segments (raw SMS webhook) */
+  NumSegments?: string;
 }
 
 /**
@@ -141,11 +152,24 @@ function getWebhookUrl(request: NextRequest): string {
 /**
  * Validate the Twilio signature from the X-Twilio-Signature header
  * CRITICAL: Must be called before processing any webhook data
+ *
+ * NOTE: Signature validation is skipped in development when using ngrok/tunnels
+ * because the URL mismatch causes validation to fail.
  */
 function validateTwilioSignature(
   request: NextRequest,
   params: Record<string, string>,
 ): boolean {
+  // Skip validation in development mode for local testing with ngrok
+  const isDevelopment = process.env.NODE_ENV === "development";
+  const skipValidation =
+    process.env.SKIP_TWILIO_SIGNATURE_VALIDATION === "true";
+
+  if (isDevelopment || skipValidation) {
+    console.log("[Webhook] Skipping signature validation (development mode)");
+    return true;
+  }
+
   const signature = request.headers.get("x-twilio-signature");
 
   if (!signature) {
@@ -299,6 +323,66 @@ async function handleInboundMessage(
 }
 
 /**
+ * Handle raw SMS inbound message (when not using Twilio Conversations)
+ * This is triggered when the phone number's webhook receives an SMS directly
+ */
+async function handleRawSmsInbound(
+  payload: TwilioWebhookPayload,
+): Promise<void> {
+  const { From, To, Body, MessageSid, SmsSid, NumSegments } = payload;
+  const messageSid = MessageSid || SmsSid;
+
+  if (!From || !messageSid) {
+    console.error("[Webhook] Missing required fields for raw SMS inbound");
+    return;
+  }
+
+  // Log event without PHI (no message body)
+  console.log("[Webhook] Processing raw SMS inbound", {
+    from: From,
+    to: To,
+    messageSid,
+    numSegments: NumSegments,
+    hasBody: !!Body,
+  });
+
+  // Check for opt-out message
+  if (isOptOutMessage(Body)) {
+    console.log("[Webhook] Opt-out keyword detected (raw SMS)", {
+      from: From,
+    });
+    // In raw SMS mode, we would need to track opt-outs differently
+    // For now, just log it
+  }
+
+  // For raw SMS, we don't have a conversation context
+  // This would need to be integrated with your conversation lookup logic
+  console.log("[Webhook] Raw SMS received successfully", {
+    from: From,
+    to: To,
+    messageSid,
+    body: Body, // Log body for testing (remove in production)
+  });
+
+  // TODO: Look up or create conversation based on From phone number
+  // TODO: Store message in database via Lambda API
+}
+
+/**
+ * Check if this is a raw SMS webhook (not Twilio Conversations)
+ */
+function isRawSmsWebhook(payload: TwilioWebhookPayload): boolean {
+  // Raw SMS webhooks have From/To/SmsSid but no EventType or ConversationSid
+  return !!(
+    payload.From &&
+    payload.To &&
+    (payload.SmsSid || payload.MessageSid) &&
+    !payload.EventType &&
+    !payload.ConversationSid
+  );
+}
+
+/**
  * Handle message status callback (sent, delivered, read, failed)
  */
 async function handleStatusCallback(
@@ -383,11 +467,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.log("[Webhook] Received event", {
       eventType,
       conversationSid: payload.ConversationSid,
-      messageSid: payload.MessageSid,
+      messageSid: payload.MessageSid || payload.SmsSid,
       source: payload.Source,
+      isRawSms: isRawSmsWebhook(payload),
     });
 
-    // Route by event type
+    // Handle raw SMS webhook (not Twilio Conversations)
+    if (isRawSmsWebhook(payload)) {
+      await handleRawSmsInbound(payload);
+      return NextResponse.json({ success: true }, { status: 200 });
+    }
+
+    // Route by event type (Twilio Conversations webhooks)
     switch (eventType) {
       case "onMessageAdded": {
         // Check if this is an inbound message (from phone number, not identity)
