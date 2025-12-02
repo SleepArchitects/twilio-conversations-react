@@ -48,15 +48,15 @@ Based on plan.md structure:
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T010 Create TypeScript types from data-model.md in types/sms.ts (enums, interfaces for all entities)
-- [ ] T011 [P] Create app/layout.tsx with Flowbite ThemeProvider, Auth0 UserProvider, and base HTML structure
-- [ ] T012 [P] Implement lib/auth.ts with Auth0 session utilities and withApiAuthRequired wrapper
-- [ ] T013 [P] Implement lib/twilio.ts with Twilio client configuration and token generation
-- [ ] T014 [P] Implement lib/api.ts with Lambda API client utilities and error handling
-- [ ] T015 [P] Copy shared UI components from sleepconnect: components/ui/button.tsx, card.tsx, badge.tsx
-- [ ] T016 Create app/api/outreach/token/route.ts for Twilio access token generation (POST /api/outreach/token)
-- [ ] T017 Implement hooks/useTwilioClient.ts for Twilio Conversations SDK initialization with token refresh
-- [ ] T018 Create middleware.ts for Auth0 route protection on all /outreach routes
+- [X] T010 Create TypeScript types from data-model.md in types/sms.ts (enums, interfaces for all entities)
+- [X] T011 [P] Create app/layout.tsx with Flowbite ThemeProvider, Auth0 UserProvider, and base HTML structure
+- [X] T012 [P] Implement lib/auth.ts with Auth0 session utilities and withApiAuthRequired wrapper
+- [X] T013 [P] Implement lib/twilio.ts with Twilio client configuration and token generation
+- [X] T014 [P] Implement lib/api.ts with Lambda API client utilities and error handling
+- [X] T015 [P] Copy shared UI components from sleepconnect: components/ui/button.tsx, card.tsx, badge.tsx
+- [X] T016 Create app/api/outreach/token/route.ts for Twilio access token generation (POST /api/outreach/token)
+- [X] T017 Implement hooks/useTwilioClient.ts for Twilio Conversations SDK initialization with token refresh
+- [X] T018 Create middleware.ts for Auth0 route protection on all /outreach routes
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
