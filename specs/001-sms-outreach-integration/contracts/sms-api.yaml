@@ -18,11 +18,11 @@ info:
     identifier: UNLICENSED
 
 servers:
-  - url: https://dreamconnect.health/sms/api
+  - url: https://mydreamconnect.com/outreach/api
     description: Production
-  - url: https://dev.dreamconnect.health/sms/api
+  - url: https://dev.mydreamconnect.com/outreach/api
     description: Development
-  - url: http://localhost:3000/api
+  - url: http://localhost:3001/outreach/api
     description: Local development
 
 tags:

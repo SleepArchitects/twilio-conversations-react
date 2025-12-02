@@ -25,8 +25,9 @@ Enable care coordinators to manage patient SMS conversations through a dedicated
 - Twilio Conversations API (real-time message state, delivery status)
 
 **Testing**: Jest + React Testing Library (unit), Playwright (e2e)  
-**Target Platform**: Web (AWS via SST/OpenNext, matching sleepconnect deployment)  
+**Target Platform**: Web (AWS Lambda via OpenNext, matching sleepconnect deployment pattern)  
 **Project Type**: Web - Multi-Zone Next.js application integrated with sleepconnect  
+**Deployment**: OpenNext 3.6.6 → AWS Lambda + S3 + CloudFront (no SST, direct deploy script)  
 **Performance Goals**:
 
 - Message delivery confirmation < 5 seconds
@@ -77,7 +78,13 @@ specs/001-sms-outreach-integration/
 ### Build Configuration (repository root)
 
 ```text
-open-next.config.ts           # OpenNext configuration for AWS Lambda deployment
+# Deployment Configuration (matching sleepconnect pattern)
+open-next.config.ts              # OpenNext configuration for AWS Lambda
+scripts/deploy-nextjs.cjs        # Direct Lambda deployment script (no SST)
+.github/workflows/
+├── deploy-develop.yml           # CI/CD: deploy to develop on push to dev branch
+├── deploy-staging.yml           # CI/CD: deploy to staging
+└── deploy-production.yml        # CI/CD: deploy to production with approval
 ```
 
 ### Source Code (repository root)

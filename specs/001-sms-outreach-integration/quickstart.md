@@ -114,28 +114,23 @@ NEXT_PUBLIC_ENABLE_SLA_MONITORING="true"
 
 ### 4. Multi-Zone Configuration
 
-This application runs as a Next.js multi-zone with `basePath: '/sms'`:
+This application runs as a Next.js multi-zone with `basePath: '/outreach'`:
 
 ```javascript
-// next.config.js
+// next.config.js (simplified example)
 module.exports = {
-  basePath: '/sms',
-  assetPrefix: '/sms/',
+  basePath: '/outreach',
+  assetPrefix: '/outreach-static',
+  output: 'standalone',  // Required for OpenNext
   
-  // Required for multi-zone integration
-  async headers() {
-    return [
-      {
-        source: '/:path*',
-        headers: [
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-        ],
-      },
-    ];
-  },
+  // Full configuration in next.config.js
 };
 ```
+
+**Key configuration notes:**
+- Uses `output: 'standalone'` for OpenNext Lambda deployment
+- Routes `/api/*` requests to main sleepconnect backend
+- Shared UI components from sleepconnect patterns
 
 ---
 
@@ -144,11 +139,11 @@ module.exports = {
 ### Start Development Server
 
 ```bash
-# Start the SMS zone on port 3001
+# Start the outreach zone on port 3001
 pnpm dev
 
 # The application will be available at:
-# http://localhost:3001/sms
+# http://localhost:3001/outreach
 ```
 
 ### Running with SleepConnect (Full Stack)
@@ -160,13 +155,13 @@ For full multi-zone testing, run both applications:
 cd ../sleepconnect
 pnpm dev
 
-# Terminal 2: Start SMS zone on port 3001
+# Terminal 2: Start outreach zone on port 3001
 cd ../twilio-conversations-react
 pnpm dev
 
 # Access points:
 # - Main app: http://localhost:3000
-# - SMS zone: http://localhost:3001/sms
+# - Outreach zone: http://localhost:3001/outreach
 ```
 
 ### Database Access
@@ -322,38 +317,52 @@ pnpm db:migrate:test
 
 ## Deployment
 
-### SST Deployment (Matching SleepConnect)
+### OpenNext Deployment (Matching SleepConnect)
 
-This project uses SST (OpenNext) for AWS deployment:
+This project uses OpenNext for AWS Lambda deployment, matching sleepconnect patterns:
 
 ```bash
-# Deploy to development
-pnpm sst deploy --stage dev
+# Build for AWS Lambda
+pnpm build:opennext
 
-# Deploy to staging
-pnpm sst deploy --stage staging
+# Deploy to development
+pnpm deploy:dev
+
+# Deploy to staging  
+pnpm deploy:staging
 
 # Deploy to production
-pnpm sst deploy --stage prod
+pnpm deploy:prod
 ```
+
+Deployment uses `scripts/deploy-outreach.cjs` which:
+1. Runs `npx open-next build` with `open-next.config.ts`
+2. Uploads assets to S3 (`/outreach-static/*`)
+3. Updates Lambda function code
+4. Invalidates CloudFront cache
 
 ### Environment-Specific Configuration
 
 | Stage | Base URL | Auth0 Callback |
 |-------|----------|----------------|
-| dev | `https://dev.mydreamconnect.com/sms` | `https://dev.mydreamconnect.com/sms/api/auth/callback` |
-| staging | `https://staging.mydreamconnect.com/sms` | `https://staging.mydreamconnect.com/sms/api/auth/callback` |
-| prod | `https://mydreamconnect.com/sms` | `https://mydreamconnect.com/sms/api/auth/callback` |
+| dev | `https://dev.mydreamconnect.com/outreach` | `https://dev.mydreamconnect.com/outreach/api/auth/callback` |
+| staging | `https://staging.mydreamconnect.com/outreach` | `https://staging.mydreamconnect.com/outreach/api/auth/callback` |
+| prod | `https://mydreamconnect.com/outreach` | `https://mydreamconnect.com/outreach/api/auth/callback` |
 
 ### CloudFront Multi-Zone Routing
 
-The main CloudFront distribution routes `/sms/*` to this zone:
+The main CloudFront distribution routes `/outreach/*` and `/outreach-static/*` to this zone:
 
 ```text
 CloudFront Behaviors:
-  /sms/*     → SMS Zone Origin (this app)
-  /*         → SleepConnect Origin
+  /outreach/*        → Outreach Zone Lambda Origin (this app)
+  /outreach-static/* → S3 Bucket Origin (static assets)
+  /*                 → SleepConnect Origin (main app)
 ```
+
+**Origin Configuration:**
+- Lambda function: `outreach-zone-server` (via Lambda URL or API Gateway)
+- S3 bucket: `mydreamconnect-assets-{stage}` (static assets with /outreach-static prefix)
 
 ---
 
@@ -367,8 +376,8 @@ CloudFront Behaviors:
    - Note the Service SID (`ISxxx`)
 
 2. **Configure Webhooks**:
-   - Set Pre-Event URL: `https://your-domain.com/sms/api/outreach/webhook`
-   - Set Post-Event URL: `https://your-domain.com/sms/api/outreach/webhook`
+   - Set Pre-Event URL: `https://your-domain.com/outreach/api/outreach/webhook`
+   - Set Post-Event URL: `https://your-domain.com/outreach/api/outreach/webhook`
    - Enable events: `onMessageAdded`, `onConversationUpdated`
 
 3. **API Keys**:
@@ -384,7 +393,7 @@ Use ngrok to expose local webhook endpoint:
 ngrok http 3001
 
 # Update Twilio webhook URLs to ngrok URL:
-# https://abc123.ngrok.io/sms/api/outreach/webhook
+# https://abc123.ngrok.io/outreach/api/outreach/webhook
 ```
 
 ---
@@ -398,8 +407,8 @@ ngrok http 3001
 **Error**: `Callback URL mismatch`
 
 **Solution**: Ensure Auth0 application has the correct callback URL:
-- Development: `http://localhost:3001/sms/api/auth/callback`
-- Production: `https://mydreamconnect.com/sms/api/auth/callback`
+- Development: `http://localhost:3001/outreach/api/auth/callback`
+- Production: `https://mydreamconnect.com/outreach/api/auth/callback`
 
 #### Twilio Token Generation Fails
 
@@ -420,12 +429,13 @@ ngrok http 3001
 
 #### Multi-Zone Routing Issues
 
-**Error**: 404 on `/sms` routes
+**Error**: 404 on `/outreach` routes
 
 **Solution**:
-- Verify `basePath: '/sms'` in `next.config.js`
-- Check CloudFront behavior configuration
-- Ensure origin points to correct zone
+- Verify `basePath: '/outreach'` in `next.config.js`
+- Check CloudFront behavior configuration for `/outreach/*` and `/outreach-static/*`
+- Ensure Lambda origin is correctly configured
+- Verify S3 bucket has static assets at correct prefix
 
 ---
 
@@ -437,7 +447,7 @@ ngrok http 3001
 - [Twilio Conversations SDK](https://www.twilio.com/docs/conversations/javascript)
 - [Auth0 Next.js SDK](https://github.com/auth0/nextjs-auth0)
 - [Flowbite React Components](https://flowbite-react.com/)
-- [SST Deployment](https://docs.sst.dev/)
+- [OpenNext Documentation](https://open-next.js.org/)
 
 ### Internal References
 

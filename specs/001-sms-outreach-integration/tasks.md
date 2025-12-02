@@ -31,14 +31,14 @@ Based on plan.md structure:
 
 - [X] T001 Create Next.js App Router project structure with `app/`, `components/`, `hooks/`, `lib/`, `types/` directories
 - [X] T002 Initialize package.json with Next.js 14, TypeScript 5.x, and core dependencies per plan.md
-- [ ] T003 [P] Configure next.config.js with basePath '/outreach', assetPrefix '/outreach-static', and security headers for multi-zone integration per <https://nextjs.org/docs/pages/guides/multi-zones>
-- [ ] T004 [P] Copy tailwind.config.ts from sleepconnect and update content paths
-- [ ] T005 [P] Copy lib/utils.ts (cn helper) from sleepconnect
-- [ ] T006 [P] Create app/globals.css with Tailwind imports and sleepconnect theme variables
-- [ ] T007 [P] Configure tsconfig.json with path aliases (@/components, @/lib, @/hooks, @/types)
-- [ ] T008 [P] Create .env.example with all required environment variables per quickstart.md
-- [ ] T009 [P] Configure ESLint and Prettier matching sleepconnect patterns
-- [ ] T009a Document PostgreSQL stored procedures required by tasks (insert_sms_conversation, get_sms_messages_for_conversation, mark_sms_conversation_read, insert_sms_response_metric, complete_sms_response_metric, archive_sms_conversation, unarchive_sms_conversation, increment_sms_template_usage, update_sms_message_sentiment) - coordinate with sleepconnect Lambda layer
+- [X] T003 [P] Configure next.config.js with basePath '/outreach', assetPrefix '/outreach-static', and security headers for multi-zone integration per <https://nextjs.org/docs/pages/guides/multi-zones>
+- [X] T004 [P] Copy tailwind.config.ts from sleepconnect and update content paths
+- [X] T005 [P] Copy lib/utils.ts (cn helper) from sleepconnect
+- [X] T006 [P] Create app/globals.css with Tailwind imports and sleepconnect theme variables
+- [X] T007 [P] Configure tsconfig.json with path aliases (@/components, @/lib, @/hooks, @/types)
+- [X] T008 [P] Create .env.example with all required environment variables per quickstart.md
+- [X] T009 [P] Configure ESLint and Prettier matching sleepconnect patterns
+- [X] T009a Document PostgreSQL stored procedures required by tasks (insert_sms_conversation, get_sms_messages_for_conversation, mark_sms_conversation_read, insert_sms_response_metric, complete_sms_response_metric, archive_sms_conversation, unarchive_sms_conversation, increment_sms_template_usage, update_sms_message_sentiment) - coordinate with sleepconnect Lambda layer
 
 ---
 
