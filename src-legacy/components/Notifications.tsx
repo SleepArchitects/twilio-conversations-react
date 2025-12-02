@@ -8,22 +8,22 @@ import { Toaster } from "@twilio-paste/toast";
 import { actionCreators, AppState } from "../store";
 
 const Notifications: React.FC = () => {
-  const toaster = useToaster();
-  const notifications = useSelector((state: AppState) => state.notifications);
-  const dispatch = useDispatch();
-  const { removeNotifications } = bindActionCreators(actionCreators, dispatch);
+	const toaster = useToaster();
+	const notifications = useSelector((state: AppState) => state.notifications);
+	const dispatch = useDispatch();
+	const { removeNotifications } = bindActionCreators(actionCreators, dispatch);
 
-  useEffect(() => {
-    if (!notifications.length) {
-      return;
-    }
-    notifications.forEach((notification) =>
-      toaster.push(notification as ToasterPush)
-    );
-    removeNotifications(notifications.length);
-  }, [notifications]);
+	useEffect(() => {
+		if (!notifications.length) {
+			return;
+		}
+		notifications.forEach((notification) =>
+			toaster.push(notification as ToasterPush),
+		);
+		removeNotifications(notifications.length);
+	}, [notifications]);
 
-  return <Toaster {...toaster} />;
+	return <Toaster {...toaster} />;
 };
 
 export default Notifications;

@@ -7,22 +7,22 @@ export const LOGO_SUB_TITLE = "Demo application";
 export const APP_TITLE = "Conversations Demo";
 
 interface LogoTwilioIconProps {
-  decorative?: boolean;
-  color?: TextColor | undefined;
-  size?: IconSize | undefined;
-  title?: string;
+	decorative?: boolean;
+	color?: TextColor | undefined;
+	size?: IconSize | undefined;
+	title?: string;
 }
 
 export const AppLogo: React.FC<LogoTwilioIconProps> = ({
-  decorative = false,
-  color = "colorTextBrandHighlight",
-  size = "sizeIcon40",
-  title = "app logo",
+	decorative = false,
+	color = "colorTextBrandHighlight",
+	size = "sizeIcon40",
+	title = "app logo",
 }) => (
-  <LogoTwilioIcon
-    decorative={decorative}
-    color={color}
-    size={size}
-    title={title}
-  />
+	<LogoTwilioIcon
+		decorative={decorative}
+		color={color}
+		size={size}
+		title={title}
+	/>
 );

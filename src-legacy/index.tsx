@@ -9,16 +9,16 @@ import App from "./components/App";
 import styles from "../src/styles";
 
 ReactDOM.render(
-  <Box style={styles.app}>
-    <React.StrictMode>
-      <Provider store={store}>
-        <Theme.Provider theme="twilio">
-          <Box style={styles.app}>
-            <App />
-          </Box>
-        </Theme.Provider>
-      </Provider>
-    </React.StrictMode>
-  </Box>,
-  document.getElementById("root")
+	<Box style={styles.app}>
+		<React.StrictMode>
+			<Provider store={store}>
+				<Theme.Provider theme="twilio">
+					<Box style={styles.app}>
+						<App />
+					</Box>
+				</Theme.Provider>
+			</Provider>
+		</React.StrictMode>
+	</Box>,
+	document.getElementById("root"),
 );

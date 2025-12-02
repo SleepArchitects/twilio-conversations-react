@@ -5,40 +5,40 @@ export const COPY_SUCCESS_MESSAGE = "Message copied.";
 export const CONNECTION_ERROR_MESSAGE = "No internet connection.";
 export const NOTIFICATION_TIMEOUT = 4000;
 export const ERROR_MODAL_MESSAGES = {
-  ADD_PARTICIPANT: {
-    title: "Unable to add participant",
-    description: "There is an error while adding participant to conversation",
-  },
-  CHANGE_CONVERSATION_NAME: {
-    title: "Unable to save Conversation name",
-    description:
-      "Only creators of the Conversation can edit the Conversation name.",
-  },
+	ADD_PARTICIPANT: {
+		title: "Unable to add participant",
+		description: "There is an error while adding participant to conversation",
+	},
+	CHANGE_CONVERSATION_NAME: {
+		title: "Unable to save Conversation name",
+		description:
+			"Only creators of the Conversation can edit the Conversation name.",
+	},
 };
 export const CONVERSATION_MESSAGES = {
-  CREATED: "Conversation created.",
-  NAME_CHANGED: "Conversation name changed.",
-  LEFT: "You left the conversation.",
-  MESSAGE_DELETED: "Message Deleted.",
-  MESSAGE_DELETE_FAILED: "Failed to delete message. Error: ",
-  MESSAGE_EDITED: "Message edited.",
-  MESSAGE_EDIT_FAILED: "Failed to edit message. Error: ",
+	CREATED: "Conversation created.",
+	NAME_CHANGED: "Conversation name changed.",
+	LEFT: "You left the conversation.",
+	MESSAGE_DELETED: "Message Deleted.",
+	MESSAGE_DELETE_FAILED: "Failed to delete message. Error: ",
+	MESSAGE_EDITED: "Message edited.",
+	MESSAGE_EDIT_FAILED: "Failed to edit message. Error: ",
 };
 
 export const PARTICIPANT_MESSAGES = {
-  ADDED: "Participant added.",
-  REMOVED: "Participant removed.",
+	ADDED: "Participant added.",
+	REMOVED: "Participant removed.",
 };
 
 export const USER_PROFILE_MESSAGES = {
-  FRIENDLY_NAME_UPDATED: "User profile friendly name updated.",
+	FRIENDLY_NAME_UPDATED: "User profile friendly name updated.",
 };
 
 export const CONVERSATION_PAGE_SIZE = 30;
 
 export const NOTIFICATION_LEVEL = {
-  DEFAULT: "default",
-  MUTED: "muted",
+	DEFAULT: "default",
+	MUTED: "muted",
 };
 
 export const MAX_MESSAGE_LINE_WIDTH = 75;
