@@ -248,6 +248,46 @@ Based on plan.md structure:
 
 ---
 
+## Phase 11.5: Production Hardening (From Phase 3 Checklist)
+
+**Purpose**: Address remaining gaps from Phase 3 requirements quality checklist for production readiness
+
+**Source**: `checklists/phase3-us1.md` - 14 remaining items identified during E2E testing (2025-12-02)
+
+### Webhook Security & Reliability
+
+- [ ] T102 [P] Implement webhook idempotency via twilioSid deduplication - prevent duplicate message processing (CHK016)
+- [ ] T103 [P] Add webhook rate limiting using token bucket algorithm - protect against flood attacks (CHK041)
+- [ ] T104 [P] Implement webhook replay attack prevention via timestamp validation - reject requests older than 5 minutes (CHK042)
+- [ ] T105 Handle SDK/webhook race condition - deduplicate events when both SDK and webhook update same message (CHK017)
+
+### Observability & Monitoring
+
+- [ ] T106 [P] Integrate AWS CloudWatch metrics for message latency tracking - measure webhook-to-UI delivery time (CHK081)
+- [ ] T107 [P] Implement correlation ID propagation from webhook to SDK events - trace requests across components (CHK082)
+- [ ] T108 Define detailed audit log schema (who, what, when, from where) for HIPAA compliance (CHK047)
+
+### Edge Case UI Enhancements
+
+- [ ] T109 [P] Create components/conversations/RetryButton.tsx for failed message retry UI (CHK050, CHK051)
+- [ ] T110 [P] Add opt-out send error UI - display clear error when trying to send to opted-out number (CHK054)
+- [ ] T111 Implement opt-in (START message) handling in webhook - detect and clear optedOut flag (CHK055)
+- [ ] T112 [P] Implement offline message queue using IndexedDB - queue messages when connection lost (CHK057)
+
+### Validation & Concurrency
+
+- [ ] T113 [P] Standardize phone validation error messages in lib/validation.ts (CHK026)
+- [ ] T114 Document concurrent coordinator policy - single coordinator per conversation enforcement (CHK059)
+- [ ] T115 [P] Add typing indicator component for concurrent access awareness (CHK060)
+
+### Push Notifications (Future)
+
+- [ ] T116 [P] Document push notification PHI truncation requirements for message previews (CHK038)
+
+**Checkpoint**: Production-ready hardening complete - all Phase 3 checklist gaps addressed
+
+---
+
 ## Phase 12: Deployment & Infrastructure
 
 **Purpose**: AWS Lambda deployment pipeline matching sleepconnect patterns
@@ -276,7 +316,7 @@ Phase 2 (Foundational) ───────────────────
                                                               │
      ┌────────────────────────────────────────────────────────┘
      │
-     ├── Phase 3 (US1: Send/Receive) ─────┐
+     ├── Phase 3 (US1: Send/Receive) ─────┐ ✅ COMPLETE
      │                                     │
      ├── Phase 4 (US2: New Conversation)──┼── Can run in parallel
      │                                     │   after Phase 2
@@ -299,6 +339,8 @@ Phase 2 (Foundational) ───────────────────
          [Full Feature after US7-8]
          
 Phase 11 (Polish) ─── Depends on all desired stories complete
+
+Phase 11.5 (Hardening) ─── Production readiness from Phase 3 checklist gaps
 
 Phase 12 (Deployment) ─── Can start after Phase 1; independent of feature phases
 ```
@@ -469,10 +511,10 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 
 | Metric | Value |
 |--------|-------|
-| **Total Tasks** | 104 |
+| **Total Tasks** | 119 |
 | **Phase 1 (Setup)** | 10 tasks (T001-T009a) |
 | **Phase 2 (Foundational)** | 9 tasks |
-| **Phase 3 (US1)** | 11 tasks (T019-T027a, includes T019a datetime utils, T027a opt-out handling) |
+| **Phase 3 (US1)** | 11 tasks (T019-T027a) ✅ **COMPLETE** (E2E verified 2025-12-02) |
 | **Phase 4 (US2)** | 5 tasks |
 | **Phase 5 (US3)** | 8 tasks |
 | **Phase 6 (US4)** | 8 tasks |
@@ -481,8 +523,9 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 | **Phase 9 (US7)** | 8 tasks |
 | **Phase 10 (US8)** | 7 tasks |
 | **Phase 11 (Polish)** | 14 tasks (T078-T088, T090-T092; T089 moved to T027a) |
+| **Phase 11.5 (Hardening)** | 15 tasks (T102-T116, from Phase 3 checklist gaps) |
 | **Phase 12 (Deployment)** | 10 tasks (T093-T101, includes T099a BAA gate) |
-| **Parallel Opportunities** | 36 tasks marked [P] |
+| **Parallel Opportunities** | 48 tasks marked [P] |
 | **MVP Scope** | T001-T040 (42 tasks with T019a, T027a) |
 | **Multi-Zone Integration** | T091 configures sleepconnect rewrites for /outreach |
 
@@ -491,7 +534,7 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 All tasks follow the required checklist format:
 
 - ✅ Checkbox prefix `- [ ]`
-- ✅ Task ID (T001-T101, with T009a, T027a, T099a additions)
+- ✅ Task ID (T001-T116, with T009a, T019a, T027a, T099a additions)
 - ✅ [P] marker for parallelizable tasks
 - ✅ [US#] label for user story phase tasks
 - ✅ Description with file paths
@@ -506,4 +549,4 @@ All tasks follow the required checklist format:
 - Auth0 integration patterns from `research.md` section 3
 - UI components use Flowbite React matching sleepconnect
 - **Prerequisites**: Twilio BAA must be verified before production launch (T099a gate, HIPAA compliance)
-- **Prerequisites**: Twilio BAA must be verified before production launch (HIPAA compliance)
+- **Phase 3 Checklist**: 91/105 items complete (87% PASS), 14 gaps addressed in Phase 11.5 (T102-T116)
