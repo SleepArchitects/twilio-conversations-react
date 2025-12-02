@@ -87,7 +87,7 @@ As a care coordinator, I want to use pre-built message templates with dynamic va
 
 1. **Given** a coordinator is composing a message, **When** they select a template from the library, **Then** the template content populates in the message input with variables highlighted (e.g., `{{firstName}}`)
 2. **Given** a template contains variables, **When** the coordinator attempts to send without replacing all variables, **Then** the system prompts to complete missing values
-3. **Given** a coordinator views templates, **When** they browse the template library, **Then** templates display organized by category (welcome, reminder, follow-up, education) with preview text
+3. **Given** a coordinator views templates, **When** they browse the template library, **Then** templates display organized by category (welcome, reminder, follow-up, education, general) with preview text
 
 ---
 
@@ -188,6 +188,7 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **FR-007**: System MUST prevent duplicate conversations for the same phone number within a coordinator's view
 - **FR-008**: System MUST display all messages in chronological order with timestamps
 - **FR-008a**: System MUST display message timestamps in the user's browser/local timezone
+- **FR-008b**: System MUST store all timestamps in UTC using PostgreSQL TIMESTAMPTZ type (per Constitution Principle VII)
 - **FR-009**: System MUST identify message sender (coordinator vs. patient) in the conversation view
 - **FR-010**: System MUST persist all conversation data via Lambda functions for durability
 - **FR-011**: System MUST support pagination/infinite scroll for conversations with many messages
@@ -200,7 +201,7 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 
 #### Templates
 
-- **FR-015**: System MUST provide a global shared template library accessible as read-only to all coordinators
+- **FR-015**: System MUST provide a global shared template library accessible as read-only to all coordinators (only administrators can create/edit global templates)
 - **FR-016**: System MUST allow coordinators to create private templates visible only to themselves
 - **FR-017**: System MUST allow creation of message templates with name, category, and content
 - **FR-018**: System MUST support dynamic variables in templates using `{{variableName}}` syntax
@@ -240,9 +241,9 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 
 ### Key Entities
 
-- **Conversation**: Represents an SMS thread with a patient; contains phone number, friendly name, creation date, last message preview, unread status, and SLA status
-- **Message**: Individual SMS within a conversation; contains body text, author (system/phone number), timestamp, delivery status, and sentiment analysis
-- **Template**: Reusable message pattern; contains name, category, content body, detected variables list, visibility scope (global or private), and owner coordinator ID (null for global)
+- **Conversation**: Represents an SMS thread with a patient; contains phone number, friendly name, created_on timestamp, last message preview, unread status, and SLA status
+- **Message**: Individual SMS within a conversation; contains body text, author (system/phone number), created_on timestamp, delivery status, and sentiment analysis
+- **Template**: Reusable message pattern; contains name, category, content body, detected variables list, visibility scope (global or private), and owner coordinator ID (null for global; only administrators can create global templates)
 - **Coordinator**: Authenticated user who manages conversations; inherits identity from SleepConnect
 - **Analytics Event**: Logged metrics for reporting; includes response times, delivery status changes, and engagement actions
 

@@ -29,8 +29,8 @@ Next.js multi-zones allow multiple Next.js applications to be served from the sa
 ```javascript
 // twilio-conversations-react/next.config.js
 module.exports = {
-  basePath: '/sms',
-  assetPrefix: '/sms/',
+  basePath: '/outreach',
+  assetPrefix: '/outreach-static/',
   // ... other config
 }
 
@@ -40,8 +40,8 @@ module.exports = {
     return {
       beforeFiles: [
         {
-          source: '/sms/:path*',
-          destination: 'https://sms-zone.example.com/sms/:path*',
+          source: '/outreach/:path*',
+          destination: 'https://outreach-zone.example.com/outreach/:path*',
         },
       ],
     };
@@ -59,7 +59,7 @@ We could also integrate directly within sleepconnect as a new route group.
 
 ### Decision
 
-**Use Next.js Multi-Zones with `basePath: '/sms'`**
+**Use Next.js Multi-Zones with `basePath: '/outreach'`**
 
 **Rationale**:
 
@@ -477,7 +477,7 @@ export function useSlaMonitor(conversation: Conversation) {
 
 | Topic | Decision | Key Rationale |
 |-------|----------|---------------|
-| Integration | Next.js Multi-Zones with `basePath: '/sms'` | Maintain separation, spec requirement |
+| Integration | Next.js Multi-Zones with `basePath: '/outreach'` | Maintain separation, spec requirement |
 | Visual Language | Copy sleepconnect's Tailwind config + UI components | Consistent UX, reduced development time |
 | Authentication | Shared Auth0 cookies across zones | Seamless user experience |
 | Twilio SDK | Extend existing patterns with token refresh | Proven implementation, minimal changes |
