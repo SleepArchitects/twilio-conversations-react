@@ -1,0 +1,1462 @@
+openapi: 3.1.0
+info:
+  title: SMS Outreach Integration API
+  description: |
+    API for SMS patient outreach and conversation management.
+    Enables care coordinators to manage SMS conversations with patients,
+    use message templates, track SLA compliance, and view engagement analytics.
+    
+    **Authentication**: All endpoints require Auth0 Bearer token.
+    **HIPAA Compliance**: All PHI is encrypted at rest; audit logging enabled.
+    **Rate Limits**: 100 requests/minute per coordinator.
+  version: 1.0.0
+  contact:
+    name: Sleep Architects Development
+    email: dev@sleeprchitects.com
+  license:
+    name: Proprietary
+    identifier: UNLICENSED
+
+servers:
+  - url: https://dreamconnect.health/sms/api
+    description: Production
+  - url: https://dev.dreamconnect.health/sms/api
+    description: Development
+  - url: http://localhost:3000/api
+    description: Local development
+
+tags:
+  - name: Conversations
+    description: SMS conversation management
+  - name: Messages
+    description: Individual message operations
+  - name: Templates
+    description: Reusable message templates
+  - name: Analytics
+    description: Engagement metrics and reporting
+  - name: Token
+    description: Twilio access token generation
+
+paths:
+  # ============================================================================
+  # CONVERSATIONS
+  # ============================================================================
+  /outreach/conversations:
+    get:
+      operationId: listConversations
+      summary: List conversations for coordinator
+      description: |
+        Returns paginated list of conversations for the authenticated coordinator.
+        Results are ordered by last message timestamp (most recent first).
+      tags: [Conversations]
+      security:
+        - auth0: [read:conversations]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ConversationStatus'
+          description: Filter by conversation status
+        - name: slaStatus
+          in: query
+          schema:
+            $ref: '#/components/schemas/SlaStatus'
+          description: Filter by SLA status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Number of results per page
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Offset for pagination
+      responses:
+        '200':
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, pagination]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConversationSummary'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      operationId: createConversation
+      summary: Create a new conversation
+      description: |
+        Initiates a new SMS conversation with a patient.
+        Creates records in both Twilio and the PostgreSQL database.
+      tags: [Conversations]
+      security:
+        - auth0: [write:conversations]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+      responses:
+        '201':
+          description: Conversation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Active conversation already exists for this patient
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /outreach/conversations/{conversationId}:
+    get:
+      operationId: getConversation
+      summary: Get conversation details
+      description: Returns full details of a specific conversation.
+      tags: [Conversations]
+      security:
+        - auth0: [read:conversations]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      operationId: updateConversation
+      summary: Update conversation
+      description: Updates conversation status or metadata.
+      tags: [Conversations]
+      security:
+        - auth0: [write:conversations]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConversationRequest'
+      responses:
+        '200':
+          description: Conversation updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      operationId: archiveConversation
+      summary: Archive conversation
+      description: |
+        Soft-deletes a conversation (sets active=false).
+        Archived conversations are retained for compliance.
+      tags: [Conversations]
+      security:
+        - auth0: [write:conversations]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          description: Conversation archived
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversationId:
+                    type: string
+                    format: uuid
+                  archivedOn:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /outreach/conversations/{conversationId}/read:
+    post:
+      operationId: markConversationRead
+      summary: Mark conversation as read
+      description: Resets unread count to zero for the conversation.
+      tags: [Conversations]
+      security:
+        - auth0: [write:conversations]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          description: Conversation marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversationId:
+                    type: string
+                    format: uuid
+                  unreadCount:
+                    type: integer
+                    example: 0
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ============================================================================
+  # MESSAGES
+  # ============================================================================
+  /outreach/conversations/{conversationId}/messages:
+    get:
+      operationId: listMessages
+      summary: List messages in conversation
+      description: |
+        Returns paginated messages for a conversation.
+        Messages are ordered chronologically (oldest first by default).
+      tags: [Messages]
+      security:
+        - auth0: [read:conversations]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - $ref: '#/components/parameters/ConversationId'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+          description: Sort order by created_on
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, pagination]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      operationId: sendMessage
+      summary: Send a message
+      description: |
+        Sends a new message in the conversation.
+        Message is sent via Twilio and stored in PostgreSQL.
+        Triggers SLA tracking if responding to inbound message.
+      tags: [Messages]
+      security:
+        - auth0: [write:conversations]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /outreach/messages/{messageId}:
+    get:
+      operationId: getMessage
+      summary: Get message details
+      description: Returns full details of a specific message including sentiment.
+      tags: [Messages]
+      security:
+        - auth0: [read:conversations]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/MessageId'
+      responses:
+        '200':
+          description: Message details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ============================================================================
+  # TWILIO WEBHOOK
+  # ============================================================================
+  /outreach/webhook:
+    post:
+      operationId: twilioWebhook
+      summary: Twilio webhook handler
+      description: |
+        Receives webhook events from Twilio for:
+        - Inbound messages
+        - Message status updates (sent, delivered, read, failed)
+        
+        **Note**: This endpoint is called by Twilio, not by client applications.
+        Validated using Twilio request signature.
+      tags: [Messages]
+      security: []  # Twilio signature validation instead
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                MessageSid:
+                  type: string
+                ConversationSid:
+                  type: string
+                Body:
+                  type: string
+                Author:
+                  type: string
+                EventType:
+                  type: string
+                  enum: [onMessageAdded, onMessageUpdated]
+      responses:
+        '200':
+          description: Webhook processed
+        '401':
+          description: Invalid Twilio signature
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ============================================================================
+  # TEMPLATES
+  # ============================================================================
+  /outreach/templates:
+    get:
+      operationId: listTemplates
+      summary: List message templates
+      description: |
+        Returns available templates for the coordinator.
+        Includes global templates and coordinator-specific templates.
+      tags: [Templates]
+      security:
+        - auth0: [read:templates]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/TemplateCategory'
+          description: Filter by category
+        - name: includeGlobal
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Include tenant-wide global templates
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Template'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      operationId: createTemplate
+      summary: Create a message template
+      description: Creates a new reusable message template.
+      tags: [Templates]
+      security:
+        - auth0: [write:templates]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateRequest'
+      responses:
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Template with same name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /outreach/templates/{templateId}:
+    get:
+      operationId: getTemplate
+      summary: Get template details
+      description: Returns full template details including variable definitions.
+      tags: [Templates]
+      security:
+        - auth0: [read:templates]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/TemplateId'
+      responses:
+        '200':
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      operationId: updateTemplate
+      summary: Update template
+      description: Updates template content or metadata.
+      tags: [Templates]
+      security:
+        - auth0: [write:templates]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/TemplateId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTemplateRequest'
+      responses:
+        '200':
+          description: Template updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      operationId: archiveTemplate
+      summary: Archive template
+      description: Soft-deletes a template (sets active=false).
+      tags: [Templates]
+      security:
+        - auth0: [write:templates]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/TemplateId'
+      responses:
+        '200':
+          description: Template archived
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templateId:
+                    type: string
+                    format: uuid
+                  archivedOn:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /outreach/templates/{templateId}/render:
+    post:
+      operationId: renderTemplate
+      summary: Render template with variables
+      description: |
+        Renders template content with provided variable values.
+        Returns the final message text ready to send.
+      tags: [Templates]
+      security:
+        - auth0: [read:templates]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/TemplateId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                variables:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  example:
+                    patientName: "John Smith"
+                    appointmentDate: "December 15, 2025"
+      responses:
+        '200':
+          description: Rendered template
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  renderedContent:
+                    type: string
+                    example: "Hi John Smith, your appointment is scheduled for December 15, 2025."
+                  characterCount:
+                    type: integer
+                    example: 72
+                  segmentCount:
+                    type: integer
+                    example: 1
+        '400':
+          description: Missing required variables
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ============================================================================
+  # ANALYTICS
+  # ============================================================================
+  /outreach/analytics:
+    get:
+      operationId: getAnalytics
+      summary: Get engagement analytics
+      description: |
+        Returns aggregated analytics for the specified date range.
+        Includes message volume, response times, SLA compliance, and sentiment.
+      tags: [Analytics]
+      security:
+        - auth0: [read:analytics]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Start date (inclusive)
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: End date (inclusive)
+        - name: coordinatorSaxId
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Filter by specific coordinator (admin only)
+      responses:
+        '200':
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /outreach/analytics/daily:
+    get:
+      operationId: getDailyAnalytics
+      summary: Get daily analytics snapshots
+      description: |
+        Returns daily analytics snapshots for charting.
+        Each snapshot contains metrics for a single day.
+      tags: [Analytics]
+      security:
+        - auth0: [read:analytics]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Daily snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DailyAnalytics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /outreach/analytics/sla:
+    get:
+      operationId: getSlaMetrics
+      summary: Get SLA compliance metrics
+      description: |
+        Returns detailed SLA compliance metrics including
+        response time distribution and breach analysis.
+      tags: [Analytics]
+      security:
+        - auth0: [read:analytics]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: SLA metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaMetrics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ============================================================================
+  # TOKEN
+  # ============================================================================
+  /outreach/token:
+    post:
+      operationId: generateToken
+      summary: Generate Twilio access token
+      description: |
+        Generates a short-lived Twilio access token for the client SDK.
+        Token grants access to the coordinator's conversations.
+        
+        **Token TTL**: 1 hour (3600 seconds)
+      tags: [Token]
+      security:
+        - auth0: [read:conversations]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/PracticeId'
+      responses:
+        '200':
+          description: Access token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, identity, expiresAt]
+                properties:
+                  token:
+                    type: string
+                    description: Twilio access token (JWT)
+                  identity:
+                    type: string
+                    description: Coordinator identity (sax_id)
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    description: Token expiration timestamp
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+# ==============================================================================
+# COMPONENTS
+# ==============================================================================
+components:
+  securitySchemes:
+    auth0:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://sleeprchitects.us.auth0.com/authorize
+          tokenUrl: https://sleeprchitects.us.auth0.com/oauth/token
+          scopes:
+            read:conversations: Read conversations and messages
+            write:conversations: Create/update conversations and messages
+            read:templates: Read message templates
+            write:templates: Create/update message templates
+            read:analytics: Read analytics data
+
+  parameters:
+    TenantId:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Tenant UUID from Auth0 token claims
+
+    PracticeId:
+      name: X-Practice-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Practice UUID from Auth0 token claims
+
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Conversation UUID
+
+    MessageId:
+      name: messageId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Message UUID
+
+    TemplateId:
+      name: templateId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Template UUID
+
+  schemas:
+    # --------------------------------------------------------------------------
+    # Enums
+    # --------------------------------------------------------------------------
+    ConversationStatus:
+      type: string
+      enum: [active, archived]
+
+    SlaStatus:
+      type: string
+      enum: [ok, warning, breached]
+
+    MessageDirection:
+      type: string
+      enum: [inbound, outbound]
+
+    MessageStatus:
+      type: string
+      enum: [sending, sent, delivered, read, failed]
+
+    SentimentLabel:
+      type: string
+      enum: [positive, neutral, negative]
+
+    TemplateCategory:
+      type: string
+      enum: [welcome, reminder, follow-up, education, general]
+
+    # --------------------------------------------------------------------------
+    # Core Entities
+    # --------------------------------------------------------------------------
+    Conversation:
+      type: object
+      required:
+        - id
+        - tenantId
+        - practiceId
+        - coordinatorSaxId
+        - patientPhone
+        - status
+        - slaStatus
+        - unreadCount
+        - createdOn
+        - active
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        practiceId:
+          type: string
+          format: uuid
+        coordinatorSaxId:
+          type: integer
+          format: int64
+        patientPhone:
+          type: string
+          pattern: '^\+1[0-9]{10}$'
+          example: '+15551234567'
+        patientSaxId:
+          type: integer
+          format: int64
+          nullable: true
+        patientName:
+          type: string
+          nullable: true
+        twilioConversationSid:
+          type: string
+          maxLength: 64
+        status:
+          $ref: '#/components/schemas/ConversationStatus'
+        slaStatus:
+          $ref: '#/components/schemas/SlaStatus'
+        lastMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+        unreadCount:
+          type: integer
+          minimum: 0
+        metadata:
+          type: object
+          additionalProperties: true
+        createdOn:
+          type: string
+          format: date-time
+        updatedOn:
+          type: string
+          format: date-time
+        active:
+          type: boolean
+
+    ConversationSummary:
+      type: object
+      required:
+        - id
+        - patientPhone
+        - status
+        - slaStatus
+        - unreadCount
+      properties:
+        id:
+          type: string
+          format: uuid
+        patientPhone:
+          type: string
+        patientName:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ConversationStatus'
+        slaStatus:
+          $ref: '#/components/schemas/SlaStatus'
+        lastMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastMessagePreview:
+          type: string
+          maxLength: 100
+          nullable: true
+        unreadCount:
+          type: integer
+          minimum: 0
+
+    Message:
+      type: object
+      required:
+        - id
+        - conversationId
+        - tenantId
+        - direction
+        - body
+        - status
+        - createdOn
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversationId:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        twilioMessageSid:
+          type: string
+          maxLength: 64
+        direction:
+          $ref: '#/components/schemas/MessageDirection'
+        body:
+          type: string
+          minLength: 1
+        fromPhone:
+          type: string
+        toPhone:
+          type: string
+        senderSaxId:
+          type: integer
+          format: int64
+          nullable: true
+        status:
+          $ref: '#/components/schemas/MessageStatus'
+        sentimentScore:
+          type: number
+          format: float
+          minimum: -1
+          maximum: 1
+          nullable: true
+        sentimentLabel:
+          $ref: '#/components/schemas/SentimentLabel'
+        mediaUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          nullable: true
+        createdOn:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+          nullable: true
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    Template:
+      type: object
+      required:
+        - id
+        - tenantId
+        - name
+        - body
+        - category
+        - usageCount
+        - createdOn
+        - active
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        practiceId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          maxLength: 100
+        body:
+          type: string
+        category:
+          $ref: '#/components/schemas/TemplateCategory'
+        variables:
+          type: array
+          items:
+            type: string
+          description: List of variable names (e.g., ["patientName", "appointmentDate"])
+        isGlobal:
+          type: boolean
+          description: True if template is available tenant-wide
+        usageCount:
+          type: integer
+          minimum: 0
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdOn:
+          type: string
+          format: date-time
+        updatedOn:
+          type: string
+          format: date-time
+        active:
+          type: boolean
+
+    # --------------------------------------------------------------------------
+    # Request Bodies
+    # --------------------------------------------------------------------------
+    CreateConversationRequest:
+      type: object
+      required:
+        - patientPhone
+      properties:
+        patientPhone:
+          type: string
+          pattern: '^\+1[0-9]{10}$'
+          example: '+15551234567'
+        patientSaxId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Link to existing patient record
+        patientName:
+          type: string
+          maxLength: 255
+          nullable: true
+        initialMessage:
+          type: string
+          description: Optional first message to send
+        templateId:
+          type: string
+          format: uuid
+          description: Use template for initial message
+        templateVariables:
+          type: object
+          additionalProperties:
+            type: string
+          description: Variables for template rendering
+        metadata:
+          type: object
+          additionalProperties: true
+
+    UpdateConversationRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/ConversationStatus'
+        patientName:
+          type: string
+          maxLength: 255
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SendMessageRequest:
+      type: object
+      required:
+        - body
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1600
+          description: Message content (max 1600 chars for multi-segment)
+        templateId:
+          type: string
+          format: uuid
+          description: Track template usage
+        mediaUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          maxItems: 10
+          description: MMS media URLs
+
+    CreateTemplateRequest:
+      type: object
+      required:
+        - name
+        - body
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        body:
+          type: string
+          minLength: 1
+        category:
+          $ref: '#/components/schemas/TemplateCategory'
+        variables:
+          type: array
+          items:
+            type: string
+          description: Variable names used in template
+        isGlobal:
+          type: boolean
+          default: false
+          description: Make template available tenant-wide (admin only)
+
+    UpdateTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        body:
+          type: string
+        category:
+          $ref: '#/components/schemas/TemplateCategory'
+        variables:
+          type: array
+          items:
+            type: string
+
+    # --------------------------------------------------------------------------
+    # Analytics
+    # --------------------------------------------------------------------------
+    AnalyticsResponse:
+      type: object
+      required:
+        - period
+        - summary
+      properties:
+        period:
+          type: object
+          properties:
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+        summary:
+          type: object
+          properties:
+            totalConversations:
+              type: integer
+            totalMessages:
+              type: integer
+            inboundMessages:
+              type: integer
+            outboundMessages:
+              type: integer
+            avgResponseTimeSeconds:
+              type: integer
+            slaComplianceRate:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 100
+            deliveryRate:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 100
+        sentiment:
+          type: object
+          properties:
+            positive:
+              type: integer
+            neutral:
+              type: integer
+            negative:
+              type: integer
+        hourlyVolume:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Message count by hour (0-23)
+
+    DailyAnalytics:
+      type: object
+      required:
+        - date
+      properties:
+        date:
+          type: string
+          format: date
+        totalConversations:
+          type: integer
+        totalMessages:
+          type: integer
+        inboundMessages:
+          type: integer
+        outboundMessages:
+          type: integer
+        avgResponseTimeSeconds:
+          type: integer
+          nullable: true
+        slaComplianceRate:
+          type: number
+          format: float
+          nullable: true
+        sentimentDistribution:
+          type: object
+          properties:
+            positive:
+              type: integer
+            neutral:
+              type: integer
+            negative:
+              type: integer
+
+    SlaMetrics:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+        overallComplianceRate:
+          type: number
+          format: float
+        totalResponses:
+          type: integer
+        breachedCount:
+          type: integer
+        avgResponseTimeSeconds:
+          type: integer
+        responseTimeDistribution:
+          type: object
+          description: Count of responses by time bucket
+          properties:
+            under2min:
+              type: integer
+            under5min:
+              type: integer
+            under10min:
+              type: integer
+            over10min:
+              type: integer
+
+    # --------------------------------------------------------------------------
+    # Common
+    # --------------------------------------------------------------------------
+    Pagination:
+      type: object
+      required:
+        - total
+        - limit
+        - offset
+        - hasMore
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        offset:
+          type: integer
+          minimum: 0
+        hasMore:
+          type: boolean
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Invalid phone number format
+        details:
+          type: object
+          additionalProperties: true
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Invalid phone number format
+            details:
+              field: patientPhone
+              expected: '+1XXXXXXXXXX'
+
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Missing or invalid Bearer token
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: FORBIDDEN
+            message: You do not have access to this resource
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: Conversation not found
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: INTERNAL_ERROR
+            message: An unexpected error occurred
