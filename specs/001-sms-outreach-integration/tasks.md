@@ -29,8 +29,8 @@ Based on plan.md structure:
 
 **Purpose**: Project initialization and Next.js App Router conversion
 
-- [ ] T001 Create Next.js App Router project structure with `app/`, `components/`, `hooks/`, `lib/`, `types/` directories
-- [ ] T002 Initialize package.json with Next.js 14, TypeScript 5.x, and core dependencies per plan.md
+- [X] T001 Create Next.js App Router project structure with `app/`, `components/`, `hooks/`, `lib/`, `types/` directories
+- [X] T002 Initialize package.json with Next.js 14, TypeScript 5.x, and core dependencies per plan.md
 - [ ] T003 [P] Configure next.config.js with basePath '/outreach', assetPrefix '/outreach-static', and security headers for multi-zone integration per <https://nextjs.org/docs/pages/guides/multi-zones>
 - [ ] T004 [P] Copy tailwind.config.ts from sleepconnect and update content paths
 - [ ] T005 [P] Copy lib/utils.ts (cn helper) from sleepconnect
