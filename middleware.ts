@@ -13,15 +13,15 @@ import type { NextRequest, NextFetchEvent } from "next/server";
 
 // Public paths that don't require authentication
 const PUBLIC_PATHS = [
-  "/api/auth", // Auth0 routes
-  "/api/outreach/webhook", // Twilio webhook callbacks
+	"/api/auth", // Auth0 routes
+	"/api/outreach/webhook", // Twilio webhook callbacks
 ];
 
 /**
  * Check if the request path is public (doesn't require authentication)
  */
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+	return PUBLIC_PATHS.some((path) => pathname.startsWith(path));
 }
 
 /**
@@ -29,18 +29,18 @@ function isPublicPath(pathname: string): boolean {
  * Allows public access to specific paths while protecting everything else
  */
 export default async function middleware(
-  request: NextRequest,
-  event: NextFetchEvent,
+	request: NextRequest,
+	event: NextFetchEvent,
 ) {
-  const { pathname } = request.nextUrl;
+	const { pathname } = request.nextUrl;
 
-  // Allow public paths without authentication
-  if (isPublicPath(pathname)) {
-    return NextResponse.next();
-  }
+	// Allow public paths without authentication
+	if (isPublicPath(pathname)) {
+		return NextResponse.next();
+	}
 
-  // Apply Auth0 authentication for all other routes
-  return withMiddlewareAuthRequired()(request, event);
+	// Apply Auth0 authentication for all other routes
+	return withMiddlewareAuthRequired()(request, event);
 }
 
 /**
@@ -53,13 +53,13 @@ export default async function middleware(
  * - Public assets in /public folder
  */
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
-     */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+	matcher: [
+		/*
+		 * Match all request paths except for the ones starting with:
+		 * - _next/static (static files)
+		 * - _next/image (image optimization files)
+		 * - favicon.ico, sitemap.xml, robots.txt (metadata files)
+		 */
+		"/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+	],
 };

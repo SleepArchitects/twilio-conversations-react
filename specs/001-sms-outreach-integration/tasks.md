@@ -70,17 +70,17 @@ Based on plan.md structure:
 
 ### Implementation for User Story 1
 
-- [ ] T019 [P] [US1] Create components/conversations/MessageBubble.tsx with sender identification, timestamp, and delivery status indicator
-- [ ] T019a [P] [US1] Implement lib/datetime.ts with UTC-to-local timezone conversion utilities using Intl.DateTimeFormat (FR-008a, FR-008b, Constitution VII)
-- [ ] T020 [P] [US1] Create components/conversations/MessageComposer.tsx with textarea, character count, segment display, and send button
-- [ ] T021 [US1] Implement app/api/outreach/conversations/[conversationId]/messages/route.ts (GET list, POST send) per sms-api.yaml
-- [ ] T022 [US1] Implement app/api/outreach/webhook/route.ts for Twilio inbound messages and status callbacks
-- [ ] T023 [US1] Implement hooks/useMessages.ts for message state management with real-time Twilio SDK updates
-- [ ] T024 [US1] Create components/conversations/ConversationDetail.tsx with message list, auto-scroll, and composer integration
-- [ ] T025 [US1] Implement message delivery status updates (sending → sent → delivered → read → failed) via Twilio webhooks
-- [ ] T026 [US1] Add US phone number validation (+1 format) in lib/validation.ts
-- [ ] T027 [US1] Handle SMS character limits and segment counting in MessageComposer (160 char segments)
-- [ ] T027a [US1] Handle patient opt-out (STOP message) in webhook - mark conversation opted-out, prevent outbound (FR-004a) - HIPAA compliance critical
+- [X] T019 [P] [US1] Create components/conversations/MessageBubble.tsx with sender identification, timestamp, and delivery status indicator
+- [X] T019a [P] [US1] Implement lib/datetime.ts with UTC-to-local timezone conversion utilities using Intl.DateTimeFormat (FR-008a, FR-008b, Constitution VII)
+- [X] T020 [P] [US1] Create components/conversations/MessageComposer.tsx with textarea, character count, segment display, and send button
+- [X] T021 [US1] Implement app/api/outreach/conversations/[conversationId]/messages/route.ts (GET list, POST send) per sms-api.yaml
+- [X] T022 [US1] Implement app/api/outreach/webhook/route.ts for Twilio inbound messages and status callbacks
+- [X] T023 [US1] Implement hooks/useMessages.ts for message state management with real-time Twilio SDK updates
+- [X] T024 [US1] Create components/conversations/ConversationDetail.tsx with message list, auto-scroll, and composer integration
+- [X] T025 [US1] Implement message delivery status updates (sending → sent → delivered → read → failed) via Twilio webhooks
+- [X] T026 [US1] Add US phone number validation (+1 format) in lib/validation.ts
+- [X] T027 [US1] Handle SMS character limits and segment counting in MessageComposer (160 char segments)
+- [X] T027a [US1] Handle patient opt-out (STOP message) in webhook - mark conversation opted-out, prevent outbound (FR-004a) - HIPAA compliance critical
 
 **Checkpoint**: Coordinators can send SMS messages and receive patient replies in real-time
 
