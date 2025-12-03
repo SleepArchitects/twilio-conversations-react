@@ -299,7 +299,7 @@ Based on plan.md structure:
 - [ ] T097 [P] Create `.github/workflows/deploy-production.yml` with production config and 5-second confirmation delay
 - [ ] T098 Add Outreach zone environment variables to sleepconnect GitHub workflow secrets: OUTREACH_ZONE_URL (Lambda function URL per environment)
 - [ ] T099 Request AWS resources: Lambda functions, S3 buckets, CloudFront distributions for develop/staging/production
-- [ ] T099a **GATE** Verify Twilio Business Associate Agreement (BAA) is in place before production deployment (FR-038, HIPAA compliance)
+- [N/A] T099a ~~**GATE** Verify Twilio Business Associate Agreement (BAA) is in place before production deployment (FR-038, HIPAA compliance)~~ *External responsibility - not managed by this project*
 - [ ] T100 Configure Twilio webhook URLs to point to deployed Lambda function URLs per environment
 - [ ] T101 [P] Integrate AWS CloudWatch RUM by copying `providers/RumProvider.tsx` and `utils/rum-user-context.ts` patterns from sleepconnect (low priority, staging/production only)
 
@@ -511,7 +511,7 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 
 | Metric | Value |
 |--------|-------|
-| **Total Tasks** | 119 |
+| **Total Tasks** | 116 (T001-T116, excluding T089 which was merged into T027a) |
 | **Phase 1 (Setup)** | 10 tasks (T001-T009a) |
 | **Phase 2 (Foundational)** | 9 tasks |
 | **Phase 3 (US1)** | 11 tasks (T019-T027a) ✅ **COMPLETE** (E2E verified 2025-12-02) |
@@ -544,9 +544,9 @@ All tasks follow the required checklist format:
 ## Notes
 
 - All API routes follow OpenAPI spec in `contracts/sms-api.yaml`
-- Database functions referenced (e.g., `insert_sms_*`, `get_sms_*`, `update_sms_*`) are PostgreSQL stored procedures defined in the database schema, executed via sleepconnect's Lambda API layer - see T009a for full list
+- Database functions referenced (e.g., `insert_sms_*`, `get_sms_*`, `update_sms_*`) are PostgreSQL stored procedures defined in the database schema, executed via SAX Backend API (`/home/dan/code/SAX/sax-backend`) - see T009a for full list and `sleepconnect/specs/sms-outreach-database-integration.md` for implementation tasks
 - Twilio SDK patterns from `research.md` section 4
 - Auth0 integration patterns from `research.md` section 3
 - UI components use Flowbite React matching sleepconnect
-- **Prerequisites**: Twilio BAA must be verified before production launch (T099a gate, HIPAA compliance)
+- **Prerequisites**: Twilio BAA verification is an external responsibility (T099a marked N/A)
 - **Phase 3 Checklist**: 91/105 items complete (87% PASS), 14 gaps addressed in Phase 11.5 (T102-T116)
