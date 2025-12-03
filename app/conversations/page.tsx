@@ -37,6 +37,10 @@ export default function ConversationsPage(): React.ReactElement {
     string | undefined
   >();
 
+  // Search query state (setSearchQuery will be used when search UI is implemented)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [searchQuery, setSearchQuery] = React.useState<string>("");
+
   // ==========================================================================
   // Handlers
   // ==========================================================================
@@ -58,10 +62,10 @@ export default function ConversationsPage(): React.ReactElement {
   }, []);
 
   const handleNewConversationSuccess = React.useCallback(
-    (conversation: Conversation) => {
+    (conversationId: string) => {
       setIsNewConversationOpen(false);
       // Navigate to the new conversation
-      router.push(`/conversations/${conversation.id}`);
+      router.push(`/conversations/${conversationId}`);
     },
     [router],
   );
@@ -184,7 +188,7 @@ export default function ConversationsPage(): React.ReactElement {
       <NewConversationModal
         isOpen={isNewConversationOpen}
         onClose={handleNewConversationClose}
-        onSuccess={handleNewConversationSuccess}
+        onConversationCreated={handleNewConversationSuccess}
         onExistingConversation={handleExistingConversation}
       />
     </div>

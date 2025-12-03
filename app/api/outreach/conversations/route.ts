@@ -245,30 +245,53 @@ function isMockMode(): boolean {
  * Mock conversations data for local development
  */
 function getMockConversations(): Conversation[] {
+  const now = new Date().toISOString();
+  const yesterday = new Date(Date.now() - 86400000).toISOString();
+  const twoDaysAgo = new Date(Date.now() - 172800000).toISOString();
+  const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+
   return [
     {
       id: "mock-conv-1",
+      twilioSid: "CH00000000000000000000000000000001",
+      tenantId: "dev-tenant",
+      practiceId: "dev-practice",
+      coordinatorSaxId: 1,
       patientPhone: "+15551234567",
       friendlyName: "John Doe (Test Practice)",
       status: "active" as ConversationStatus,
       slaStatus: "ok" as SlaStatus,
       unreadCount: 2,
-      lastMessageAt: new Date().toISOString(),
+      lastMessageAt: now,
       lastMessagePreview: "This is a test message",
-      createdAt: new Date(Date.now() - 86400000).toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdOn: yesterday,
+      createdBy: 1,
+      updatedOn: now,
+      updatedBy: 1,
+      archivedOn: null,
+      archivedBy: null,
+      active: true,
     },
     {
       id: "mock-conv-2",
+      twilioSid: "CH00000000000000000000000000000002",
+      tenantId: "dev-tenant",
+      practiceId: "dev-practice",
+      coordinatorSaxId: 1,
       patientPhone: "+15559876543",
       friendlyName: "Jane Smith (Test Practice)",
       status: "active" as ConversationStatus,
       slaStatus: "warning" as SlaStatus,
       unreadCount: 0,
-      lastMessageAt: new Date(Date.now() - 3600000).toISOString(),
+      lastMessageAt: oneHourAgo,
       lastMessagePreview: "Thanks for the reminder!",
-      createdAt: new Date(Date.now() - 172800000).toISOString(),
-      updatedAt: new Date(Date.now() - 3600000).toISOString(),
+      createdOn: twoDaysAgo,
+      createdBy: 1,
+      updatedOn: oneHourAgo,
+      updatedBy: 1,
+      archivedOn: null,
+      archivedBy: null,
+      active: true,
     },
   ];
 }
@@ -469,6 +492,42 @@ async function handlePost(
         "initialMessage cannot be empty if provided",
         400,
       );
+    }
+
+    // Mock mode for local development without Lambda backend
+    if (isMockMode()) {
+      console.log("[MOCK] Creating mock conversation");
+      const mockId = `mock-conv-${Date.now()}`;
+      const now = new Date().toISOString();
+
+      // Sanitize patient name for friendly name
+      const friendlyName = body.patientName
+        ? sanitizeFriendlyName(body.patientName)
+        : body.patientPhone;
+
+      const mockConversation: Conversation = {
+        id: mockId,
+        twilioSid: `CH${mockId.replace(/-/g, "").slice(0, 32).padEnd(32, "0")}`,
+        tenantId: userContext.tenantId,
+        practiceId: userContext.practiceId,
+        coordinatorSaxId: userContext.saxId,
+        patientPhone: body.patientPhone,
+        friendlyName,
+        status: "active" as ConversationStatus,
+        slaStatus: "ok" as SlaStatus,
+        unreadCount: 0,
+        lastMessageAt: body.initialMessage ? now : null,
+        lastMessagePreview: body.initialMessage?.slice(0, 160) || null,
+        createdOn: now,
+        createdBy: userContext.saxId,
+        updatedOn: now,
+        updatedBy: userContext.saxId,
+        archivedOn: null,
+        archivedBy: null,
+        active: true,
+      };
+
+      return NextResponse.json(mockConversation, { status: 201 });
     }
 
     // Check for existing active conversation with this phone (duplicate detection)
