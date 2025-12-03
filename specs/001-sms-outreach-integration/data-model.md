@@ -38,6 +38,7 @@ erDiagram
         enum status
         enum sla_status
         int unread_count
+        boolean opted_out
         timestamp last_message_at
         string last_message_preview
         timestamp created_at
@@ -128,6 +129,7 @@ Represents an SMS thread between a coordinator and a patient.
 | `status` | ENUM | NOT NULL, default 'active' | 'active', 'archived' |
 | `sla_status` | ENUM | NOT NULL, default 'ok' | 'ok', 'warning', 'breached' |
 | `unread_count` | INTEGER | NOT NULL, default 0 | Number of unread patient messages |
+| `opted_out` | BOOLEAN | NOT NULL, default false | Patient opted out via STOP message (FR-004a) |
 | `last_message_at` | TIMESTAMPTZ | nullable | Timestamp of most recent message |
 | `last_message_preview` | VARCHAR(160) | nullable | Truncated last message body |
 | `created_on` | TIMESTAMPTZ | NOT NULL, default NOW() | Creation timestamp |

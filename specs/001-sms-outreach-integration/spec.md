@@ -178,7 +178,7 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **FR-001**: System MUST send SMS messages to patient phone numbers via Twilio API
 - **FR-002**: System MUST receive inbound SMS messages from patients in real-time (within 3 seconds of receipt)
 - **FR-003**: System MUST display message delivery status (sending, sent, delivered, read, failed)
-- **FR-004**: System MUST validate phone numbers are US format (+1 followed by 10 digits) before allowing message send
+- **FR-004**: System MUST validate phone numbers are US E.164 format (+1 followed by valid area code 2-9 and 9 digits, e.g., +12025551234) before allowing message send
 - **FR-004a**: System MUST detect patient opt-out (STOP message) and mark conversation as opted-out, preventing further outbound messages
 - **FR-005**: System MUST handle SMS character limits and display segment count for long messages
 
