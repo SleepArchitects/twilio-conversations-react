@@ -1,13 +1,23 @@
 /**
- * Phone number validation utilities for US phone numbers
- * Supports E.164 format (+1XXXXXXXXXX)
+ * Phone number validation utilities
+ * Supports E.164 format for international numbers
  */
 
 /** Regex for valid US phone number in E.164 format: +1 followed by area code (2-9) and 9 more digits */
 export const US_PHONE_REGEX = /^\+1[2-9]\d{9}$/;
 
+/** Regex for any valid E.164 international phone number: + followed by 7-15 digits */
+export const INTERNATIONAL_PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
+
 /** Regex for 10 digits only (no country code or formatting) */
 export const PHONE_DIGITS_ONLY_REGEX = /^\d{10}$/;
+
+/** Flag to allow all international phone numbers (dev mode) - uses NEXT_PUBLIC_ for client-side access */
+const ALLOW_ALL_PHONE_NUMBERS =
+  process.env.NEXT_PUBLIC_ALLOW_INTERNATIONAL_PHONES === "true" ||
+  process.env.ALLOW_INTERNATIONAL_PHONES === "true" ||
+  process.env.NEXT_PUBLIC_DISABLE_AUTH === "true" ||
+  process.env.DISABLE_AUTH === "true";
 
 /**
  * Validates if a phone number is a valid US phone number in E.164 format
@@ -22,11 +32,17 @@ export function isValidUSPhoneNumber(phone: string): boolean {
   if (!phone || typeof phone !== "string") {
     return false;
   }
+
+  // In dev mode, allow any valid international number
+  if (ALLOW_ALL_PHONE_NUMBERS) {
+    return INTERNATIONAL_PHONE_REGEX.test(phone.trim());
+  }
+
   return US_PHONE_REGEX.test(phone.trim());
 }
 
 /**
- * Formats a phone number to E.164 format (+1XXXXXXXXXX)
+ * Formats a phone number to E.164 format (+1XXXXXXXXXX for US, or keeps international format)
  * Handles various input formats and strips non-digit characters
  * @param phone - The phone number in any common format
  * @returns The phone number in E.164 format, or empty string if invalid
@@ -36,6 +52,7 @@ export function isValidUSPhoneNumber(phone: string): boolean {
  * formatPhoneNumber("(555) 123-4567")   // "+15551234567"
  * formatPhoneNumber("1-555-123-4567")   // "+15551234567"
  * formatPhoneNumber("+1 555 123 4567")  // "+15551234567"
+ * formatPhoneNumber("+52 55 1234 5678") // "+5255123456789" (Mexico)
  */
 export function formatPhoneNumber(phone: string): string {
   if (!phone || typeof phone !== "string") {
@@ -55,6 +72,11 @@ export function formatPhoneNumber(phone: string): string {
     return "";
   }
 
+  // If it already has + prefix, validate and return as international
+  if (hasPlus && digitsOnly.length >= 7 && digitsOnly.length <= 15) {
+    return `+${digitsOnly}`;
+  }
+
   // Handle different cases based on digit count
   if (digitsOnly.length === 10) {
     // 10 digits: assume US number without country code
@@ -62,12 +84,8 @@ export function formatPhoneNumber(phone: string): string {
   } else if (digitsOnly.length === 11 && digitsOnly.startsWith("1")) {
     // 11 digits starting with 1: US number with country code
     return `+${digitsOnly}`;
-  } else if (
-    hasPlus &&
-    digitsOnly.length === 11 &&
-    digitsOnly.startsWith("1")
-  ) {
-    // Already has + and correct format
+  } else if (digitsOnly.length >= 7 && digitsOnly.length <= 15) {
+    // Other lengths: could be international, return with +
     return `+${digitsOnly}`;
   }
 
@@ -121,7 +139,7 @@ export function formatDisplayPhoneNumber(phone: string): string {
  * @returns Error message string if invalid, null if valid
  * @example
  * getPhoneValidationError("")              // "Phone number is required"
- * getPhoneValidationError("+442012345678") // "US phone numbers only (+1 format)"
+ * getPhoneValidationError("+442012345678") // "US phone numbers only (+1 format)" (in prod)
  * getPhoneValidationError("+10125551234")  // "Invalid area code"
  * getPhoneValidationError("+12025551234")  // null
  */
@@ -135,9 +153,18 @@ export function getPhoneValidationError(phone: string): string | null {
 
   // Check if it's in E.164 format (starts with +)
   if (!trimmed.startsWith("+")) {
-    return "Invalid phone number format. Use +1 followed by 10 digits";
+    return "Invalid phone number format. Must start with + and country code";
   }
 
+  // In dev mode, allow any valid international number
+  if (ALLOW_ALL_PHONE_NUMBERS) {
+    if (INTERNATIONAL_PHONE_REGEX.test(trimmed)) {
+      return null; // Valid international number
+    }
+    return "Invalid phone number format. Use + followed by country code and number (7-15 digits)";
+  }
+
+  // Production mode: US numbers only
   // Check if it's a US number (+1)
   if (!trimmed.startsWith("+1")) {
     return "US phone numbers only (+1 format)";

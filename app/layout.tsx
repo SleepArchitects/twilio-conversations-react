@@ -11,11 +11,22 @@ export const metadata: Metadata = {
   description: "Patient SMS communication management",
 };
 
+// Check if auth is disabled (for development)
+const isAuthDisabled = process.env.NEXT_PUBLIC_DISABLE_AUTH === "true";
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // When auth is disabled, don't wrap with UserProvider to avoid /api/auth/me calls
+  const content = (
+    <>
+      {children}
+      <Toaster position="top-right" richColors closeButton theme="dark" />
+    </>
+  );
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
@@ -34,10 +45,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.className} bg-white dark:bg-gray-900`}>
-        <UserProvider>
-          {children}
-          <Toaster position="top-right" richColors closeButton theme="dark" />
-        </UserProvider>
+        {isAuthDisabled ? content : <UserProvider>{content}</UserProvider>}
       </body>
     </html>
   );

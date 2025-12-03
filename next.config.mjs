@@ -16,6 +16,20 @@ const nextConfig = {
 	typescript: {
 		ignoreBuildErrors: false,
 	},
+
+	// Webpack configuration to handle optional ws dependencies
+	webpack: (config, { isServer }) => {
+		// These are optional native modules used by the ws package (via Twilio)
+		// They provide performance optimizations but are not required
+		if (!isServer) {
+			config.resolve.fallback = {
+				...config.resolve.fallback,
+				bufferutil: false,
+				"utf-8-validate": false,
+			};
+		}
+		return config;
+	},
 };
 
 export default nextConfig;
