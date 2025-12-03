@@ -94,11 +94,11 @@ Based on plan.md structure:
 
 ### Implementation for User Story 2
 
-- [ ] T028 [P] [US2] Create components/conversations/NewConversationModal.tsx with phone input, name input, and validation
-- [ ] T029 [US2] Implement app/api/outreach/conversations/route.ts (GET list, POST create) per sms-api.yaml
-- [ ] T030 [US2] Add duplicate conversation detection - navigate to existing conversation if phone number already has active conversation
-- [ ] T031 [US2] Integrate NewConversationModal with ConversationList for triggering new conversation flow
-- [ ] T032 [US2] Create Twilio conversation on backend and sync with PostgreSQL via insert_sms_conversation function
+- [X] T028 [P] [US2] Create components/conversations/NewConversationModal.tsx with phone input, name input, and validation
+- [X] T029 [US2] Implement app/api/outreach/conversations/route.ts (GET list, POST create) per sms-api.yaml
+- [X] T030 [US2] Add duplicate conversation detection - navigate to existing conversation if phone number already has active conversation
+- [X] T031 [US2] Integrate NewConversationModal with ConversationList for triggering new conversation flow *(integration complete via ConversationList onNewConversation prop)*
+- [X] T032 [US2] Create Twilio conversation on backend and sync with PostgreSQL via insert_sms_conversation function *(delegated to Lambda API layer)*
 
 **Checkpoint**: Coordinators can start new conversations with patients
 
@@ -112,14 +112,14 @@ Based on plan.md structure:
 
 ### Implementation for User Story 3
 
-- [ ] T033 [P] [US3] Create components/conversations/ConversationList.tsx with conversation cards showing preview, unread count, last message time
-- [ ] T034 [P] [US3] Create components/conversations/ConversationListItem.tsx with patient name/phone, SLA indicator, unread badge
-- [ ] T035 [US3] Implement hooks/useConversations.ts for conversation list state with Twilio SDK real-time updates
-- [ ] T036 [US3] Create app/conversations/page.tsx as main conversation list view
-- [ ] T037 [US3] Create app/conversations/[id]/page.tsx for single conversation detail view
-- [ ] T038 [US3] Implement infinite scroll/pagination for conversations with many messages using get_sms_messages_for_conversation
-- [ ] T039 [US3] Add auto-scroll to latest message on new message arrival with visual indicator
-- [ ] T040 [US3] Implement mark as read functionality via mark_sms_conversation_read when conversation is viewed
+- [X] T033 [P] [US3] Create components/conversations/ConversationList.tsx with conversation cards showing preview, unread count, last message time
+- [X] T034 [P] [US3] Create components/conversations/ConversationListItem.tsx with patient name/phone, SLA indicator, unread badge
+- [X] T035 [US3] Implement hooks/useConversations.ts for conversation list state with Twilio SDK real-time updates
+- [X] T036 [US3] Create app/conversations/page.tsx as main conversation list view
+- [X] T037 [US3] Create app/conversations/[id]/page.tsx for single conversation detail view
+- [X] T038 [US3] Implement infinite scroll/pagination for conversations with many messages using get_sms_messages_for_conversation
+- [X] T039 [US3] Add auto-scroll to latest message on new message arrival with visual indicator
+- [X] T040 [US3] Implement mark as read functionality via mark_sms_conversation_read when conversation is viewed
 
 **Checkpoint**: All P1 user stories complete - MVP functional for basic messaging
 

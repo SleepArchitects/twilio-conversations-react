@@ -3,7 +3,13 @@
  * Typed fetch wrapper for calling backend APIs
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+// For server-side Lambda API calls, use the backend API URL
+// For client-side calls to local Next.js API routes, use the app base URL
+const API_BASE_URL =
+  process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+// Get the basePath from Next.js config (set at build time via NEXT_PUBLIC_BASE_PATH)
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 /**
  * Custom error class for API errors
@@ -44,7 +50,25 @@ function buildUrl(
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
 ): string {
-  const url = new URL(path, API_BASE_URL || window.location.origin);
+  // For relative paths to internal API routes (starting with /api/), prepend the basePath
+  // This is for client-side calls to Next.js API routes
+  // Don't apply to external API calls or paths that already have the basePath
+  let fullPath = path;
+  if (
+    typeof window !== "undefined" &&
+    path.startsWith("/api/") &&
+    !path.startsWith(BASE_PATH)
+  ) {
+    fullPath = `${BASE_PATH}${path}`;
+  }
+
+  const url = new URL(
+    fullPath,
+    API_BASE_URL ||
+      (typeof window !== "undefined"
+        ? window.location.origin
+        : "http://localhost:3001"),
+  );
 
   if (params) {
     Object.entries(params).forEach(([key, value]) => {

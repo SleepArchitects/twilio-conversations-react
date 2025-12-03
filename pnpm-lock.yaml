@@ -16,7 +16,10 @@ importers:
         version: 1.2.4(@types/react@18.3.27)(react@18.3.1)
       '@twilio/conversations':
         specifier: ^2.4.0
-        version: 2.6.5
+        version: 2.6.5(bufferutil@4.0.9)
+      bufferutil:
+        specifier: ^4.0.9
+        version: 4.0.9
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.1
@@ -50,6 +53,9 @@ importers:
       twilio:
         specifier: ^5.10.6
         version: 5.10.6
+      twilio-sync:
+        specifier: ^3.3.10
+        version: 3.3.10(bufferutil@4.0.9)
     devDependencies:
       '@commitlint/cli':
         specifier: ^18.4.4
@@ -110,7 +116,7 @@ importers:
         version: 29.7.0(@types/node@20.19.25)
       jest-environment-jsdom:
         specifier: ^29.7.0
-        version: 29.7.0
+        version: 29.7.0(bufferutil@4.0.9)
       postcss:
         specifier: ^8.4.33
         version: 8.5.6
@@ -1246,6 +1252,10 @@ packages:
 
   buffer-from@1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
+
+  bufferutil@4.0.9:
+    resolution: {integrity: sha512-WDtdLmJvAuNNPzByAYpRo2rF1Mmradw6gvWsQKf63476DDXmomT9zUiGypLcG4ibIM67vhAj8jJRdbmEws2Aqw==}
+    engines: {node: '>=6.14.2'}
 
   busboy@1.6.0:
     resolution: {integrity: sha512-8SFQbg/0hQ9xy3UNTB0YEnsNBbWfhf7RtnzpL7TkBiTBRfrQ9Fxcnz7VJsleJpyp6rVLvXiuORqjlHi5q+PYuA==}
@@ -2551,6 +2561,9 @@ packages:
     resolution: {integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==}
     engines: {node: '>=10'}
 
+  lodash-es@4.17.21:
+    resolution: {integrity: sha512-mKnC+QJ9pWVzv+C4/U3rRsHapFfHvQFoFB92e52xeyGMcX6/OlIl78je1u8vePzYZSkkogMPJ2yjxxsb89cxyw==}
+
   lodash.camelcase@4.3.0:
     resolution: {integrity: sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA==}
 
@@ -2753,6 +2766,10 @@ packages:
         optional: true
       sass:
         optional: true
+
+  node-gyp-build@4.8.4:
+    resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
+    hasBin: true
 
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
@@ -3553,6 +3570,10 @@ packages:
 
   twilio-sync@3.1.0:
     resolution: {integrity: sha512-KNkbbnoBITpsmxV2UnmNDEot/Q5t7p5I1zP05oqj0OYT1kMcZq4nhiSNkcxkunfxINFSUzz8d/mUA82yWS7iLQ==}
+    engines: {node: '>=14'}
+
+  twilio-sync@3.3.10:
+    resolution: {integrity: sha512-ac/4EhqSgx4CMrEOg5eMtG0dCnFBHZNXUi5UoQ+TIzRmqr/YOVWiHBqZJEBwo3CtR36G0VJG8epehATNEZU6gw==}
     engines: {node: '>=14'}
 
   twilio@5.10.6:
@@ -4557,13 +4578,13 @@ snapshots:
 
   '@tootallnate/once@2.0.0': {}
 
-  '@twilio/conversations@2.6.5':
+  '@twilio/conversations@2.6.5(bufferutil@4.0.9)':
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.2.13
       '@twilio/deprecation-decorator': 0.2.11
       '@twilio/mcs-client': 0.6.13
-      '@twilio/notifications': 2.0.12
+      '@twilio/notifications': 2.0.12(bufferutil@4.0.9)
       '@twilio/operation-retrier': 4.0.21
       '@twilio/replay-event-emitter': 0.3.13
       core-js: 3.47.0
@@ -4573,8 +4594,8 @@ snapshots:
       loglevel: 1.9.2
       platform: 1.3.6
       quick-lru: 5.1.1
-      twilio-sync: 3.1.0
-      twilsock: 0.13.12
+      twilio-sync: 3.1.0(bufferutil@4.0.9)
+      twilsock: 0.13.12(bufferutil@4.0.9)
       uuid: 3.4.0
       xmlhttprequest: 1.8.0
     transitivePeerDependencies:
@@ -4606,14 +4627,14 @@ snapshots:
       loglevel: 1.9.2
       xmlhttprequest: 1.8.0
 
-  '@twilio/notifications@2.0.12':
+  '@twilio/notifications@2.0.12(bufferutil@4.0.9)':
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.2.13
       '@twilio/operation-retrier': 4.0.21
       core-js: 3.47.0
       loglevel: 1.9.2
-      twilsock: 0.13.12
+      twilsock: 0.13.12(bufferutil@4.0.9)
       uuid: 3.4.0
     transitivePeerDependencies:
       - bufferutil
@@ -5185,6 +5206,10 @@ snapshots:
   buffer-equal-constant-time@1.0.1: {}
 
   buffer-from@1.1.2: {}
+
+  bufferutil@4.0.9:
+    dependencies:
+      node-gyp-build: 4.8.4
 
   busboy@1.6.0:
     dependencies:
@@ -6517,7 +6542,7 @@ snapshots:
       jest-util: 29.7.0
       pretty-format: 29.7.0
 
-  jest-environment-jsdom@29.7.0:
+  jest-environment-jsdom@29.7.0(bufferutil@4.0.9):
     dependencies:
       '@jest/environment': 29.7.0
       '@jest/fake-timers': 29.7.0
@@ -6526,7 +6551,7 @@ snapshots:
       '@types/node': 20.19.25
       jest-mock: 29.7.0
       jest-util: 29.7.0
-      jsdom: 20.0.3
+      jsdom: 20.0.3(bufferutil@4.0.9)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -6763,7 +6788,7 @@ snapshots:
     dependencies:
       argparse: 2.0.1
 
-  jsdom@20.0.3:
+  jsdom@20.0.3(bufferutil@4.0.9):
     dependencies:
       abab: 2.0.6
       acorn: 8.15.0
@@ -6789,7 +6814,7 @@ snapshots:
       whatwg-encoding: 2.0.0
       whatwg-mimetype: 3.0.0
       whatwg-url: 11.0.0
-      ws: 8.18.3
+      ws: 8.18.3(bufferutil@4.0.9)
       xml-name-validator: 4.0.0
     transitivePeerDependencies:
       - bufferutil
@@ -6879,6 +6904,8 @@ snapshots:
   locate-path@6.0.0:
     dependencies:
       p-locate: 5.0.0
+
+  lodash-es@4.17.21: {}
 
   lodash.camelcase@4.3.0: {}
 
@@ -7052,6 +7079,8 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
+
+  node-gyp-build@4.8.4: {}
 
   node-int64@0.4.0: {}
 
@@ -7839,7 +7868,7 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  twilio-sync@3.1.0:
+  twilio-sync@3.1.0(bufferutil@4.0.9):
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.1.11
@@ -7848,7 +7877,24 @@ snapshots:
       iso8601-duration: 1.2.0
       loglevel: 1.9.2
       platform: 1.3.6
-      twilsock: 0.12.2
+      twilsock: 0.12.2(bufferutil@4.0.9)
+      uuid: 3.4.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  twilio-sync@3.3.10(bufferutil@4.0.9):
+    dependencies:
+      '@babel/runtime': 7.28.4
+      '@twilio/declarative-type-validator': 0.2.13
+      '@twilio/operation-retrier': 4.0.21
+      '@twilio/replay-event-emitter': 0.3.13
+      core-js: 3.47.0
+      iso8601-duration: 1.2.0
+      lodash-es: 4.17.21
+      loglevel: 1.9.2
+      platform: 1.3.6
+      twilsock: 0.13.12(bufferutil@4.0.9)
       uuid: 3.4.0
     transitivePeerDependencies:
       - bufferutil
@@ -7867,7 +7913,7 @@ snapshots:
       - debug
       - supports-color
 
-  twilsock@0.12.2:
+  twilsock@0.12.2(bufferutil@4.0.9):
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.1.11
@@ -7878,12 +7924,12 @@ snapshots:
       loglevel: 1.9.2
       platform: 1.3.6
       uuid: 3.4.0
-      ws: 5.2.4
+      ws: 5.2.4(bufferutil@4.0.9)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  twilsock@0.13.12:
+  twilsock@0.13.12(bufferutil@4.0.9):
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.2.13
@@ -7894,7 +7940,7 @@ snapshots:
       loglevel: 1.9.2
       platform: 1.3.6
       uuid: 3.4.0
-      ws: 8.18.3
+      ws: 8.18.3(bufferutil@4.0.9)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -8104,11 +8150,15 @@ snapshots:
       imurmurhash: 0.1.4
       signal-exit: 3.0.7
 
-  ws@5.2.4:
+  ws@5.2.4(bufferutil@4.0.9):
     dependencies:
       async-limiter: 1.0.1
+    optionalDependencies:
+      bufferutil: 4.0.9
 
-  ws@8.18.3: {}
+  ws@8.18.3(bufferutil@4.0.9):
+    optionalDependencies:
+      bufferutil: 4.0.9
 
   xml-name-validator@4.0.0: {}
 
