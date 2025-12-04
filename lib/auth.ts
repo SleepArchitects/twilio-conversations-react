@@ -39,12 +39,13 @@ function isAuthDisabled(): boolean {
 
 /**
  * Mock user for development when auth is disabled
+ * Uses real default tenant/practice IDs from sleepconnect/constants/index.ts
  */
 function getMockUser(): SaxClaims {
   return {
     sax_id: 1,
-    tenant_id: "dev-tenant",
-    practice_id: "dev-practice",
+    tenant_id: "00000000-0000-0000-0000-000000000001",
+    practice_id: "00000000-0000-0000-0000-000000000020",
     email: "dev@example.com",
     name: "Dev User",
     sub: "1",
@@ -59,23 +60,31 @@ function isMultiZoneMode(): boolean {
 }
 
 /**
- * Get user context from forwarded cookie (multi-zone mode)
- * SleepConnect forwards user context via x-sax-user-context cookie
+ * Get user context from forwarded cookie or header (multi-zone mode)
+ * SleepConnect forwards user context via x-sax-user-context cookie/header
  */
 function getUserFromForwardedCookie(): SaxClaims | null {
   try {
     const headersList = headers();
-    const cookieHeader = headersList.get("cookie") || "";
 
-    // Parse the x-sax-user-context cookie
-    const match = cookieHeader.match(/x-sax-user-context=([^;]+)/);
-    if (!match) {
-      console.log("[AUTH] No x-sax-user-context cookie found");
+    // First try the header (set by middleware for rewrites)
+    let userContextStr = headersList.get("x-sax-user-context");
+
+    // Fall back to cookie (for subsequent requests after initial cookie is set)
+    if (!userContextStr) {
+      const cookieHeader = headersList.get("cookie") || "";
+      const match = cookieHeader.match(/x-sax-user-context=([^;]+)/);
+      if (match) {
+        userContextStr = decodeURIComponent(match[1]);
+      }
+    }
+
+    if (!userContextStr) {
+      console.log("[AUTH] No x-sax-user-context header or cookie found");
       return null;
     }
 
-    const decoded = decodeURIComponent(match[1]);
-    const userContext = JSON.parse(decoded);
+    const userContext = JSON.parse(userContextStr);
 
     if (
       !userContext.sax_id ||
@@ -89,7 +98,7 @@ function getUserFromForwardedCookie(): SaxClaims | null {
       return null;
     }
 
-    console.log("[AUTH] User context from cookie:", userContext.sax_id);
+    console.log("[AUTH] User context from header/cookie:", userContext.sax_id);
 
     return {
       sax_id: userContext.sax_id,
@@ -100,7 +109,7 @@ function getUserFromForwardedCookie(): SaxClaims | null {
       sub: String(userContext.sax_id),
     };
   } catch (error) {
-    console.error("[AUTH] Error parsing user context cookie:", error);
+    console.error("[AUTH] Error parsing user context:", error);
     return null;
   }
 }
@@ -239,24 +248,26 @@ export async function getUserContext(): Promise<UserContext | null> {
  * ```
  */
 export function withUserContext(
-  handler: (req: Request, context: UserContext) => Promise<Response>,
+  handler: (req: NextRequest, context: UserContext) => Promise<NextResponse>,
 ) {
-  return withApiAuthRequired(async (req: Request): Promise<Response> => {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const user = session.user as SaxClaims;
-    if (!user.sax_id || !user.tenant_id || !user.practice_id) {
-      return NextResponse.json(
-        { error: "Invalid user context" },
-        { status: 403 },
-      );
-    }
-    return handler(req, {
-      saxId: user.sax_id,
-      tenantId: user.tenant_id,
-      practiceId: user.practice_id,
-    });
-  });
+  return withApiAuthRequired(
+    async (req: NextRequest): Promise<NextResponse> => {
+      const session = await getSession();
+      if (!session?.user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const user = session.user as SaxClaims;
+      if (!user.sax_id || !user.tenant_id || !user.practice_id) {
+        return NextResponse.json(
+          { error: "Invalid user context" },
+          { status: 403 },
+        );
+      }
+      return handler(req, {
+        saxId: user.sax_id,
+        tenantId: user.tenant_id,
+        practiceId: user.practice_id,
+      });
+    },
+  );
 }
