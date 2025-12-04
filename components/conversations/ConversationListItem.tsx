@@ -49,7 +49,7 @@ const SLA_CONFIG: Record<
 };
 
 function SlaIndicator({ status, className }: SlaIndicatorProps) {
-  const config = SLA_CONFIG[status];
+  const config = SLA_CONFIG[status] || SLA_CONFIG.ok; // Default to 'ok' if status is undefined
 
   return (
     <div

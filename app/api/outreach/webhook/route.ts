@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import twilio from "twilio";
-import { api } from "@/lib/api";
+import { api, buildPath } from "@/lib/api";
 import type { MessageStatus } from "@/types/sms";
 
 export const dynamic = "force-dynamic";
@@ -285,10 +285,13 @@ async function handleInboundMessage(
 
     try {
       // Mark conversation as opted out
-      await api.post<void>(`${LAMBDA_API_BASE}/conversations/opt-out`, {
-        twilioConversationSid: ConversationSid,
-        optedOut: true,
-      } as OptOutConversationRequest);
+      await api.post<void>(
+        buildPath(LAMBDA_API_BASE, "conversations", "opt-out"),
+        {
+          twilioConversationSid: ConversationSid,
+          optedOut: true,
+        } as OptOutConversationRequest,
+      );
 
       console.log("[Webhook] Conversation marked as opted out", {
         conversationSid: ConversationSid,
@@ -304,7 +307,7 @@ async function handleInboundMessage(
 
   // Store the inbound message via Lambda API
   try {
-    await api.post<void>(`${LAMBDA_API_BASE}/messages/inbound`, {
+    await api.post<void>(buildPath(LAMBDA_API_BASE, "messages", "inbound"), {
       twilioConversationSid: ConversationSid,
       twilioMessageSid: MessageSid,
       body: Body || "",
@@ -424,7 +427,10 @@ async function handleStatusCallback(
       updateRequest.errorMessage = ErrorMessage;
     }
 
-    await api.patch<void>(`${LAMBDA_API_BASE}/messages/status`, updateRequest);
+    await api.patch<void>(
+      buildPath(LAMBDA_API_BASE, "messages", "status"),
+      updateRequest,
+    );
 
     console.log("[Webhook] Message status updated successfully", {
       messageSid: MessageSid,

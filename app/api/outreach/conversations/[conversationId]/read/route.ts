@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, buildPath } from "@/lib/api";
 import { type UserContext, withUserContext } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -41,12 +41,13 @@ function errorResponse(
 
 /**
  * Get headers for Lambda API calls with user context
+ * NOTE: AWS API Gateway converts headers to lowercase
  */
 function getLambdaHeaders(userContext: UserContext): Record<string, string> {
   return {
-    "X-Tenant-Id": userContext.tenantId,
-    "X-Practice-Id": userContext.practiceId,
-    "X-Sax-Id": String(userContext.saxId),
+    "x-tenant-id": userContext.tenantId,
+    "x-practice-id": userContext.practiceId,
+    "x-coordinator-sax-id": String(userContext.saxId),
   };
 }
 
@@ -82,8 +83,12 @@ async function handlePost(
 
     // Call Lambda API to mark conversation as read
     await api.post(
-      `${LAMBDA_API_BASE}/conversations/${conversationId}/read`,
-      {},
+      buildPath(LAMBDA_API_BASE, "conversations", conversationId, "read"),
+      {
+        tenant_id: userContext.tenantId,
+        practice_id: userContext.practiceId,
+        coordinator_sax_id: String(userContext.saxId),
+      },
       {
         headers: getLambdaHeaders(userContext),
       },

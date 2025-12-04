@@ -88,13 +88,17 @@ function messageReducer(
 ): MessageState {
 	switch (action.type) {
 		case "SET_MESSAGES": {
-			const messageIds = new Set(action.payload.map((m) => m.id));
-			return { messages: action.payload, messageIds };
+			// Defensive: ensure payload is an array
+			const messages = Array.isArray(action.payload) ? action.payload : [];
+			const messageIds = new Set(messages.map((m) => m.id));
+			return { messages, messageIds };
 		}
 
 		case "PREPEND_MESSAGES": {
+			// Defensive: ensure payload is an array
+			const incomingMessages = Array.isArray(action.payload) ? action.payload : [];
 			// Add older messages to the beginning, avoiding duplicates
-			const newMessages = action.payload.filter(
+			const newMessages = incomingMessages.filter(
 				(m) => !state.messageIds.has(m.id),
 			);
 			const newIds = new Set([

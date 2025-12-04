@@ -44,6 +44,27 @@ interface RequestOptions extends Omit<RequestInit, "method" | "body"> {
 }
 
 /**
+ * Build a URL path from segments, ensuring proper slash handling.
+ * Use this instead of string template concatenation for paths.
+ *
+ * @example
+ * buildPath('/outreach', 'conversations', conversationId) // => '/outreach/conversations/abc123'
+ * buildPath('/outreach', 'conversations', conversationId, 'messages') // => '/outreach/conversations/abc123/messages'
+ */
+export function buildPath(...segments: (string | number)[]): string {
+  return segments
+    .map((segment, index) => {
+      const str = String(segment);
+      // Remove leading slash except for first segment
+      const withoutLeading = index === 0 ? str : str.replace(/^\/+/, "");
+      // Remove trailing slashes
+      return withoutLeading.replace(/\/+$/, "");
+    })
+    .filter((segment) => segment.length > 0)
+    .join("/");
+}
+
+/**
  * Build URL with query parameters
  */
 function buildUrl(
@@ -137,6 +158,8 @@ async function request<T>(
   const { params, headers: customHeaders, ...restOptions } = options;
 
   const url = buildUrl(path, params);
+
+  console.log("[API] Request:", method, url);
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",

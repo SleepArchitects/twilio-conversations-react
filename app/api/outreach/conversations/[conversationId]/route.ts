@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, buildPath } from "@/lib/api";
 import { type UserContext, withUserContext } from "@/lib/auth";
 import type { Conversation, ConversationStatus, SlaStatus } from "@/types/sms";
 
@@ -49,12 +49,13 @@ function errorResponse(
 
 /**
  * Get headers for Lambda API calls with user context
+ * NOTE: AWS API Gateway converts headers to lowercase, so we use lowercase here
  */
 function getLambdaHeaders(userContext: UserContext): Record<string, string> {
   return {
-    "X-Tenant-Id": userContext.tenantId,
-    "X-Practice-Id": userContext.practiceId,
-    "X-Sax-Id": String(userContext.saxId),
+    "x-tenant-id": userContext.tenantId,
+    "x-practice-id": userContext.practiceId,
+    "x-coordinator-sax-id": String(userContext.saxId),
   };
 }
 
@@ -152,9 +153,29 @@ async function handleGet(
     }
 
     // Call Lambda API to get conversation
+    // Use params option to properly build query string (don't append to path)
+    const queryParams = {
+      id: conversationId,
+      tenant_id: userContext.tenantId,
+      practice_id: userContext.practiceId,
+      coordinator_sax_id: String(userContext.saxId),
+    };
+
+    console.log("[GET CONVERSATION] User context:", {
+      saxId: userContext.saxId,
+      tenantId: userContext.tenantId,
+      practiceId: userContext.practiceId,
+    });
+    console.log("[GET CONVERSATION] Query params:", queryParams);
+    console.log(
+      "[GET CONVERSATION] API_BASE_URL env:",
+      process.env.API_BASE_URL,
+    );
+
     const response = await api.get<LambdaConversationResponse>(
-      `${LAMBDA_API_BASE}/conversations/${conversationId}`,
+      buildPath(LAMBDA_API_BASE, "conversations", conversationId),
       {
+        params: queryParams,
         headers: getLambdaHeaders(userContext),
       },
     );
