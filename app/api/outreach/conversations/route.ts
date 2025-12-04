@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, buildPath } from "@/lib/api";
 import { type UserContext, withUserContext } from "@/lib/auth";
+import { isValidUSPhoneNumber } from "@/lib/validation";
 import type {
   Conversation,
   ConversationStatus,
@@ -15,7 +16,6 @@ export const runtime = "nodejs";
 // Constants
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
-const US_E164_PATTERN = /^\+1[0-9]{10}$/;
 
 /**
  * Lambda API base path for SMS outreach
@@ -56,13 +56,6 @@ interface ErrorResponse {
 interface LambdaConversationsResponse {
   conversations: Conversation[];
   total: number;
-}
-
-/**
- * Lambda API response for conversation by phone lookup
- */
-interface LambdaConversationByPhoneResponse {
-  conversation: Conversation | null;
 }
 
 // =============================================================================
@@ -112,10 +105,11 @@ function errorResponse(
 }
 
 /**
- * Validate US E.164 phone format (+1XXXXXXXXXX)
+ * Validate phone number (US or international depending on env config)
+ * Uses lib/validation.ts which respects ALLOW_INTERNATIONAL_PHONES env var
  */
-function isValidUSPhone(phone: string): boolean {
-  return US_E164_PATTERN.test(phone);
+function isValidPhone(phone: string): boolean {
+  return isValidUSPhoneNumber(phone);
 }
 
 /**
@@ -177,41 +171,54 @@ function toConversationSummary(conv: Conversation): ConversationSummary {
 
 /**
  * Get headers for Lambda API calls with user context
+ * Note: Headers are sent in lowercase to match what API Gateway forwards to Lambda
  */
 function getLambdaHeaders(userContext: UserContext): Record<string, string> {
   return {
-    "X-Tenant-Id": userContext.tenantId,
-    "X-Practice-Id": userContext.practiceId,
-    "X-Sax-Id": String(userContext.saxId),
+    "x-tenant-id": userContext.tenantId,
+    "x-practice-id": userContext.practiceId,
+    "x-sax-id": String(userContext.saxId),
+    "x-coordinator-sax-id": String(userContext.saxId),
   };
 }
 
 /**
+ * Response from Lambda check-duplicate endpoint
+ */
+interface LambdaCheckDuplicateResponse {
+  exists: boolean;
+  conversation?: Conversation;
+}
+
+/**
  * Check for existing active conversation with the given phone number
+ * Uses the Lambda /conversations/check-duplicate endpoint
+ * Returns null if not found or if check fails (allowing creation to proceed)
  */
 async function findActiveConversationByPhone(
   phone: string,
   userContext: UserContext,
 ): Promise<Conversation | null> {
   try {
-    const response = await api.get<LambdaConversationByPhoneResponse>(
-      `${LAMBDA_API_BASE}/conversations/by-phone`,
+    const response = await api.get<LambdaCheckDuplicateResponse>(
+      buildPath(LAMBDA_API_BASE, "conversations", "check-duplicate"),
       {
         params: {
+          patient_phone: phone,
+          // Include context as query params since API Gateway may not forward headers
           tenant_id: userContext.tenantId,
           practice_id: userContext.practiceId,
-          coordinator_sax_id: userContext.saxId,
-          patient_phone: phone,
+          coordinator_sax_id: String(userContext.saxId),
         },
         headers: getLambdaHeaders(userContext),
       },
     );
-    return response.conversation;
+    return response.exists ? (response.conversation ?? null) : null;
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      return null;
-    }
-    throw error;
+    // If check fails for any reason (404, network error, etc.),
+    // return null to allow conversation creation to proceed
+    console.log("Duplicate check failed, proceeding with creation:", error);
+    return null;
   }
 }
 
@@ -323,10 +330,10 @@ async function handleGet(
     // If phone is provided, check for existing active conversation (duplicate detection)
     if (phone) {
       // Validate phone format
-      if (!isValidUSPhone(phone)) {
+      if (!isValidPhone(phone)) {
         return errorResponse(
           "INVALID_PHONE_FORMAT",
-          "Phone number must be in US E.164 format (+1XXXXXXXXXX)",
+          "Phone number must be in valid E.164 format (e.g., +1XXXXXXXXXX)",
           400,
         );
       }
@@ -377,7 +384,7 @@ async function handleGet(
 
     // Call Lambda API to list conversations
     const response = await api.get<LambdaConversationsResponse>(
-      `${LAMBDA_API_BASE}/conversations`,
+      buildPath(LAMBDA_API_BASE, "conversations"),
       {
         params: queryParams,
         headers: getLambdaHeaders(userContext),
@@ -465,11 +472,11 @@ async function handlePost(
       );
     }
 
-    // Validate phone format (US E.164)
-    if (!isValidUSPhone(body.patientPhone)) {
+    // Validate phone format
+    if (!isValidPhone(body.patientPhone)) {
       return errorResponse(
         "INVALID_PHONE_FORMAT",
-        "patientPhone must be in US E.164 format (+1XXXXXXXXXX)",
+        "patientPhone must be in valid E.164 format (e.g., +1XXXXXXXXXX)",
         400,
       );
     }
@@ -551,8 +558,8 @@ async function handlePost(
       : body.patientPhone;
 
     // Create conversation via Lambda API
-    // Note: Twilio conversation creation will be done in T032
-    // For now, we call the Lambda API which will handle Twilio creation
+    // The Lambda will check for existing conversations and return them if found,
+    // or create a new Twilio conversation automatically
     const createPayload = {
       tenant_id: userContext.tenantId,
       practice_id: userContext.practiceId,
@@ -562,19 +569,54 @@ async function handlePost(
       metadata: body.metadata,
     };
 
-    const createdConversation = await api.post<Conversation>(
-      `${LAMBDA_API_BASE}/conversations`,
-      createPayload,
-      {
-        headers: getLambdaHeaders(userContext),
-      },
-    );
+    let conversation: Conversation & { existing?: boolean };
+    let isExisting = false;
+    try {
+      conversation = await api.post<Conversation & { existing?: boolean }>(
+        buildPath(LAMBDA_API_BASE, "conversations"),
+        createPayload,
+        {
+          headers: getLambdaHeaders(userContext),
+        },
+      );
+      isExisting = conversation.existing === true;
+      if (isExisting) {
+        console.log("Using existing conversation:", conversation.id);
+      }
+    } catch (error) {
+      console.error("Failed to create conversation:", error);
+      if (error instanceof ApiError) {
+        // Check if it's a Twilio duplicate binding error
+        if (
+          error.message?.includes("binding") &&
+          error.message?.includes("already exists")
+        ) {
+          return errorResponse(
+            "CONVERSATION_EXISTS",
+            "An active conversation already exists for this phone number in Twilio",
+            409,
+          );
+        }
+        return errorResponse(
+          error.code || "CREATE_FAILED",
+          error.message || "Failed to create conversation",
+          error.status,
+        );
+      }
+      throw error;
+    }
 
-    // If initial message is provided, send it
-    if (body.initialMessage && body.initialMessage.trim()) {
+    // If initial message is provided and this is a new conversation, send it
+    // (Don't send initial message for existing conversations - user should do that explicitly)
+    if (body.initialMessage && body.initialMessage.trim() && !isExisting) {
       try {
         await api.post(
-          `${LAMBDA_API_BASE}/conversations/${createdConversation.id}/messages`,
+          buildPath(
+            LAMBDA_API_BASE,
+            "conversations",
+            conversation.id,
+            "messages",
+          ),
           {
             body: body.initialMessage.trim(),
           },
@@ -586,13 +628,14 @@ async function handlePost(
         // Log the error but don't fail the conversation creation
         console.error(
           "Failed to send initial message for conversation:",
-          createdConversation.id,
+          conversation.id,
           msgError,
         );
       }
     }
 
-    return NextResponse.json(createdConversation, { status: 201 });
+    // Return 201 for new conversations, 200 for existing ones
+    return NextResponse.json(conversation, { status: isExisting ? 200 : 201 });
   } catch (error) {
     console.error("Error creating conversation:", error);
 

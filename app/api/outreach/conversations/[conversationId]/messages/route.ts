@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, buildPath } from "@/lib/api";
 import { type UserContext, withUserContext } from "@/lib/auth";
 import { getTwilioClient } from "@/lib/twilio";
 import type {
@@ -23,6 +23,13 @@ const MAX_MESSAGE_LENGTH = 1600;
 const LAMBDA_API_BASE = "/outreach";
 
 /**
+ * Lambda response wrapper for single conversation
+ */
+interface LambdaConversationResponse {
+  conversation: Conversation;
+}
+
+/**
  * Validate that the conversation belongs to the user's tenant and is owned by them
  */
 async function validateConversationAccess(
@@ -30,32 +37,56 @@ async function validateConversationAccess(
   userContext: UserContext,
 ): Promise<Conversation | null> {
   try {
-    const conversation = await api.get<Conversation>(
-      `${LAMBDA_API_BASE}/conversations/${conversationId}`,
+    const response = await api.get<LambdaConversationResponse>(
+      buildPath(LAMBDA_API_BASE, "conversations", conversationId),
       {
+        params: {
+          id: conversationId,
+          tenant_id: userContext.tenantId,
+          practice_id: userContext.practiceId,
+          coordinator_sax_id: String(userContext.saxId),
+        },
         headers: {
-          "X-Tenant-Id": userContext.tenantId,
-          "X-Practice-Id": userContext.practiceId,
-          "X-Sax-Id": String(userContext.saxId),
+          "x-tenant-id": userContext.tenantId,
+          "x-practice-id": userContext.practiceId,
+          "x-coordinator-sax-id": String(userContext.saxId),
         },
       },
     );
+
+    // Handle both wrapped {conversation: ...} and unwrapped response formats
+    const conversation =
+      response.conversation || (response as unknown as Conversation);
+
+    if (!conversation || !conversation.id) {
+      console.error(
+        "[validateConversationAccess] Invalid response format:",
+        response,
+      );
+      return null;
+    }
 
     // Verify tenant and practice match
     if (
       conversation.tenantId !== userContext.tenantId ||
       conversation.practiceId !== userContext.practiceId
     ) {
+      console.log("[validateConversationAccess] Tenant/practice mismatch");
       return null;
     }
 
-    // Verify coordinator owns this conversation
-    if (conversation.coordinatorSaxId !== userContext.saxId) {
+    // Verify coordinator owns this conversation (use loose equality for number/string comparison)
+    if (Number(conversation.coordinatorSaxId) !== Number(userContext.saxId)) {
+      console.log("[validateConversationAccess] Coordinator mismatch:", {
+        expected: userContext.saxId,
+        actual: conversation.coordinatorSaxId,
+      });
       return null;
     }
 
     return conversation;
   } catch (error) {
+    console.error("[validateConversationAccess] Error:", error);
     if (error instanceof ApiError && error.status === 404) {
       return null;
     }
@@ -132,17 +163,20 @@ export const GET = withUserContext(
 
       // Fetch messages from Lambda API
       const response = await api.get<PaginatedResponse<Message>>(
-        `${LAMBDA_API_BASE}/conversations/${conversationId}/messages`,
+        buildPath(LAMBDA_API_BASE, "conversations", conversationId, "messages"),
         {
           params: {
             limit,
             offset,
             order,
+            tenant_id: userContext.tenantId,
+            practice_id: userContext.practiceId,
+            coordinator_sax_id: String(userContext.saxId),
           },
           headers: {
-            "X-Tenant-Id": userContext.tenantId,
-            "X-Practice-Id": userContext.practiceId,
-            "X-Sax-Id": String(userContext.saxId),
+            "x-tenant-id": userContext.tenantId,
+            "x-practice-id": userContext.practiceId,
+            "x-coordinator-sax-id": String(userContext.saxId),
           },
         },
       );
@@ -309,7 +343,7 @@ export const POST = withUserContext(
 
       // Store message in database via Lambda
       const storedMessage = await api.post<Message>(
-        `${LAMBDA_API_BASE}/conversations/${conversationId}/messages`,
+        buildPath(LAMBDA_API_BASE, "conversations", conversationId, "messages"),
         {
           twilioSid: twilioMessage.sid,
           direction: "outbound",
@@ -322,9 +356,9 @@ export const POST = withUserContext(
         },
         {
           headers: {
-            "X-Tenant-Id": userContext.tenantId,
-            "X-Practice-Id": userContext.practiceId,
-            "X-Sax-Id": String(userContext.saxId),
+            "x-tenant-id": userContext.tenantId,
+            "x-practice-id": userContext.practiceId,
+            "x-coordinator-sax-id": String(userContext.saxId),
           },
         },
       );
