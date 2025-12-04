@@ -20,7 +20,7 @@ const MAX_MESSAGE_LENGTH = 1600;
 /**
  * Lambda API base path for SMS outreach
  */
-const LAMBDA_API_BASE = "/sms";
+const LAMBDA_API_BASE = "/outreach";
 
 /**
  * Validate that the conversation belongs to the user's tenant and is owned by them
