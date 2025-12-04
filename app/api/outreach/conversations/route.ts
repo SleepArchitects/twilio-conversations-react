@@ -20,7 +20,7 @@ const US_E164_PATTERN = /^\+1[0-9]{10}$/;
 /**
  * Lambda API base path for SMS outreach
  */
-const LAMBDA_API_BASE = "/sms";
+const LAMBDA_API_BASE = "/outreach";
 
 // =============================================================================
 // Types
@@ -300,6 +300,7 @@ async function handleGet(
   req: Request,
   userContext: UserContext,
 ): Promise<NextResponse> {
+  console.debug(`Start conv handler`);
   try {
     const { searchParams } = new URL(req.url);
     const { status, slaStatus, limit, offset, phone } =

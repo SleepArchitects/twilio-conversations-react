@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 /**
  * Lambda API base path for SMS outreach
  */
-const LAMBDA_API_BASE = "/sms";
+const LAMBDA_API_BASE = "/outreach";
 
 // =============================================================================
 // Types

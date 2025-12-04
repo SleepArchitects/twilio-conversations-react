@@ -62,13 +62,31 @@ function buildUrl(
     fullPath = `${BASE_PATH}${path}`;
   }
 
-  const url = new URL(
-    fullPath,
+  // Determine the base URL
+  const baseUrl =
     API_BASE_URL ||
-      (typeof window !== "undefined"
-        ? window.location.origin
-        : "http://localhost:3001"),
-  );
+    (typeof window !== "undefined"
+      ? window.location.origin
+      : "http://localhost:3001");
+
+  // If API_BASE_URL has a path component (e.g., /dev), we need to preserve it
+  // and append our path to it rather than replacing it
+  let finalUrl: string;
+  if (API_BASE_URL) {
+    const base = new URL(API_BASE_URL);
+    // Remove trailing slash from base pathname, add leading slash to path if missing
+    const basePath = base.pathname.replace(/\/$/, "");
+    const pathSegment = fullPath.startsWith("/") ? fullPath : `/${fullPath}`;
+    // Combine base path with our path
+    base.pathname = `${basePath}${pathSegment}`;
+    finalUrl = base.toString();
+  } else {
+    const url = new URL(fullPath, baseUrl);
+    finalUrl = url.toString();
+  }
+
+  // Parse the final URL to add query params
+  const url = new URL(finalUrl);
 
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
