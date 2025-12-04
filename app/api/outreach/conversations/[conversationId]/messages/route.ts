@@ -30,6 +30,78 @@ interface LambdaConversationResponse {
 }
 
 /**
+ * Lambda message format (snake_case from database)
+ */
+interface LambdaMessage {
+  id: string;
+  conversation_id: string;
+  twilio_sid: string | null;
+  direction: "inbound" | "outbound";
+  author_sax_id: string | null;
+  author_phone: string | null;
+  body: string;
+  status: string;
+  segment_count: number | null;
+  sentiment: string | null;
+  // sentiment_score from Lambda might be JSON object or null
+  sentiment_score: Record<string, number> | null;
+  error_code: string | null;
+  error_message: string | null;
+  created_on: string;
+  created_by: number | null;
+  sent_at: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+  active?: boolean;
+}
+
+/**
+ * Lambda messages response format
+ */
+interface LambdaMessagesResponse {
+  messages: LambdaMessage[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+  };
+}
+
+/**
+ * Transform Lambda message (snake_case) to frontend Message (camelCase)
+ */
+function transformMessage(
+  msg: LambdaMessage,
+  tenantId: string,
+  practiceId: string,
+): Message {
+  return {
+    id: msg.id,
+    conversationId: msg.conversation_id,
+    twilioSid: msg.twilio_sid || "",
+    direction: msg.direction,
+    authorSaxId: msg.author_sax_id ? Number(msg.author_sax_id) : null,
+    authorPhone: msg.author_phone,
+    body: msg.body,
+    status: msg.status as Message["status"],
+    segmentCount: msg.segment_count || 1,
+    sentiment: (msg.sentiment as Message["sentiment"]) || null,
+    sentimentScore: msg.sentiment_score,
+    errorCode: msg.error_code,
+    errorMessage: msg.error_message,
+    createdOn: msg.created_on,
+    createdBy: msg.created_by,
+    sentAt: msg.sent_at,
+    deliveredAt: msg.delivered_at,
+    readAt: msg.read_at,
+    active: msg.active ?? true,
+    tenantId: tenantId,
+    practiceId: practiceId,
+  };
+}
+
+/**
  * Validate that the conversation belongs to the user's tenant and is owned by them
  */
 async function validateConversationAccess(
@@ -162,7 +234,11 @@ export const GET = withUserContext(
       const { limit, offset, order } = parsePaginationParams(url.searchParams);
 
       // Fetch messages from Lambda API
-      const response = await api.get<PaginatedResponse<Message>>(
+      console.log(
+        "[GET MESSAGES] Fetching messages for conversation:",
+        conversationId,
+      );
+      const lambdaResponse = await api.get<LambdaMessagesResponse>(
         buildPath(LAMBDA_API_BASE, "conversations", conversationId, "messages"),
         {
           params: {
@@ -180,6 +256,25 @@ export const GET = withUserContext(
           },
         },
       );
+
+      console.log("[GET MESSAGES] Lambda response:", {
+        messageCount: lambdaResponse.messages?.length,
+        pagination: lambdaResponse.pagination,
+      });
+
+      // Transform Lambda response (snake_case) to frontend format (camelCase)
+      const messages = (lambdaResponse.messages || []).map((msg) =>
+        transformMessage(msg, userContext.tenantId, userContext.practiceId),
+      );
+      const response: PaginatedResponse<Message> = {
+        data: messages,
+        pagination: {
+          total: lambdaResponse.pagination?.total || 0,
+          limit: lambdaResponse.pagination?.limit || limit,
+          offset: lambdaResponse.pagination?.offset || offset,
+          hasMore: lambdaResponse.pagination?.has_more || false,
+        },
+      };
 
       return NextResponse.json(response, { status: 200 });
     } catch (error) {
@@ -342,17 +437,19 @@ export const POST = withUserContext(
       const segmentCount = Math.ceil(messageBody.length / 160);
 
       // Store message in database via Lambda
-      const storedMessage = await api.post<Message>(
+      const lambdaResponse = await api.post<
+        { message: LambdaMessage } | LambdaMessage
+      >(
         buildPath(LAMBDA_API_BASE, "conversations", conversationId, "messages"),
         {
-          twilioSid: twilioMessage.sid,
+          twilio_sid: twilioMessage.sid,
           direction: "outbound",
-          authorSaxId: userContext.saxId,
+          author_sax_id: userContext.saxId,
           body: messageBody,
           status: "sending",
-          segmentCount,
-          templateId: body.templateId,
-          mediaUrls: body.mediaUrls,
+          segment_count: segmentCount,
+          template_id: body.templateId,
+          media_urls: body.mediaUrls,
         },
         {
           headers: {
@@ -361,6 +458,15 @@ export const POST = withUserContext(
             "x-coordinator-sax-id": String(userContext.saxId),
           },
         },
+      );
+
+      // Lambda may return {message: ...} wrapper or direct message
+      const lambdaMessage =
+        "message" in lambdaResponse ? lambdaResponse.message : lambdaResponse;
+      const storedMessage = transformMessage(
+        lambdaMessage,
+        userContext.tenantId,
+        userContext.practiceId,
       );
 
       // Log audit event without PHI
