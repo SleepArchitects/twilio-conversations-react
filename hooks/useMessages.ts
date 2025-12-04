@@ -124,11 +124,17 @@ function messageReducer(
 
 		case "UPDATE_MESSAGE": {
 			const { id, updates } = action.payload;
+			// If the ID is being changed, we need to update the messageIds set
+			const newMessageIds = new Set(state.messageIds);
+			if (updates.id && updates.id !== id) {
+				newMessageIds.delete(id);
+				newMessageIds.add(updates.id);
+			}
 			return {
-				...state,
 				messages: state.messages.map((m) =>
 					m.id === id ? { ...m, ...updates } : m,
 				),
+				messageIds: newMessageIds,
 			};
 		}
 
@@ -404,7 +410,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 				// Track mapping for real-time updates
 				pendingOptimisticRef.current.set(response.twilioSid, tempId);
 
-				// Update optimistic message with real data
+				// Update optimistic message with real data (including new ID)
+				// The UPDATE_MESSAGE action now properly updates the messageIds set
 				dispatch({
 					type: "UPDATE_MESSAGE",
 					payload: {
@@ -421,10 +428,6 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 						},
 					},
 				});
-
-				// Update the messageIds set with the real ID
-				dispatch({ type: "REMOVE_OPTIMISTIC", payload: tempId });
-				dispatch({ type: "ADD_MESSAGE", payload: response });
 			} catch (err) {
 				if (!isMountedRef.current) return;
 
