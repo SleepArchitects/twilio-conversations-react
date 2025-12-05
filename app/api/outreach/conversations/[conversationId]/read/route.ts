@@ -48,6 +48,7 @@ function getLambdaHeaders(userContext: UserContext): Record<string, string> {
     "x-tenant-id": userContext.tenantId,
     "x-practice-id": userContext.practiceId,
     "x-coordinator-sax-id": String(userContext.saxId),
+    "x-user-sax-id": String(userContext.saxId),
   };
 }
 
@@ -87,7 +88,7 @@ async function handlePost(
       {
         tenant_id: userContext.tenantId,
         practice_id: userContext.practiceId,
-        coordinator_sax_id: String(userContext.saxId),
+        updated_by: String(userContext.saxId),
       },
       {
         headers: getLambdaHeaders(userContext),
