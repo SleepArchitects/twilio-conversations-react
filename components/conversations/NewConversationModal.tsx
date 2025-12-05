@@ -7,7 +7,6 @@ import {
   formatPhoneNumber,
   formatDisplayPhoneNumber,
   isValidUSPhoneNumber,
-  getPhoneValidationError,
 } from "@/lib/validation";
 
 // =============================================================================
@@ -53,12 +52,23 @@ interface ConversationListResponse {
   };
 }
 
+/** Patient record from SleepConnect /api/patients endpoint */
+interface Patient {
+  people_id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  email: string;
+}
+
 // =============================================================================
 // Constants
 // =============================================================================
 
 const MAX_NAME_LENGTH = 255;
 const MAX_MESSAGE_LENGTH = 1600;
+const PATIENT_SEARCH_DEBOUNCE_MS = 300;
+const PATIENT_SEARCH_MIN_CHARS = 2;
 
 // Default greeting template
 const DEFAULT_GREETING_TEMPLATE =
@@ -247,6 +257,42 @@ function ChatBubbleIcon({ className, ...props }: IconProps) {
   );
 }
 
+function SearchIcon({ className, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className={cn("h-5 w-5", className)}
+      {...props}
+    >
+      <path
+        fillRule="evenodd"
+        d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function ClearIcon({ className, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className={cn("h-5 w-5", className)}
+      {...props}
+    >
+      <path
+        fillRule="evenodd"
+        d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 // =============================================================================
 // NewConversationModal Component
 // =============================================================================
@@ -275,6 +321,17 @@ export function NewConversationModal({
   const [friendlyName, setFriendlyName] = React.useState("");
   const [initialMessage, setInitialMessage] = React.useState("");
 
+  // Patient search state (FR-006a, FR-006b)
+  const [patientSearchQuery, setPatientSearchQuery] = React.useState("");
+  const [patientSearchResults, setPatientSearchResults] = React.useState<
+    Patient[]
+  >([]);
+  const [isSearchingPatients, setIsSearchingPatients] = React.useState(false);
+  const [selectedPatient, setSelectedPatient] = React.useState<Patient | null>(
+    null,
+  );
+  const [showPatientDropdown, setShowPatientDropdown] = React.useState(false);
+
   // UI state
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [phoneError, setPhoneError] = React.useState<string | null>(null);
@@ -285,7 +342,9 @@ export function NewConversationModal({
   // Refs
   const modalRef = React.useRef<HTMLDivElement>(null);
   const phoneInputRef = React.useRef<HTMLInputElement>(null);
+  const patientSearchInputRef = React.useRef<HTMLInputElement>(null);
   const firstFocusableRef = React.useRef<HTMLButtonElement>(null);
+  const searchDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Derived state
   const messageCharCount = initialMessage.length;
@@ -309,12 +368,28 @@ export function NewConversationModal({
       setSubmitError(null);
       setIsSubmitting(false);
 
-      // Focus the phone input after render
+      // Reset patient search state
+      setPatientSearchQuery("");
+      setPatientSearchResults([]);
+      setIsSearchingPatients(false);
+      setSelectedPatient(null);
+      setShowPatientDropdown(false);
+
+      // Focus the patient search input after render
       requestAnimationFrame(() => {
-        phoneInputRef.current?.focus();
+        patientSearchInputRef.current?.focus();
       });
     }
   }, [isOpen, coordinatorName, practiceName]);
+
+  // Cleanup debounce on unmount
+  React.useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, []);
 
   // Handle Escape key to close modal
   React.useEffect(() => {
@@ -361,6 +436,23 @@ export function NewConversationModal({
     return () => document.removeEventListener("keydown", handleTabKey);
   }, [isOpen]);
 
+  // Close patient dropdown on click outside
+  React.useEffect(() => {
+    if (!isOpen || !showPatientDropdown) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      const isSearchInput = target.closest("#patient-search-input");
+      const isDropdown = target.closest("[data-patient-dropdown]");
+      if (!isSearchInput && !isDropdown) {
+        setShowPatientDropdown(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen, showPatientDropdown]);
+
   // Prevent body scroll when modal is open
   React.useEffect(() => {
     if (isOpen) {
@@ -378,61 +470,114 @@ export function NewConversationModal({
   // ==========================================================================
 
   /**
-   * Handle phone number input changes
-   * Auto-formats to display format as user types
+   * Search for patients from SleepConnect API (FR-006a)
+   * Uses debounced search to avoid excessive API calls
    */
-  const handlePhoneChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const value = event.target.value;
-      setDisplayPhone(value);
-
-      // Clear error on change
-      if (phoneError) {
-        setPhoneError(null);
-      }
-
-      // Format to E.164 for storage
-      const formatted = formatPhoneNumber(value);
-      setPhoneNumber(formatted);
-    },
-    [phoneError],
-  );
-
-  /**
-   * Validate phone on blur and format for display
-   */
-  const handlePhoneBlur = React.useCallback(() => {
-    if (!displayPhone.trim()) {
-      setPhoneError(null);
+  const searchPatients = React.useCallback(async (query: string) => {
+    if (query.length < PATIENT_SEARCH_MIN_CHARS) {
+      setPatientSearchResults([]);
+      setShowPatientDropdown(false);
       return;
     }
 
-    const formatted = formatPhoneNumber(displayPhone);
-    if (formatted && isValidUSPhoneNumber(formatted)) {
-      // Show formatted display version
-      setDisplayPhone(formatDisplayPhoneNumber(formatted));
-      setPhoneNumber(formatted);
-      setPhoneError(null);
-    } else {
-      const error = getPhoneValidationError(formatted || displayPhone);
-      setPhoneError(error || "Invalid phone number format");
+    setIsSearchingPatients(true);
+    try {
+      // Call SleepConnect's patient API endpoint directly (cross-zone call)
+      // Must NOT use the api client which prepends /outreach prefix
+      // The /api/patients endpoint is on the parent SleepConnect zone
+      const searchParams = new URLSearchParams({ search: query });
+      const response = await fetch(`/api/patients?${searchParams.toString()}`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // Include cookies for Auth0 session
+      });
+
+      if (!response.ok) {
+        throw new Error(`Patient search failed: ${response.status}`);
+      }
+
+      const data = (await response.json()) as Patient[];
+      setPatientSearchResults(data || []);
+      setShowPatientDropdown(true);
+    } catch (error) {
+      console.error("Error searching patients:", error);
+      setPatientSearchResults([]);
+    } finally {
+      setIsSearchingPatients(false);
     }
-  }, [displayPhone]);
+  }, []);
 
   /**
-   * Handle friendly name input
+   * Handle patient search input with debounce
    */
-  const handleNameChange = React.useCallback(
+  const handlePatientSearchChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const value = event.target.value;
-      setFriendlyName(value);
+      setPatientSearchQuery(value);
+      setSelectedPatient(null); // Clear selection when typing
 
-      if (nameError) {
-        setNameError(null);
+      // Clear previous debounce
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
       }
+
+      // Debounce the search
+      searchDebounceRef.current = setTimeout(() => {
+        searchPatients(value);
+      }, PATIENT_SEARCH_DEBOUNCE_MS);
     },
-    [nameError],
+    [searchPatients],
   );
+
+  /**
+   * Handle patient selection from search results (FR-006b)
+   * Auto-populates phone and name fields
+   */
+  const handlePatientSelect = React.useCallback((patient: Patient) => {
+    setSelectedPatient(patient);
+    setPatientSearchQuery(`${patient.first_name} ${patient.last_name}`);
+    setShowPatientDropdown(false);
+
+    // Auto-populate phone number if available
+    if (patient.phone) {
+      const formattedPhone = formatPhoneNumber(patient.phone);
+      setPhoneNumber(formattedPhone);
+      if (formattedPhone && isValidUSPhoneNumber(formattedPhone)) {
+        setDisplayPhone(formatDisplayPhoneNumber(formattedPhone));
+      } else {
+        setDisplayPhone(patient.phone);
+      }
+      setPhoneError(null);
+    }
+
+    // Auto-populate friendly name
+    const fullName = `${patient.first_name} ${patient.last_name}`.trim();
+    setFriendlyName(fullName);
+    setNameError(null);
+  }, []);
+
+  /**
+   * Clear patient selection and reset form for manual entry
+   */
+  const handleClearPatientSelection = React.useCallback(() => {
+    setSelectedPatient(null);
+    setPatientSearchQuery("");
+    setPatientSearchResults([]);
+    setShowPatientDropdown(false);
+    setPhoneNumber("");
+    setDisplayPhone("");
+    setFriendlyName("");
+    setPhoneError(null);
+    setNameError(null);
+
+    // Focus search input
+    requestAnimationFrame(() => {
+      patientSearchInputRef.current?.focus();
+    });
+  }, []);
 
   /**
    * Handle initial message input with auto-resize
@@ -654,6 +799,140 @@ export function NewConversationModal({
         {/* Form */}
         <form onSubmit={handleSubmit}>
           <div className="px-6 py-4 space-y-4">
+            {/* Patient Search Input (FR-006a) */}
+            <div className="relative">
+              <label
+                htmlFor="patient-search-input"
+                className="flex items-center gap-2 text-sm font-medium text-gray-200 mb-1.5"
+              >
+                <SearchIcon
+                  className="h-4 w-4 text-gray-400"
+                  aria-hidden="true"
+                />
+                Search Patient
+                <span className="text-xs text-gray-500 font-normal ml-1">
+                  (or enter manually below)
+                </span>
+              </label>
+              <div className="relative">
+                <input
+                  ref={patientSearchInputRef}
+                  id="patient-search-input"
+                  type="text"
+                  value={patientSearchQuery}
+                  onChange={handlePatientSearchChange}
+                  onFocus={() => {
+                    if (patientSearchResults.length > 0 && !selectedPatient) {
+                      setShowPatientDropdown(true);
+                    }
+                  }}
+                  placeholder="Type patient name to search..."
+                  disabled={isSubmitting}
+                  autoComplete="off"
+                  className={cn(
+                    "w-full px-4 py-2.5 rounded-lg text-sm",
+                    "bg-gray-900 text-white placeholder:text-gray-500",
+                    "border border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800",
+                    "disabled:opacity-50 disabled:cursor-not-allowed",
+                    "transition-colors",
+                    selectedPatient && "pr-10",
+                  )}
+                />
+                {isSearchingPatients && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <SpinnerIcon
+                      className="h-4 w-4 text-gray-400"
+                      aria-hidden="true"
+                    />
+                  </div>
+                )}
+                {selectedPatient && !isSearchingPatients && (
+                  <button
+                    type="button"
+                    onClick={handleClearPatientSelection}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                    aria-label="Clear patient selection"
+                  >
+                    <ClearIcon className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+
+              {/* Patient Search Results Dropdown */}
+              {showPatientDropdown && patientSearchResults.length > 0 && (
+                <div
+                  data-patient-dropdown
+                  className="absolute z-20 w-full mt-1 bg-gray-900 border border-gray-600 rounded-lg shadow-xl max-h-48 overflow-y-auto"
+                >
+                  {patientSearchResults.map((patient) => (
+                    <button
+                      key={patient.people_id}
+                      type="button"
+                      onClick={() => handlePatientSelect(patient)}
+                      className={cn(
+                        "w-full px-4 py-2.5 text-left",
+                        "hover:bg-gray-700 focus:bg-gray-700 focus:outline-none",
+                        "transition-colors",
+                        "border-b border-gray-700 last:border-b-0",
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-white">
+                            {patient.first_name} {patient.last_name}
+                          </p>
+                          {patient.email && (
+                            <p className="text-xs text-gray-400">
+                              {patient.email}
+                            </p>
+                          )}
+                        </div>
+                        {patient.phone && (
+                          <span className="text-xs text-gray-400 tabular-nums">
+                            {formatDisplayPhoneNumber(
+                              formatPhoneNumber(patient.phone),
+                            ) || patient.phone}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* No results message */}
+              {showPatientDropdown &&
+                patientSearchQuery.length >= PATIENT_SEARCH_MIN_CHARS &&
+                patientSearchResults.length === 0 &&
+                !isSearchingPatients && (
+                  <div className="absolute z-20 w-full mt-1 bg-gray-900 border border-gray-600 rounded-lg shadow-xl">
+                    <p className="px-4 py-3 text-sm text-gray-400">
+                      No patients found. You can enter details manually below.
+                    </p>
+                  </div>
+                )}
+
+              {selectedPatient && (
+                <p className="mt-1.5 text-xs text-green-400">
+                  ✓ Patient selected - phone and name auto-filled
+                </p>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-700" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="px-2 bg-gray-800 text-gray-500">
+                  {selectedPatient
+                    ? "Auto-filled from patient record"
+                    : "Patient details"}
+                </span>
+              </div>
+            </div>
+
             {/* Phone Number Input */}
             <div>
               <label
@@ -674,24 +953,25 @@ export function NewConversationModal({
                 id="phone-input"
                 type="tel"
                 value={displayPhone}
-                onChange={handlePhoneChange}
-                onBlur={handlePhoneBlur}
-                placeholder="(555) 123-4567"
+                placeholder="Select a patient above"
                 aria-required="true"
                 aria-invalid={!!phoneError}
-                aria-describedby={phoneError ? "phone-error" : undefined}
-                disabled={isSubmitting}
+                aria-describedby={phoneError ? "phone-error" : "phone-hint"}
+                disabled
+                readOnly
                 className={cn(
                   "w-full px-4 py-2.5 rounded-lg text-sm",
-                  "bg-gray-900 text-white placeholder:text-gray-500",
-                  "border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800",
-                  "disabled:opacity-50 disabled:cursor-not-allowed",
-                  "transition-colors",
-                  phoneError
-                    ? "border-red-500 focus:ring-red-500"
-                    : "border-gray-600 focus:ring-purple-500",
+                  "bg-gray-900/50 text-gray-400 placeholder:text-gray-600",
+                  "border border-gray-700/50",
+                  "cursor-not-allowed opacity-60",
+                  phoneError && "border-red-500",
                 )}
               />
+              {!phoneError && (
+                <p id="phone-hint" className="mt-1.5 text-xs text-gray-500">
+                  Auto-filled from patient selection
+                </p>
+              )}
               {phoneError && (
                 <p
                   id="phone-error"
@@ -722,22 +1002,18 @@ export function NewConversationModal({
                 id="name-input"
                 type="text"
                 value={friendlyName}
-                onChange={handleNameChange}
-                placeholder="John Doe"
+                placeholder="Select a patient above"
                 aria-required="true"
                 aria-invalid={!!nameError}
                 aria-describedby={nameError ? "name-error" : "name-hint"}
-                disabled={isSubmitting}
-                maxLength={MAX_NAME_LENGTH}
+                disabled
+                readOnly
                 className={cn(
                   "w-full px-4 py-2.5 rounded-lg text-sm",
-                  "bg-gray-900 text-white placeholder:text-gray-500",
-                  "border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800",
-                  "disabled:opacity-50 disabled:cursor-not-allowed",
-                  "transition-colors",
-                  nameError
-                    ? "border-red-500 focus:ring-red-500"
-                    : "border-gray-600 focus:ring-purple-500",
+                  "bg-gray-900/50 text-gray-400 placeholder:text-gray-600",
+                  "border border-gray-700/50",
+                  "cursor-not-allowed opacity-60",
+                  nameError && "border-red-500",
                 )}
               />
               {nameError ? (
@@ -750,9 +1026,9 @@ export function NewConversationModal({
                 </p>
               ) : (
                 <p id="name-hint" className="mt-1.5 text-xs text-gray-500">
-                  {practiceName
-                    ? `Will be saved as "${friendlyName || "Name"} (${practiceName})"`
-                    : "Enter the patient's display name"}
+                  {friendlyName && practiceName
+                    ? `Will be saved as "${friendlyName} (${practiceName})"`
+                    : "Auto-filled from patient selection"}
                 </p>
               )}
             </div>

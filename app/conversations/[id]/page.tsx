@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Spinner } from "flowbite-react";
 import { ConversationDetail } from "@/components/conversations/ConversationDetail";
-import { useTwilioClient } from "@/hooks/useTwilioClient";
 import { api, ApiError } from "@/lib/api";
 import type { Conversation } from "@/types/sms";
 import { cn } from "@/lib/utils";
@@ -25,21 +24,14 @@ interface ConversationResponse {
 /**
  * Conversation Detail Page
  *
- * Displays a single conversation with real-time messaging capabilities.
- * Uses Twilio Conversations SDK for real-time updates.
+ * Displays a single conversation with messaging capabilities.
+ * Uses polling for real-time updates (Twilio Messaging API).
  * Implements auto-scroll (T039) and mark as read (T040) via ConversationDetail.
  */
 export default function ConversationPage(): React.ReactElement {
   const params = useParams();
   const router = useRouter();
   const conversationId = params.id as string;
-
-  // Twilio client for real-time updates
-  const {
-    client: twilioClient,
-    isLoading: isConnecting,
-    error: twilioError,
-  } = useTwilioClient();
 
   // Conversation data
   const [conversation, setConversation] = React.useState<Conversation | null>(
@@ -116,55 +108,6 @@ export default function ConversationPage(): React.ReactElement {
   // ==========================================================================
   // Render States
   // ==========================================================================
-
-  // Connection error
-  if (twilioError) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-900">
-        <div className="rounded-lg bg-gray-800 p-8 text-center">
-          <div className="mb-4 text-red-400">
-            <svg
-              className="mx-auto h-12 w-12"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-          </div>
-          <h2 className="mb-2 text-xl font-semibold text-white">
-            Connection Error
-          </h2>
-          <p className="mb-4 text-gray-400">
-            Failed to connect to messaging service.
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-          >
-            Retry Connection
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Connecting to Twilio
-  if (isConnecting) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-900">
-        <div className="text-center">
-          <Spinner size="xl" color="info" className="mb-4" />
-          <p className="text-gray-400">Connecting to messaging service...</p>
-        </div>
-      </div>
-    );
-  }
 
   // Loading conversation metadata
   if (isLoading) {
@@ -261,7 +204,6 @@ export default function ConversationPage(): React.ReactElement {
         <ConversationDetail
           conversationId={conversationId}
           conversation={conversation}
-          twilioClient={twilioClient}
         />
       </div>
     </div>
