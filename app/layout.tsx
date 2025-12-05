@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { UserProvider } from "@auth0/nextjs-auth0/client";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -21,10 +22,10 @@ export default function RootLayout({
 }) {
   // When auth is disabled, don't wrap with UserProvider to avoid /api/auth/me calls
   const content = (
-    <>
+    <Providers>
       {children}
       <Toaster position="top-right" richColors closeButton theme="dark" />
-    </>
+    </Providers>
   );
 
   return (

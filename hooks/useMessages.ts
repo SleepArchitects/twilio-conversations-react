@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
 	Client,
 	Conversation as TwilioConversation,
@@ -57,6 +58,34 @@ export interface UseMessagesReturn {
 
 const API_BASE_PATH = "/outreach/api/outreach";
 const DEFAULT_PAGE_SIZE = 50;
+const POLLING_INTERVAL = 3000; // 3 seconds
+
+/**
+ * Query key factory for messages
+ */
+const messagesQueryKey = (conversationId: string) => 
+	["messages", conversationId] as const;
+
+/**
+ * Fetch messages from API - used by TanStack Query
+ */
+async function fetchMessagesFromApi(
+	conversationId: string,
+	offset = 0,
+	limit = DEFAULT_PAGE_SIZE,
+): Promise<PaginatedResponse<Message>> {
+	console.log(`[useMessages] Fetching messages for ${conversationId} (offset: ${offset})`);
+	return api.get<PaginatedResponse<Message>>(
+		`${API_BASE_PATH}/conversations/${conversationId}/messages`,
+		{
+			params: {
+				limit,
+				offset,
+				order: "asc",
+			},
+		},
+	);
+}
 
 // =============================================================================
 // Message State Reducer
@@ -277,99 +306,104 @@ function mapTwilioDeliveryStatus(
  */
 export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 	const { conversationId, twilioClient, initialMessages = [] } = options;
+	const queryClient = useQueryClient();
 
 	// State
 	const [state, dispatch] = useReducer(messageReducer, {
 		messages: initialMessages,
 		messageIds: new Set(initialMessages.map((m) => m.id)),
 	});
-	const [isLoading, setIsLoading] = useState(true);
 	const [isSending, setIsSending] = useState(false);
-	const [error, setError] = useState<Error | null>(null);
+	const [sendError, setSendError] = useState<Error | null>(null);
 	const [hasMore, setHasMore] = useState(true);
 	const [offset, setOffset] = useState(0);
+	// Track if we successfully subscribed to Twilio realtime events
+	const [isSubscribedToRealtime, setIsSubscribedToRealtime] = useState(false);
 
 	// Refs for cleanup and race condition prevention
 	const isMountedRef = useRef(true);
 	const twilioConversationRef = useRef<TwilioConversation | null>(null);
-	const fetchVersionRef = useRef(0);
 	const pendingOptimisticRef = useRef<Map<string, string>>(new Map());
+	// Track optimistic message IDs separately to avoid dependency cycle
+	const optimisticIdsRef = useRef<Set<string>>(new Set());
 
-	/**
-	 * Fetch messages from API
-	 */
-	const fetchMessages = useCallback(
-		async (reset = true) => {
-			const fetchVersion = ++fetchVersionRef.current;
+	// TanStack Query for fetching messages with automatic polling
+	const {
+		data: queryData,
+		isLoading,
+		error: queryError,
+		refetch,
+	} = useQuery({
+		queryKey: messagesQueryKey(conversationId),
+		queryFn: () => fetchMessagesFromApi(conversationId, 0, DEFAULT_PAGE_SIZE),
+		// Poll every 3 seconds when NOT subscribed to Twilio realtime events
+		refetchInterval: isSubscribedToRealtime ? false : POLLING_INTERVAL,
+		// Always refetch on window focus
+		refetchOnWindowFocus: true,
+		// Keep previous data while refetching (prevents UI flicker)
+		placeholderData: (previousData) => previousData,
+		// Consider data stale after 2 seconds
+		staleTime: 2000,
+	});
 
-			try {
-				if (reset) {
-					setIsLoading(true);
-					setError(null);
-				}
+	// Sync query data to local state (merge with optimistic updates)
+	useEffect(() => {
+		if (!queryData?.data) return;
 
-				const currentOffset = reset ? 0 : offset;
-
-				const response = await api.get<PaginatedResponse<Message>>(
-					`${API_BASE_PATH}/conversations/${conversationId}/messages`,
-					{
-						params: {
-							limit: DEFAULT_PAGE_SIZE,
-							offset: currentOffset,
-							order: "asc",
-						},
-					},
-				);
-
-				// Check for race conditions
-				if (!isMountedRef.current || fetchVersion !== fetchVersionRef.current) {
-					return;
-				}
-
-				if (reset) {
-					dispatch({ type: "SET_MESSAGES", payload: response.data });
-					setOffset(response.data.length);
-				} else {
-					dispatch({ type: "PREPEND_MESSAGES", payload: response.data });
-					setOffset(currentOffset + response.data.length);
-				}
-
-				setHasMore(response.pagination.hasMore);
-			} catch (err) {
-				if (!isMountedRef.current || fetchVersion !== fetchVersionRef.current) {
-					return;
-				}
-
-				const error =
-					err instanceof Error ? err : new Error("Failed to fetch messages");
-				setError(error);
-				console.error("Failed to fetch messages:", {
-					conversationId,
-					error: err instanceof ApiError ? err.code : "unknown",
-				});
-			} finally {
-				if (isMountedRef.current && fetchVersion === fetchVersionRef.current) {
-					setIsLoading(false);
-				}
+		// Get current optimistic messages from state using the ref to track IDs
+		const currentOptimisticIds = optimisticIdsRef.current;
+		
+		// Check if any optimistic messages are now in the API response
+		const apiMessageIds = new Set(queryData.data.map((m) => m.id));
+		
+		// Remove confirmed optimistic IDs
+		for (const optId of currentOptimisticIds) {
+			if (apiMessageIds.has(optId)) {
+				currentOptimisticIds.delete(optId);
 			}
-		},
-		[conversationId, offset],
-	);
+		}
+
+		// If we have pending optimistic messages, we need to merge them
+		// Access state directly in the dispatch to avoid stale closure
+		if (currentOptimisticIds.size > 0) {
+			dispatch({ 
+				type: "SET_MESSAGES", 
+				payload: queryData.data,
+			});
+		} else {
+			dispatch({ type: "SET_MESSAGES", payload: queryData.data });
+		}
+		
+		setHasMore(queryData.pagination.hasMore);
+		setOffset(queryData.data.length);
+	}, [queryData]);
 
 	/**
-	 * Load more (older) messages
+	 * Load more (older) messages - uses separate query for pagination
 	 */
 	const loadMore = useCallback(async () => {
 		if (!hasMore || isLoading) return;
-		await fetchMessages(false);
-	}, [fetchMessages, hasMore, isLoading]);
+
+		try {
+			const response = await fetchMessagesFromApi(conversationId, offset, DEFAULT_PAGE_SIZE);
+			if (!isMountedRef.current) return;
+
+			dispatch({ type: "PREPEND_MESSAGES", payload: response.data });
+			setOffset((prev) => prev + response.data.length);
+			setHasMore(response.pagination.hasMore);
+		} catch (err) {
+			console.error("Failed to load more messages:", err);
+		}
+	}, [conversationId, offset, hasMore, isLoading]);
 
 	/**
-	 * Refresh messages (reset and fetch from beginning)
+	 * Refresh messages - invalidates the query to trigger refetch
 	 */
 	const refresh = useCallback(async () => {
-		await fetchMessages(true);
-	}, [fetchMessages]);
+		await queryClient.invalidateQueries({ 
+			queryKey: messagesQueryKey(conversationId) 
+		});
+	}, [queryClient, conversationId]);
 
 	/**
 	 * Send a message with optimistic update
@@ -384,7 +418,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
 			try {
 				setIsSending(true);
-				setError(null);
+				setSendError(null);
+
+				// Track optimistic message ID
+				optimisticIdsRef.current.add(tempId);
 
 				// Optimistic update - add message immediately with "sending" status
 				const optimisticMessage = createOptimisticMessage(
@@ -428,8 +465,21 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 						},
 					},
 				});
+
+				// Remove from optimistic tracking - message is now confirmed
+				optimisticIdsRef.current.delete(tempId);
+				// Track the new real ID for the next poll cycle
+				optimisticIdsRef.current.add(response.id);
+
+				// Invalidate query to sync with backend
+				await queryClient.invalidateQueries({
+					queryKey: messagesQueryKey(conversationId),
+				});
 			} catch (err) {
 				if (!isMountedRef.current) return;
+
+				// Remove from optimistic tracking on failure
+				optimisticIdsRef.current.delete(tempId);
 
 				// Update optimistic message to show failure
 				dispatch({
@@ -446,7 +496,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
 				const error =
 					err instanceof Error ? err : new Error("Failed to send message");
-				setError(error);
+				setSendError(error);
 				throw error;
 			} finally {
 				if (isMountedRef.current) {
@@ -454,7 +504,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 				}
 			}
 		},
-		[conversationId],
+		[conversationId, queryClient],
 	);
 
 	/**
@@ -560,6 +610,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 		if (!twilioClient || !conversationId) return;
 
 		let conversation: TwilioConversation | null = null;
+		let subscribed = false;
 
 		async function subscribeToConversation() {
 			if (!twilioClient) return;
@@ -577,6 +628,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 				// Subscribe to events
 				conversation.on("messageAdded", handleMessageAdded);
 				conversation.on("messageUpdated", handleMessageUpdated);
+				subscribed = true;
+				setIsSubscribedToRealtime(true);
 			} catch (err) {
 				// If we can't find by SID, try by unique name (which might be our conversationId)
 				try {
@@ -589,11 +642,13 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
 					conversation.on("messageAdded", handleMessageAdded);
 					conversation.on("messageUpdated", handleMessageUpdated);
+					subscribed = true;
+					setIsSubscribedToRealtime(true);
 				} catch {
-					// Conversation not found - this is expected if Twilio SID is different
-					console.debug("Could not subscribe to Twilio conversation events:", {
-						conversationId,
-					});
+					// Conversation not found - this is expected when using database-backed 
+					// conversations instead of Twilio Conversations SDK.
+					// Polling via TanStack Query will handle real-time updates.
+					setIsSubscribedToRealtime(false);
 				}
 			}
 		}
@@ -609,21 +664,28 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 				);
 				twilioConversationRef.current = null;
 			}
+			if (subscribed) {
+				setIsSubscribedToRealtime(false);
+			}
 		};
 	}, [twilioClient, conversationId, handleMessageAdded, handleMessageUpdated]);
 
 	/**
-	 * Initial fetch on mount
+	 * Track mounted state for cleanup
 	 */
 	useEffect(() => {
 		isMountedRef.current = true;
-		fetchMessages(true);
 
 		return () => {
 			isMountedRef.current = false;
 			pendingOptimisticRef.current.clear();
 		};
-	}, [conversationId]); // Only re-fetch when conversationId changes
+	}, [conversationId]);
+
+	// Note: Polling is now handled by TanStack Query with refetchInterval
+
+	// Combine query error with send error
+	const error = queryError || sendError;
 
 	return {
 		messages: state.messages,

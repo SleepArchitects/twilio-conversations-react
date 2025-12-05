@@ -14,9 +14,15 @@ importers:
       '@radix-ui/react-slot':
         specifier: ^1.2.4
         version: 1.2.4(@types/react@18.3.27)(react@18.3.1)
+      '@tanstack/react-query':
+        specifier: ^5.90.12
+        version: 5.90.12(react@18.3.1)
       '@twilio/conversations':
         specifier: ^2.4.0
-        version: 2.6.5(bufferutil@4.0.9)
+        version: 2.6.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      axios:
+        specifier: ^1.13.2
+        version: 1.13.2
       bufferutil:
         specifier: ^4.0.9
         version: 4.0.9
@@ -55,7 +61,10 @@ importers:
         version: 5.10.6
       twilio-sync:
         specifier: ^3.3.10
-        version: 3.3.10(bufferutil@4.0.9)
+        version: 3.3.10(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      utf-8-validate:
+        specifier: ^6.0.5
+        version: 6.0.5
     devDependencies:
       '@commitlint/cli':
         specifier: ^18.4.4
@@ -116,7 +125,7 @@ importers:
         version: 29.7.0(@types/node@20.19.25)
       jest-environment-jsdom:
         specifier: ^29.7.0
-        version: 29.7.0(bufferutil@4.0.9)
+        version: 29.7.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       postcss:
         specifier: ^8.4.33
         version: 8.5.6
@@ -716,6 +725,14 @@ packages:
 
   '@swc/helpers@0.5.5':
     resolution: {integrity: sha512-KGYxvIOXcceOAbEk4bi/dVLEK9z8sZ0uBB3Il5b1rhfClSpcX0yfRO0KmTkqR2cnQDymwLB+25ZyMzICg/cm/A==}
+
+  '@tanstack/query-core@5.90.12':
+    resolution: {integrity: sha512-T1/8t5DhV/SisWjDnaiU2drl6ySvsHj1bHBCWNXd+/T+Hh1cf6JodyEYMd5sgwm+b/mETT4EV3H+zCVczCU5hg==}
+
+  '@tanstack/react-query@5.90.12':
+    resolution: {integrity: sha512-graRZspg7EoEaw0a8faiUASCyJrqjKPdqJ9EwuDRUF9mEYJ1YPczI9H+/agJ0mOJkPCJDk0lsz5QTrLZ/jQ2rg==}
+    peerDependencies:
+      react: ^18 || ^19
 
   '@testing-library/dom@9.3.4':
     resolution: {integrity: sha512-FlS4ZWlp97iiNWig0Muq8p+3rVDjRiYE+YKGbAqXOu9nwJFFOdL00kFpz42M+4huzYi86vAK1sOOfyOG45muIQ==}
@@ -3666,6 +3683,10 @@ packages:
   url-parse@1.5.10:
     resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
 
+  utf-8-validate@6.0.5:
+    resolution: {integrity: sha512-EYZR+OpIXp9Y1eG1iueg8KRsY8TuT8VNgnanZ0uA3STqhHQTLwbl+WX76/9X5OY12yQubymBpaBSmMPkSTQcKA==}
+    engines: {node: '>=6.14.2'}
+
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
@@ -4546,6 +4567,13 @@ snapshots:
       '@swc/counter': 0.1.3
       tslib: 2.8.1
 
+  '@tanstack/query-core@5.90.12': {}
+
+  '@tanstack/react-query@5.90.12(react@18.3.1)':
+    dependencies:
+      '@tanstack/query-core': 5.90.12
+      react: 18.3.1
+
   '@testing-library/dom@9.3.4':
     dependencies:
       '@babel/code-frame': 7.27.1
@@ -4578,13 +4606,13 @@ snapshots:
 
   '@tootallnate/once@2.0.0': {}
 
-  '@twilio/conversations@2.6.5(bufferutil@4.0.9)':
+  '@twilio/conversations@2.6.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.2.13
       '@twilio/deprecation-decorator': 0.2.11
       '@twilio/mcs-client': 0.6.13
-      '@twilio/notifications': 2.0.12(bufferutil@4.0.9)
+      '@twilio/notifications': 2.0.12(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@twilio/operation-retrier': 4.0.21
       '@twilio/replay-event-emitter': 0.3.13
       core-js: 3.47.0
@@ -4594,8 +4622,8 @@ snapshots:
       loglevel: 1.9.2
       platform: 1.3.6
       quick-lru: 5.1.1
-      twilio-sync: 3.1.0(bufferutil@4.0.9)
-      twilsock: 0.13.12(bufferutil@4.0.9)
+      twilio-sync: 3.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      twilsock: 0.13.12(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       uuid: 3.4.0
       xmlhttprequest: 1.8.0
     transitivePeerDependencies:
@@ -4627,14 +4655,14 @@ snapshots:
       loglevel: 1.9.2
       xmlhttprequest: 1.8.0
 
-  '@twilio/notifications@2.0.12(bufferutil@4.0.9)':
+  '@twilio/notifications@2.0.12(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.2.13
       '@twilio/operation-retrier': 4.0.21
       core-js: 3.47.0
       loglevel: 1.9.2
-      twilsock: 0.13.12(bufferutil@4.0.9)
+      twilsock: 0.13.12(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       uuid: 3.4.0
     transitivePeerDependencies:
       - bufferutil
@@ -6542,7 +6570,7 @@ snapshots:
       jest-util: 29.7.0
       pretty-format: 29.7.0
 
-  jest-environment-jsdom@29.7.0(bufferutil@4.0.9):
+  jest-environment-jsdom@29.7.0(bufferutil@4.0.9)(utf-8-validate@6.0.5):
     dependencies:
       '@jest/environment': 29.7.0
       '@jest/fake-timers': 29.7.0
@@ -6551,7 +6579,7 @@ snapshots:
       '@types/node': 20.19.25
       jest-mock: 29.7.0
       jest-util: 29.7.0
-      jsdom: 20.0.3(bufferutil@4.0.9)
+      jsdom: 20.0.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -6788,7 +6816,7 @@ snapshots:
     dependencies:
       argparse: 2.0.1
 
-  jsdom@20.0.3(bufferutil@4.0.9):
+  jsdom@20.0.3(bufferutil@4.0.9)(utf-8-validate@6.0.5):
     dependencies:
       abab: 2.0.6
       acorn: 8.15.0
@@ -6814,7 +6842,7 @@ snapshots:
       whatwg-encoding: 2.0.0
       whatwg-mimetype: 3.0.0
       whatwg-url: 11.0.0
-      ws: 8.18.3(bufferutil@4.0.9)
+      ws: 8.18.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       xml-name-validator: 4.0.0
     transitivePeerDependencies:
       - bufferutil
@@ -7868,7 +7896,7 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  twilio-sync@3.1.0(bufferutil@4.0.9):
+  twilio-sync@3.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5):
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.1.11
@@ -7877,13 +7905,13 @@ snapshots:
       iso8601-duration: 1.2.0
       loglevel: 1.9.2
       platform: 1.3.6
-      twilsock: 0.12.2(bufferutil@4.0.9)
+      twilsock: 0.12.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       uuid: 3.4.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  twilio-sync@3.3.10(bufferutil@4.0.9):
+  twilio-sync@3.3.10(bufferutil@4.0.9)(utf-8-validate@6.0.5):
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.2.13
@@ -7894,7 +7922,7 @@ snapshots:
       lodash-es: 4.17.21
       loglevel: 1.9.2
       platform: 1.3.6
-      twilsock: 0.13.12(bufferutil@4.0.9)
+      twilsock: 0.13.12(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       uuid: 3.4.0
     transitivePeerDependencies:
       - bufferutil
@@ -7913,7 +7941,7 @@ snapshots:
       - debug
       - supports-color
 
-  twilsock@0.12.2(bufferutil@4.0.9):
+  twilsock@0.12.2(bufferutil@4.0.9)(utf-8-validate@6.0.5):
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.1.11
@@ -7924,12 +7952,12 @@ snapshots:
       loglevel: 1.9.2
       platform: 1.3.6
       uuid: 3.4.0
-      ws: 5.2.4(bufferutil@4.0.9)
+      ws: 5.2.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  twilsock@0.13.12(bufferutil@4.0.9):
+  twilsock@0.13.12(bufferutil@4.0.9)(utf-8-validate@6.0.5):
     dependencies:
       '@babel/runtime': 7.28.4
       '@twilio/declarative-type-validator': 0.2.13
@@ -7940,7 +7968,7 @@ snapshots:
       loglevel: 1.9.2
       platform: 1.3.6
       uuid: 3.4.0
-      ws: 8.18.3(bufferutil@4.0.9)
+      ws: 8.18.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -8048,6 +8076,10 @@ snapshots:
       querystringify: 2.2.0
       requires-port: 1.0.0
 
+  utf-8-validate@6.0.5:
+    dependencies:
+      node-gyp-build: 4.8.4
+
   util-deprecate@1.0.2: {}
 
   uuid@3.4.0: {}
@@ -8150,15 +8182,17 @@ snapshots:
       imurmurhash: 0.1.4
       signal-exit: 3.0.7
 
-  ws@5.2.4(bufferutil@4.0.9):
+  ws@5.2.4(bufferutil@4.0.9)(utf-8-validate@6.0.5):
     dependencies:
       async-limiter: 1.0.1
     optionalDependencies:
       bufferutil: 4.0.9
+      utf-8-validate: 6.0.5
 
-  ws@8.18.3(bufferutil@4.0.9):
+  ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@6.0.5):
     optionalDependencies:
       bufferutil: 4.0.9
+      utf-8-validate: 6.0.5
 
   xml-name-validator@4.0.0: {}
 
