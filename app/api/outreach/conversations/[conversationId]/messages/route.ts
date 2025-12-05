@@ -419,19 +419,15 @@ export const POST = withUserContext(
         );
       }
 
-      // Get Twilio client and send message
+      // Get Twilio client and send message via Messaging API
       const twilioClient = getTwilioClient();
 
-      // Send message via Twilio Conversations API
-      const twilioMessage = await twilioClient.conversations.v1
-        .conversations(conversation.twilioSid)
-        .messages.create({
-          author: String(userContext.saxId),
-          body: messageBody,
-          ...(body.mediaUrls && body.mediaUrls.length > 0
-            ? { mediaSid: undefined } // Note: MMS through conversations may need different handling
-            : {}),
-        });
+      // Send message via Twilio Messaging API (direct SMS)
+      const twilioMessage = await twilioClient.messages.create({
+        to: conversation.patientPhone,
+        body: messageBody,
+        from: process.env.TWILIO_FROM_NUMBER,
+      });
 
       // Calculate segment count (SMS segments are 160 chars for GSM-7, 70 for UCS-2)
       const segmentCount = Math.ceil(messageBody.length / 160);

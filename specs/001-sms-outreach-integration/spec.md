@@ -56,6 +56,8 @@ As a care coordinator, I want to initiate a new SMS conversation with a patient 
 1. **Given** a coordinator clicks "New Conversation", **When** they enter a valid US phone number (+1 and 10 digits) and conversation name, **Then** a new conversation is created and appears in the conversation list
 2. **Given** a coordinator enters a phone number, **When** the format is invalid (not US +1 format, wrong length), **Then** the system displays a validation error before allowing creation
 3. **Given** a conversation already exists for a phone number, **When** the coordinator tries to create a duplicate, **Then** the system navigates to the existing conversation instead of creating a duplicate
+4. **Given** a coordinator is creating a new conversation, **When** they type a patient name in the search field, **Then** matching patients from SleepConnect are displayed with name and phone number
+5. **Given** a coordinator selects a patient from search results, **When** the patient is selected, **Then** the phone number and friendly name fields are auto-populated from the patient record
 
 ---
 
@@ -185,6 +187,8 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 #### Conversations
 
 - **FR-006**: System MUST allow creation of new conversations with patient phone number and friendly name
+- **FR-006a**: System SHOULD allow coordinators to search and select patients from SleepConnect patient records when creating a new conversation, using the existing `/api/patients` endpoint
+- **FR-006b**: When a patient is selected from search results, system MUST auto-populate phone number and friendly name (first_name + last_name) from the patient record
 - **FR-007**: System MUST prevent duplicate conversations for the same phone number within a coordinator's view
 - **FR-008**: System MUST display all messages in chronological order with timestamps
 - **FR-008a**: System MUST display message timestamps in the user's browser/local timezone

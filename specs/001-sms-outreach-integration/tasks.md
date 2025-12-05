@@ -95,12 +95,14 @@ Based on plan.md structure:
 ### Implementation for User Story 2
 
 - [X] T028 [P] [US2] Create components/conversations/NewConversationModal.tsx with phone input, name input, and validation
+- [ ] T028a [P] [US2] Add patient search autocomplete to NewConversationModal.tsx - search SleepConnect patients via `/api/patients?search=` with 300ms debounce (FR-006a)
+- [ ] T028b [US2] Wire patient selection to auto-fill phone number and friendly name (first_name + last_name) from patient record (FR-006b)
 - [X] T029 [US2] Implement app/api/outreach/conversations/route.ts (GET list, POST create) per sms-api.yaml
 - [X] T030 [US2] Add duplicate conversation detection - navigate to existing conversation if phone number already has active conversation
 - [X] T031 [US2] Integrate NewConversationModal with ConversationList for triggering new conversation flow *(integration complete via ConversationList onNewConversation prop)*
 - [X] T032 [US2] Create Twilio conversation on backend and sync with PostgreSQL via insert_sms_conversation function *(delegated to Lambda API layer)*
 
-**Checkpoint**: Coordinators can start new conversations with patients
+**Checkpoint**: Coordinators can start new conversations with patients (with optional patient search)
 
 ---
 
@@ -511,11 +513,11 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 
 | Metric | Value |
 |--------|-------|
-| **Total Tasks** | 116 (T001-T116, excluding T089 which was merged into T027a) |
+| **Total Tasks** | 118 (T001-T116 + T028a, T028b, excluding T089 which was merged into T027a) |
 | **Phase 1 (Setup)** | 10 tasks (T001-T009a) |
 | **Phase 2 (Foundational)** | 9 tasks |
 | **Phase 3 (US1)** | 11 tasks (T019-T027a) ✅ **COMPLETE** (E2E verified 2025-12-02) |
-| **Phase 4 (US2)** | 5 tasks |
+| **Phase 4 (US2)** | 7 tasks (T028-T032 + T028a, T028b for patient search) |
 | **Phase 5 (US3)** | 8 tasks |
 | **Phase 6 (US4)** | 8 tasks |
 | **Phase 7 (US5)** | 7 tasks |
@@ -525,16 +527,16 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 | **Phase 11 (Polish)** | 14 tasks (T078-T088, T090-T092; T089 moved to T027a) |
 | **Phase 11.5 (Hardening)** | 15 tasks (T102-T116, from Phase 3 checklist gaps) |
 | **Phase 12 (Deployment)** | 10 tasks (T093-T101, includes T099a BAA gate) |
-| **Parallel Opportunities** | 48 tasks marked [P] |
-| **MVP Scope** | T001-T040 (42 tasks with T019a, T027a) |
-| **Multi-Zone Integration** | T091 configures sleepconnect rewrites for /outreach |
+| **Parallel Opportunities** | 49 tasks marked [P] |
+| **MVP Scope** | T001-T040 + T028a, T028b (44 tasks with T019a, T027a) |
+| **Multi-Zone Integration** | T091 configures sleepconnect rewrites for /outreach; T028a uses sleepconnect /api/patients |
 
 ### Format Validation ✅
 
 All tasks follow the required checklist format:
 
 - ✅ Checkbox prefix `- [ ]`
-- ✅ Task ID (T001-T116, with T009a, T019a, T027a, T099a additions)
+- ✅ Task ID (T001-T116, with T009a, T019a, T027a, T028a, T028b, T099a additions)
 - ✅ [P] marker for parallelizable tasks
 - ✅ [US#] label for user story phase tasks
 - ✅ Description with file paths

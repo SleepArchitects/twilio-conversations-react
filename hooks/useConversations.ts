@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import type { Client, Conversation as TwilioConversation } from "@twilio/conversations";
 import { api, ApiError } from "@/lib/api";
 import type {
   Conversation,
@@ -15,8 +14,6 @@ import type {
 // =============================================================================
 
 export interface UseConversationsOptions {
-  /** Twilio client instance for real-time updates */
-  twilioClient?: Client | null;
   /** Status filter (active or archived) */
   statusFilter?: ConversationStatus;
   /** SLA status filter */
@@ -27,6 +24,8 @@ export interface UseConversationsOptions {
   pageSize?: number;
   /** Whether to auto-fetch on mount */
   autoFetch?: boolean;
+  /** Polling interval in ms (default: 5000) */
+  pollingInterval?: number;
 }
 
 export interface UseConversationsReturn {
@@ -174,25 +173,26 @@ function conversationsReducer(
 // =============================================================================
 
 const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_POLLING_INTERVAL = 5000; // 5 seconds
 
 // =============================================================================
 // useConversations Hook
 // =============================================================================
 
 /**
- * Hook for managing conversation list state with real-time updates.
- * Handles fetching, pagination, filtering, and Twilio SDK event subscriptions.
+ * Hook for managing conversation list state with polling-based updates.
+ * Handles fetching, pagination, and filtering.
  */
 export function useConversations(
   options: UseConversationsOptions = {}
 ): UseConversationsReturn {
   const {
-    twilioClient,
     statusFilter,
     slaFilter,
     searchQuery,
     pageSize = DEFAULT_PAGE_SIZE,
     autoFetch = true,
+    pollingInterval = DEFAULT_POLLING_INTERVAL,
   } = options;
 
   const [state, dispatch] = React.useReducer(conversationsReducer, initialState);
@@ -262,65 +262,18 @@ export function useConversations(
   }, [statusFilter, slaFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ==========================================================================
-  // Twilio SDK Event Subscriptions
+  // Polling for Real-time Updates
   // ==========================================================================
 
   React.useEffect(() => {
-    if (!twilioClient) return;
+    if (!autoFetch || pollingInterval <= 0) return;
 
-    // Handle conversation added (new conversation created)
-    const handleConversationAdded = async (twilioConv: TwilioConversation) => {
-      try {
-        // Fetch the full conversation details from our API
-        const response = await api.get<Conversation>(
-          `/api/outreach/conversations/${twilioConv.sid}`
-        );
-        dispatch({ type: "ADD_CONVERSATION", payload: response });
-      } catch (err) {
-        console.error("Error fetching new conversation:", err);
-      }
-    };
+    const interval = setInterval(() => {
+      fetchConversations(true);
+    }, pollingInterval);
 
-    // Handle conversation updated (status change, new message, etc.)
-    const handleConversationUpdated = async ({
-      conversation: twilioConv,
-    }: {
-      conversation: TwilioConversation;
-    }) => {
-      try {
-        // Fetch updated conversation details
-        const response = await api.get<Conversation>(
-          `/api/outreach/conversations/${twilioConv.sid}`
-        );
-        dispatch({
-          type: "UPDATE_CONVERSATION",
-          payload: { id: response.id, updates: response },
-        });
-      } catch (err) {
-        console.error("Error fetching updated conversation:", err);
-      }
-    };
-
-    // Handle conversation removed
-    const handleConversationRemoved = (twilioConv: TwilioConversation) => {
-      // Find conversation by Twilio SID and remove
-      const conv = state.conversations.find((c) => c.twilioSid === twilioConv.sid);
-      if (conv) {
-        dispatch({ type: "REMOVE_CONVERSATION", payload: conv.id });
-      }
-    };
-
-    // Subscribe to events
-    twilioClient.on("conversationAdded", handleConversationAdded);
-    twilioClient.on("conversationUpdated", handleConversationUpdated);
-    twilioClient.on("conversationRemoved", handleConversationRemoved);
-
-    return () => {
-      twilioClient.off("conversationAdded", handleConversationAdded);
-      twilioClient.off("conversationUpdated", handleConversationUpdated);
-      twilioClient.off("conversationRemoved", handleConversationRemoved);
-    };
-  }, [twilioClient, state.conversations]);
+    return () => clearInterval(interval);
+  }, [autoFetch, pollingInterval]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ==========================================================================
   // Helpers

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import type { Client } from "@twilio/conversations";
 import { cn } from "@/lib/utils";
 import { formatDateHeader, isSameDay } from "@/lib/datetime";
 import { MessageBubble } from "@/components/conversations/MessageBubble";
@@ -18,8 +17,6 @@ export interface ConversationDetailProps {
   conversationId: string;
   /** Conversation metadata for header display */
   conversation: Conversation;
-  /** Twilio client instance from useTwilioClient */
-  twilioClient: Client | null;
 }
 
 // =============================================================================
@@ -328,16 +325,14 @@ function LoadMoreButton({ onClick, isLoading }: LoadMoreButtonProps) {
  * <ConversationDetail
  *   conversationId="conv-123"
  *   conversation={selectedConversation}
- *   twilioClient={client}
  * />
  * ```
  */
 export function ConversationDetail({
   conversationId,
   conversation,
-  twilioClient,
 }: ConversationDetailProps) {
-  // Use the messages hook for data fetching and real-time updates
+  // Use the messages hook for data fetching and polling-based updates
   const {
     messages,
     isLoading,
@@ -349,7 +344,6 @@ export function ConversationDetail({
     isSending,
   } = useMessages({
     conversationId,
-    twilioClient,
   });
 
   // Refs for auto-scroll functionality
