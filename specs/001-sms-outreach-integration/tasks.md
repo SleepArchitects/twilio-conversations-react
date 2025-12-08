@@ -57,7 +57,7 @@ Based on plan.md structure:
 - [N/A] T016 ~~Create app/api/outreach/token/route.ts for Twilio access token generation~~ *PIVOTED: Not needed - using Twilio Messaging API (REST) instead of Conversations SDK*
 - [N/A] T017 ~~Implement hooks/useTwilioClient.ts for Twilio Conversations SDK~~ *PIVOTED: Using API-based messaging with React Query polling instead. Rationale: Serverless-compatible (Lambda), ~$475/mo cheaper, simpler maintenance, single source of truth (PostgreSQL). See ADR below.*
 - [X] T018 Auth0 route protection via SleepConnect middleware.ts (multi-zone architecture - middleware lives in sleepconnect repo, forwards user context to Outreach zone via cookies)
-- [ ] T018a [P] Implement SleepConnect shell integration in app/layout.tsx - import and render shared Header/Footer components; use `<a href>` for cross-zone links per NFR-005 and Next.js multi-zones guide
+- [ ] T018a [P] **NEXT: Ready to implement** - Integrate SleepConnect shell in app/layout.tsx - import `ShellHeader` and `ShellFooter` from `@/components/layout/SleepConnectShell` (stub created, needs integration); use `<a href>` for cross-zone links per NFR-005
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -76,7 +76,7 @@ Based on plan.md structure:
 - [X] T020 [P] [US1] Create components/conversations/MessageComposer.tsx with textarea, character count, segment display, and send button
 - [X] T021 [US1] Implement app/api/outreach/conversations/[conversationId]/messages/route.ts (GET list, POST send) per sms-api.yaml
 - [X] T022 [US1] Implement app/api/outreach/webhook/route.ts for Twilio inbound messages and status callbacks
-- [X] T023 [US1] Implement hooks/useMessages.ts for message state management with real-time Twilio SDK updates
+- [X] T023 [US1] Implement hooks/useMessages.ts for message state management with React Query polling of backend messaging API (Twilio Messaging API via Lambda)
 - [X] T024 [US1] Create components/conversations/ConversationDetail.tsx with message list, auto-scroll, and composer integration
 - [X] T025 [US1] Implement message delivery status updates (sending → sent → delivered → read → failed) via Twilio webhooks
 - [X] T026 [US1] Add US phone number validation (+1 format) in lib/validation.ts
@@ -96,8 +96,8 @@ Based on plan.md structure:
 ### Implementation for User Story 2
 
 - [X] T028 [P] [US2] Create components/conversations/NewConversationModal.tsx with phone input, name input, and validation
-- [ ] T028a [P] [US2] Add patient search autocomplete to NewConversationModal.tsx - search SleepConnect patients via `/api/patients?search=` with 300ms debounce (FR-006a)
-- [ ] T028b [US2] Wire patient selection to auto-fill phone number and friendly name (first_name + last_name) from patient record (FR-006b)
+- [ ] T028a [P] [US2] Add patient search autocomplete to NewConversationModal.tsx - call SleepConnect core patient search endpoint `GET /api/patients?search=` (owned by SleepConnect backend, not part of `contracts/sms-api.yaml`) with 300ms debounce (FR-006a)
+- [ ] T028b [US2] Wire patient selection to auto-fill phone number and friendly name (first_name + last_name) from patient record returned by SleepConnect patient search API (FR-006b)
 - [X] T029 [US2] Implement app/api/outreach/conversations/route.ts (GET list, POST create) per sms-api.yaml
 - [X] T030 [US2] Add duplicate conversation detection - navigate to existing conversation if phone number already has active conversation
 - [X] T031 [US2] Integrate NewConversationModal with ConversationList for triggering new conversation flow *(integration complete via ConversationList onNewConversation prop)*
@@ -287,6 +287,7 @@ Based on plan.md structure:
 - [ ] T086 [P] Add audit logging for all API operations per HIPAA requirements (FR-036) - verify encryption at rest (FR-035) and TLS (FR-037)
 - [ ] T087 Validate quickstart.md setup instructions work end-to-end
 - [ ] T088 Performance optimization - ensure conversation list loads <2 seconds with 500+ messages
+- [ ] T089 Conduct full accessibility audit against WCAG 2.1 AA (screen reader support, color contrast, aria roles/labels, focus order) and log any issues for follow-up
 - [ ] T090 Implement conversation unarchive functionality via unarchive_sms_conversation (FR-013a)
 - [ ] T091 Configure SleepConnect multi-zone rewrites in `/home/dan/code/SAX/sleepconnect/next.config.js`: add rewrites for `/outreach/:path*` → Outreach zone, `/outreach-static/_next/:path+` → Outreach zone assets (FR-031a)
 - [ ] T092 Document cross-zone navigation: use `<a href>` instead of `<Link>` for navigation between sleepconnect and Outreach zone per Next.js multi-zones guide
@@ -562,7 +563,7 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 
 | Metric | Value |
 |--------|-------|
-| **Total Tasks** | 137 (T001-T116, T200-T213, + T018a, T028a, T028b, T043a, T205a, excluding T089 which was merged into T027a; T061, T080 superseded) |
+| **Total Tasks** | 138 (T001-T116, T200-T213, + T018a, T028a, T028b, T043a, T205a, T089; T061, T080 superseded) |
 | **Phase 1 (Setup)** | 10 tasks (T001-T009a) |
 | **Phase 2 (Foundational)** | 10 tasks (T010-T018a) |
 | **Phase 3 (US1)** | 11 tasks (T019-T027a) ✅ **COMPLETE** (E2E verified 2025-12-02) |
@@ -575,7 +576,7 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 | **Phase 8 (US6)** | 7 tasks |
 | **Phase 9 (US7)** | 8 tasks |
 | **Phase 10 (US8)** | 7 tasks |
-| **Phase 11 (Polish)** | 14 tasks (T078-T088, T090-T092; T089 moved to T027a) |
+| **Phase 11 (Polish)** | 15 tasks (T078-T092) |
 | **Phase 11.5 (Hardening)** | 15 tasks (T102-T116, from Phase 3 checklist gaps) |
 | **Phase 12 (Deployment)** | 10 tasks (T093-T101, includes T099a BAA gate) |
 | **Parallel Opportunities** | 55 tasks marked [P] |
@@ -628,6 +629,7 @@ All tasks follow the required checklist format:
 | Maintenance | SDK upgrades, token refresh | Minimal |
 
 **Consequences**:
+
 - T016 (token route) marked N/A - not needed
 - T017 (useTwilioClient) marked N/A - replaced by useMessages with React Query
 - 3-second polling latency is acceptable for SMS workflows
