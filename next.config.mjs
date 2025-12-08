@@ -5,7 +5,7 @@ const nextConfig = {
 
 	// Multi-zone configuration for sleepconnect integration
 	basePath: "/outreach",
-	assetPrefix: "/outreach",
+	assetPrefix: "/outreach-static",
 
 	// Disable ESLint during builds (we run separately)
 	eslint: {

@@ -8,6 +8,15 @@ This document defines the data entities, relationships, and validation rules for
 
 ---
 
+## Data Retention Policy
+
+All entities defined in this document MUST comply with the SleepConnect Constitution "Patient-First Privacy & Security" principle:
+
+- No automatic deletion of PHI-bearing records; application flows MUST use soft-delete flags (for example, `active` or `archived_on` columns) rather than physical deletion.
+- Physical deletion of rows is reserved for exceptional migration/operations work and MUST NOT be exposed through normal product features.
+
+This policy complements FR-014 (indefinite retention) and applies to all conversation, message, template, analytics, and metric tables described below.
+
 ## Entity Overview
 
 ```mermaid

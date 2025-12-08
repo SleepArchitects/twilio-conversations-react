@@ -341,7 +341,7 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 
 ## Dependencies
 
-- **Twilio Conversations API**: For bi-directional SMS messaging
+- **Twilio Messaging API (Programmable SMS)**: For bi-directional SMS messaging
 - **AWS Lambda + PostgreSQL/RDS**: For data persistence and business logic (NOT DynamoDB)
 - **SleepConnect Platform**: For user authentication and authorization context
 - **AI/ML Service**: For sentiment analysis (specific provider TBD based on existing infrastructure)
