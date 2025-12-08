@@ -54,9 +54,10 @@ Based on plan.md structure:
 - [X] T013 [P] Implement lib/twilio.ts with Twilio client configuration and token generation
 - [X] T014 [P] Implement lib/api.ts with Lambda API client utilities and error handling
 - [X] T015 [P] Copy shared UI components from sleepconnect: components/ui/button.tsx, card.tsx, badge.tsx
-- [X] T016 Create app/api/outreach/token/route.ts for Twilio access token generation (POST /api/outreach/token)
-- [X] T017 Implement hooks/useTwilioClient.ts for Twilio Conversations SDK initialization with token refresh
-- [X] T018 Create middleware.ts for Auth0 route protection on all /outreach routes
+- [N/A] T016 ~~Create app/api/outreach/token/route.ts for Twilio access token generation~~ *PIVOTED: Not needed - using Twilio Messaging API (REST) instead of Conversations SDK*
+- [N/A] T017 ~~Implement hooks/useTwilioClient.ts for Twilio Conversations SDK~~ *PIVOTED: Using API-based messaging with React Query polling instead. Rationale: Serverless-compatible (Lambda), ~$475/mo cheaper, simpler maintenance, single source of truth (PostgreSQL). See ADR below.*
+- [X] T018 Auth0 route protection via SleepConnect middleware.ts (multi-zone architecture - middleware lives in sleepconnect repo, forwards user context to Outreach zone via cookies)
+- [ ] T018a [P] Implement SleepConnect shell integration in app/layout.tsx - import and render shared Header/Footer components; use `<a href>` for cross-zone links per NFR-005 and Next.js multi-zones guide
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -141,6 +142,7 @@ Based on plan.md structure:
 - [ ] T203 [US3a] Extend Conversation type in types/sms.ts with optional patient_id, patient_first_name, patient_last_name, patient_dob
 - [ ] T204 [US3a] Integrate PatientContextHeader with ConversationDetail header - display patient info when linked
 - [ ] T205 [US3a] Implement cross-zone navigation to patient profile using hard navigation (window.location) per FR-040
+- [ ] T205a [P] [US3a] Create lib/format.ts with `formatPatientDob(date: string): string` (→ 'MMM DD, YYYY') and `formatLocalTimestamp(utc: string): string` utilities using Intl.DateTimeFormat
 
 **Checkpoint**: Coordinators can view patient clinical context without leaving messaging interface
 
@@ -175,13 +177,14 @@ Based on plan.md structure:
 - [ ] T041 [P] [US4] Create components/templates/TemplateSelector.tsx with category filter and search
 - [ ] T042 [P] [US4] Create components/templates/TemplatePreview.tsx showing template content with highlighted variables
 - [ ] T043 [US4] Implement app/api/outreach/templates/route.ts (GET list) per sms-api.yaml *(Note: T051 adds POST to same file)*
+- [ ] T043a [US4] Implement app/api/outreach/templates/frequent/route.ts (GET) - return top N frequently/recently used templates for current coordinator (FR-022b)
 - [ ] T044 [US4] Implement app/api/outreach/templates/[templateId]/render/route.ts (POST render with variables)
 - [ ] T045 [US4] Implement hooks/useTemplates.ts for template list and selection state
 - [ ] T046 [US4] Integrate TemplateSelector with MessageComposer - populate template content on selection
 - [ ] T047 [US4] Add variable detection and prompt for missing values before send ({{variableName}} syntax)
 - [ ] T048 [US4] Track template usage via increment_sms_template_usage when template is used to send
 - [ ] T211 [P] [US4] Create components/templates/QuickTemplateButton.tsx with ⚡ icon and popover UI per FR-022a
-- [ ] T212 [US4] Implement recently/frequently used templates query in hooks/useTemplates.ts per FR-022b
+- [ ] T212 [US4] Implement recently/frequently used templates query in hooks/useTemplates.ts - consume T043a /api/outreach/templates/frequent endpoint (FR-022b)
 - [ ] T213 [US4] Integrate QuickTemplateButton with MessageComposer - position next to send button
 
 **Checkpoint**: Coordinators can use templates for efficient, consistent messaging
@@ -221,7 +224,7 @@ Based on plan.md structure:
 - [ ] T058 [US6] Add SLA tracking on inbound message receipt via insert_sms_response_metric
 - [ ] T059 [US6] Update SLA status on coordinator response via complete_sms_response_metric
 - [ ] T060 [US6] Integrate SlaIndicator with ConversationListItem - highlight overdue conversations
-- [ ] T061 [US6] Add SLA filter to conversation list (show only SLA overdue)
+- [ ] T061 [US6] ~~Add SLA filter to conversation list~~ *(SUPERSEDED by T206-T210 in Phase 5b; SLA Risk is now one of the standard filters)*
 - [ ] T062 [US6] Sort conversations by SLA status - overdue conversations appear at top
 
 **Checkpoint**: All P2 user stories complete - enhanced productivity features functional
@@ -275,7 +278,7 @@ Based on plan.md structure:
 
 - [ ] T078 [P] Create app/page.tsx with redirect to /conversations
 - [ ] T079 [P] Add search functionality to ConversationList (search by patient name/phone) per FR-014a
-- [ ] T080 [P] Add status filter to ConversationList (active, archived, SLA overdue) per FR-014b
+- [ ] T080 [P] ~~Add status filter to ConversationList~~ *(SUPERSEDED by T206-T210 in Phase 5b)*
 - [ ] T081 Implement conversation archive functionality via archive_sms_conversation
 - [ ] T082 Add error boundaries and fallback UI for component errors
 - [ ] T083 [P] Add loading states and skeletons for async data fetching
@@ -559,15 +562,15 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 
 | Metric | Value |
 |--------|-------|
-| **Total Tasks** | 134 (T001-T116, T200-T213, + T028a, T028b, excluding T089 which was merged into T027a) |
+| **Total Tasks** | 137 (T001-T116, T200-T213, + T018a, T028a, T028b, T043a, T205a, excluding T089 which was merged into T027a; T061, T080 superseded) |
 | **Phase 1 (Setup)** | 10 tasks (T001-T009a) |
-| **Phase 2 (Foundational)** | 9 tasks |
+| **Phase 2 (Foundational)** | 10 tasks (T010-T018a) |
 | **Phase 3 (US1)** | 11 tasks (T019-T027a) ✅ **COMPLETE** (E2E verified 2025-12-02) |
 | **Phase 4 (US2)** | 7 tasks (T028-T032 + T028a, T028b for patient search) |
 | **Phase 5 (US3)** | 8 tasks |
-| **Phase 5a (US3a: Patient Context)** | 6 tasks (T200-T205) |
+| **Phase 5a (US3a: Patient Context)** | 7 tasks (T200-T205a) |
 | **Phase 5b (US3b: Status Filters)** | 5 tasks (T206-T210) |
-| **Phase 6 (US4)** | 11 tasks (T041-T048, T211-T213 for Quick Template) |
+| **Phase 6 (US4)** | 12 tasks (T041-T048, T043a frequent templates API, T211-T213 for Quick Template) |
 | **Phase 7 (US5)** | 7 tasks |
 | **Phase 8 (US6)** | 7 tasks |
 | **Phase 9 (US7)** | 8 tasks |
@@ -595,8 +598,39 @@ All tasks follow the required checklist format:
 
 - All API routes follow OpenAPI spec in `contracts/sms-api.yaml`
 - Database functions referenced (e.g., `insert_sms_*`, `get_sms_*`, `update_sms_*`) are PostgreSQL stored procedures defined in the database schema, executed via SAX Backend API (`/home/dan/code/SAX/sax-backend`) - see T009a for full list and `sleepconnect/specs/sms-outreach-database-integration.md` for implementation tasks
-- Twilio SDK patterns from `research.md` section 4
+- ~~Twilio SDK patterns from `research.md` section 4~~ *Superseded by ADR-001*
 - Auth0 integration patterns from `research.md` section 3
 - UI components use Flowbite React matching sleepconnect
 - **Prerequisites**: Twilio BAA verification is an external responsibility (T099a marked N/A)
 - **Phase 3 Checklist**: 91/105 items complete (87% PASS), 14 gaps addressed in Phase 11.5 (T102-T116)
+
+---
+
+## Architecture Decision Records
+
+### ADR-001: Twilio Messaging API vs Conversations API
+
+**Date**: 2025-12-08  
+**Status**: Accepted  
+**Context**: Original spec (T016, T017) called for Twilio Conversations SDK with WebSocket-based real-time updates.
+
+**Decision**: Use Twilio Messaging API (Programmable SMS) with REST + webhooks + React Query polling instead.
+
+**Rationale**:
+
+| Factor | Conversations SDK | Messaging API (Chosen) |
+|--------|-------------------|------------------------|
+| Lambda Compatible | ❌ Needs persistent connections | ✅ Stateless, perfect fit |
+| AWS Cost | ~$475/mo (ECS + Conversations fees) | ~$2.50/mo (Lambda only) |
+| Complexity | High (SDK, tokens, WebSockets, sync) | Low (REST, webhooks, polling) |
+| State Management | Dual (Twilio Cloud + DB) | Single (PostgreSQL) |
+| Real-time Latency | ~100ms | ~3s (polling interval) |
+| Maintenance | SDK upgrades, token refresh | Minimal |
+
+**Consequences**:
+- T016 (token route) marked N/A - not needed
+- T017 (useTwilioClient) marked N/A - replaced by useMessages with React Query
+- 3-second polling latency is acceptable for SMS workflows
+- PostgreSQL is single source of truth for all conversation state
+
+**Affected Tasks**: T016, T017 (pivoted), T023 (uses polling)

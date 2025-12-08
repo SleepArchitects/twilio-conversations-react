@@ -87,7 +87,7 @@ As a care coordinator, I want to see patient clinical context (name, DOB, and li
 
 **Acceptance Scenarios**:
 
-1. **Given** a conversation is linked to a SleepConnect patient, **When** the conversation loads, **Then** the header displays patient first name, last name, and date of birth
+1. **Given** a conversation is linked to a SleepConnect patient, **When** the conversation loads, **Then** the header displays patient first name, last name, and date of birth formatted as `MMM DD, YYYY` (e.g., `Jan 02, 1980`)
 2. **Given** a conversation header shows patient context, **When** the coordinator clicks the patient link, **Then** the browser navigates to the patient's profile page in SleepConnect (hard navigation for cross-zone)
 3. **Given** a conversation is not linked to a patient record, **When** the conversation loads, **Then** the header displays the phone number and friendly name only with a "Link Patient" button
 4. **Given** a coordinator clicks "Link Patient", **When** they search and select a patient, **Then** the conversation is updated with the patient reference and the header refreshes to show patient context
@@ -238,7 +238,9 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **FR-014**: System MUST retain all conversation data indefinitely (no automatic deletion per Constitution Principle I)
 - **FR-014a**: System MUST allow coordinators to search conversations by patient name or phone number
 - **FR-014b**: System MUST allow coordinators to filter conversations by status: active, archived, SLA overdue
-- **FR-014c**: System MUST provide a segmented control or dropdown filter UI for conversation status (All, Unread, SLA Risk, Archived)
+- **FR-014c**: System MUST provide a segmented control or dropdown filter UI for conversation status using canonical values:
+  - Filter values: `all`, `unread`, `sla_risk`, `archived`
+  - UI labels: "All", "Unread", "SLA Risk", "Archived"
 - **FR-014d**: System MUST update conversation list in real-time when status changes (e.g., message read, SLA threshold exceeded)
 
 #### Patient Context
@@ -305,6 +307,11 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **NFR-003**: System MUST support keyboard navigation for all interactive elements
 - **NFR-004**: System MUST work on viewport widths from 320px to 2560px (responsive design)
 - **NFR-005**: System MUST render within the shared SleepConnect application shell (Header and Footer) to ensure a seamless user experience, while maintaining independent deployment capabilities via Next.js Multi-Zones
+  - Outreach zone MUST configure `assetPrefix: '/outreach-static'` to avoid asset conflicts
+  - SleepConnect MUST configure `rewrites` to proxy `/outreach/*` routes and `/outreach-static/_next/*` assets to the Outreach zone
+  - Cross-zone links (e.g., Outreach → patient profile) MUST use `<a href>` for hard navigation, not `<Link>`
+  - Soft navigation within Outreach zone uses `<Link>` as normal
+  - When using Server Actions, Outreach zone MUST set `serverActions.allowedOrigins` to include the user-facing domain
 
 ## Success Criteria *(mandatory)*
 

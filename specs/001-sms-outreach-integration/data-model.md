@@ -126,6 +126,7 @@ Represents an SMS thread between a coordinator and a patient.
 | `coordinator_sax_id` | BIGINT | FK → people(sax_id), NOT NULL, indexed | SAX ID of the coordinator |
 | `patient_phone` | VARCHAR(15) | NOT NULL | Patient phone number (+1XXXXXXXXXX) |
 | `friendly_name` | VARCHAR(255) | NOT NULL | Display name for the conversation |
+| `patient_id` | UUID | FK → patients(id), nullable, indexed | SleepConnect patient linked to this conversation (FR-042) |
 | `status` | ENUM | NOT NULL, default 'active' | 'active', 'archived' |
 | `sla_status` | ENUM | NOT NULL, default 'ok' | 'ok', 'warning', 'breached' |
 | `unread_count` | INTEGER | NOT NULL, default 0 | Number of unread patient messages |
@@ -148,6 +149,7 @@ CREATE INDEX idx_conversations_coordinator ON sms_conversations(coordinator_sax_
 CREATE INDEX idx_conversations_status ON sms_conversations(tenant_id, practice_id, coordinator_sax_id, status);
 CREATE INDEX idx_conversations_sla ON sms_conversations(coordinator_sax_id, sla_status) WHERE status = 'active' AND active = true;
 CREATE INDEX idx_conversations_phone ON sms_conversations(patient_phone);
+CREATE INDEX idx_conversations_patient ON sms_conversations(patient_id) WHERE patient_id IS NOT NULL;
 CREATE INDEX idx_conversations_last_message ON sms_conversations(last_message_at DESC) WHERE active = true;
 ```
 
