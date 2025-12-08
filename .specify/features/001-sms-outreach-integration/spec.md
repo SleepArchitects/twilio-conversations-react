@@ -56,8 +56,6 @@ As a care coordinator, I want to initiate a new SMS conversation with a patient 
 1. **Given** a coordinator clicks "New Conversation", **When** they enter a valid US phone number (+1 and 10 digits) and conversation name, **Then** a new conversation is created and appears in the conversation list
 2. **Given** a coordinator enters a phone number, **When** the format is invalid (not US +1 format, wrong length), **Then** the system displays a validation error before allowing creation
 3. **Given** a conversation already exists for a phone number, **When** the coordinator tries to create a duplicate, **Then** the system navigates to the existing conversation instead of creating a duplicate
-4. **Given** a coordinator is creating a new conversation, **When** they type a patient name in the search field, **Then** matching patients from SleepConnect are displayed with name and phone number
-5. **Given** a coordinator selects a patient from search results, **When** the patient is selected, **Then** the phone number and friendly name fields are auto-populated from the patient record
 
 ---
 
@@ -77,41 +75,6 @@ As a care coordinator, I want to view the complete conversation history with a p
 
 ---
 
-### User Story 3a - View Patient Context (Priority: P1)
-
-As a care coordinator, I want to see patient clinical context (name, DOB, and link to patient profile) in the conversation header, so that I can quickly reference patient information without leaving the messaging interface.
-
-**Why this priority**: Critical for clinical workflows - coordinators need immediate access to patient context to provide personalized, informed responses.
-
-**Independent Test**: Can be fully tested by opening a conversation linked to a SleepConnect patient and verifying the header displays patient name, date of birth, and a clickable link to the patient profile.
-
-**Acceptance Scenarios**:
-
-1. **Given** a conversation is linked to a SleepConnect patient, **When** the conversation loads, **Then** the header displays patient first name, last name, and date of birth
-2. **Given** a conversation header shows patient context, **When** the coordinator clicks the patient link, **Then** the browser navigates to the patient's profile page in SleepConnect (hard navigation for cross-zone)
-3. **Given** a conversation is not linked to a patient record, **When** the conversation loads, **Then** the header displays the phone number and friendly name only with a "Link Patient" button
-4. **Given** a coordinator clicks "Link Patient", **When** they search and select a patient, **Then** the conversation is updated with the patient reference and the header refreshes to show patient context
-
----
-
-### User Story 3b - Filter Conversations by Status (Priority: P1)
-
-As a care coordinator, I want to filter my conversation list by status (All, Unread, SLA Risk, Archived), so that I can quickly focus on conversations requiring attention.
-
-**Why this priority**: Essential for workflow efficiency - coordinators managing many conversations need to quickly identify which require immediate attention.
-
-**Independent Test**: Can be fully tested by applying each filter and verifying only conversations matching the selected status appear in the list.
-
-**Acceptance Scenarios**:
-
-1. **Given** a coordinator views the conversation list, **When** they select "All" filter, **Then** all active (non-archived) conversations display
-2. **Given** a coordinator views the conversation list, **When** they select "Unread" filter, **Then** only conversations with unread patient messages display
-3. **Given** a coordinator views the conversation list, **When** they select "SLA Risk" filter, **Then** only conversations where patient reply is waiting more than 10 minutes display
-4. **Given** a coordinator views the conversation list, **When** they select "Archived" filter, **Then** only archived conversations display
-5. **Given** a filter is active, **When** a conversation's status changes (e.g., message is read), **Then** the list updates in real-time to reflect the change
-
----
-
 ### User Story 4 - Use Message Templates (Priority: P2)
 
 As a care coordinator, I want to use pre-built message templates with dynamic variables, so that I can send consistent, personalized messages efficiently.
@@ -124,8 +87,7 @@ As a care coordinator, I want to use pre-built message templates with dynamic va
 
 1. **Given** a coordinator is composing a message, **When** they select a template from the library, **Then** the template content populates in the message input with variables highlighted (e.g., `{{firstName}}`)
 2. **Given** a template contains variables, **When** the coordinator attempts to send without replacing all variables, **Then** the system prompts to complete missing values
-3. **Given** a coordinator views templates, **When** they browse the template library, **Then** templates display organized by category (welcome, reminder, follow-up, education, general) with preview text
-4. **Given** a coordinator is composing a message, **When** they click the "Quick Template" button (⚡ icon) in the message composer, **Then** a popover displays frequently used templates for one-click insertion
+3. **Given** a coordinator views templates, **When** they browse the template library, **Then** templates display organized by category (welcome, reminder, follow-up, education) with preview text
 
 ---
 
@@ -216,41 +178,27 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **FR-001**: System MUST send SMS messages to patient phone numbers via Twilio API
 - **FR-002**: System MUST receive inbound SMS messages from patients in real-time (within 3 seconds of receipt)
 - **FR-003**: System MUST display message delivery status (sending, sent, delivered, read, failed)
-- **FR-004**: System MUST validate phone numbers are US E.164 format (+1 followed by valid area code 2-9 and 9 digits, e.g., +12025551234) before allowing message send
-- **FR-004a**: System MUST detect patient opt-out (STOP message) and mark conversation as opted-out, preventing further outbound messages
+- **FR-004**: System MUST validate phone numbers are US format (+1 followed by 10 digits) before allowing message send
 - **FR-005**: System MUST handle SMS character limits and display segment count for long messages
 
 #### Conversations
 
 - **FR-006**: System MUST allow creation of new conversations with patient phone number and friendly name
-- **FR-006a**: System SHOULD allow coordinators to search and select patients from SleepConnect patient records when creating a new conversation, using the existing `/api/patients` endpoint
-- **FR-006b**: When a patient is selected from search results, system MUST auto-populate phone number and friendly name (first_name + last_name) from the patient record
 - **FR-007**: System MUST prevent duplicate conversations for the same phone number within a coordinator's view
 - **FR-008**: System MUST display all messages in chronological order with timestamps
 - **FR-008a**: System MUST display message timestamps in the user's browser/local timezone
-- **FR-008b**: System MUST store all timestamps in UTC using PostgreSQL TIMESTAMPTZ type (per Constitution Principle VII)
 - **FR-009**: System MUST identify message sender (coordinator vs. patient) in the conversation view
 - **FR-010**: System MUST persist all conversation data via Lambda functions for durability
 - **FR-011**: System MUST support pagination/infinite scroll for conversations with many messages
 - **FR-012**: System MUST associate conversations with the creating coordinator (user-scoped visibility)
 - **FR-013**: System MUST allow coordinators to archive conversations (moves to separate archived view)
-- **FR-013a**: System MUST allow coordinators to unarchive conversations (restore from archived view to active)
-- **FR-014**: System MUST retain all conversation data indefinitely (no automatic deletion per Constitution Principle I)
+- **FR-014**: System MUST retain all conversation data indefinitely (no automatic deletion)
 - **FR-014a**: System MUST allow coordinators to search conversations by patient name or phone number
 - **FR-014b**: System MUST allow coordinators to filter conversations by status: active, archived, SLA overdue
-- **FR-014c**: System MUST provide a segmented control or dropdown filter UI for conversation status (All, Unread, SLA Risk, Archived)
-- **FR-014d**: System MUST update conversation list in real-time when status changes (e.g., message read, SLA threshold exceeded)
-
-#### Patient Context
-
-- **FR-039**: System MUST display patient clinical context (first name, last name, date of birth) in conversation header when conversation is linked to a SleepConnect patient
-- **FR-040**: System MUST provide a clickable link from conversation header to patient profile in SleepConnect (hard navigation for cross-zone)
-- **FR-041**: System MUST allow coordinators to link an existing conversation to a patient record via patient search
-- **FR-042**: System MUST store patient reference (patient_id) on conversation record for context retrieval
 
 #### Templates
 
-- **FR-015**: System MUST provide a global shared template library accessible as read-only to all coordinators (only administrators can create/edit global templates)
+- **FR-015**: System MUST provide a global shared template library accessible as read-only to all coordinators
 - **FR-016**: System MUST allow coordinators to create private templates visible only to themselves
 - **FR-017**: System MUST allow creation of message templates with name, category, and content
 - **FR-018**: System MUST support dynamic variables in templates using `{{variableName}}` syntax
@@ -258,8 +206,6 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **FR-020**: System MUST organize templates by categories: welcome, reminder, follow-up, education, general
 - **FR-021**: System MUST allow private templates to be copied, edited, and deleted by their owner
 - **FR-022**: System MUST warn when sending a message with unresolved template variables
-- **FR-022a**: System MUST provide a "Quick Template" button (⚡ icon) in the message composer for fast template access
-- **FR-022b**: Quick Template popover MUST display recently used and frequently used templates for one-click insertion
 
 #### Analytics & SLA
 
@@ -277,10 +223,9 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 
 #### Integration
 
-- **FR-031**: System MUST integrate with SleepConnect (`/home/dan/code/SAX/sleepconnect`) via Next.js multi-zones architecture
-- **FR-031a**: SleepConnect MUST configure rewrites to proxy `/outreach/*` routes to this Outreach zone application
-- **FR-032**: System MUST authenticate users via SleepConnect's existing authorization system (Auth0)
-- **FR-033**: System MUST use a unique asset prefix (`/outreach-static/`) to avoid conflicts with other zones
+- **FR-031**: System MUST integrate with SleepConnect via Next.js multi-zones architecture
+- **FR-032**: System MUST authenticate users via SleepConnect's existing authorization system
+- **FR-033**: System MUST use a unique asset prefix to avoid conflicts with other zones
 - **FR-034**: System MUST handle navigation between zones appropriately (hard navigation for cross-zone)
 
 #### Security & Compliance
@@ -292,19 +237,11 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 
 ### Key Entities
 
-- **Conversation**: Represents an SMS thread with a patient; contains phone number, friendly name, created_on timestamp, last message preview, unread status, and SLA status
-- **Message**: Individual SMS within a conversation; contains body text, author (system/phone number), created_on timestamp, delivery status, and sentiment analysis
-- **Template**: Reusable message pattern; contains name, category, content body, detected variables list, visibility scope (global or private), and owner coordinator ID (null for global; only administrators can create global templates)
+- **Conversation**: Represents an SMS thread with a patient; contains phone number, friendly name, creation date, last message preview, unread status, and SLA status
+- **Message**: Individual SMS within a conversation; contains body text, author (system/phone number), timestamp, delivery status, and sentiment analysis
+- **Template**: Reusable message pattern; contains name, category, content body, detected variables list, visibility scope (global or private), and owner coordinator ID (null for global)
 - **Coordinator**: Authenticated user who manages conversations; inherits identity from SleepConnect
 - **Analytics Event**: Logged metrics for reporting; includes response times, delivery status changes, and engagement actions
-
-### Non-Functional Requirements
-
-- **NFR-001**: System MUST achieve Core Web Vitals targets (LCP < 2.5s, FID < 100ms, CLS < 0.1)
-- **NFR-002**: System MUST be accessible per WCAG 2.1 AA standards
-- **NFR-003**: System MUST support keyboard navigation for all interactive elements
-- **NFR-004**: System MUST work on viewport widths from 320px to 2560px (responsive design)
-- **NFR-005**: System MUST render within the shared SleepConnect application shell (Header and Footer) to ensure a seamless user experience, while maintaining independent deployment capabilities via Next.js Multi-Zones
 
 ## Success Criteria *(mandatory)*
 

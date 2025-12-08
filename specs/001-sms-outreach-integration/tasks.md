@@ -127,6 +127,43 @@ Based on plan.md structure:
 
 ---
 
+## Phase 5a: User Story 3a - View Patient Context (Priority: P1)
+
+**Goal**: Display patient clinical context in conversation header for informed responses
+
+**Independent Test**: Open conversation linked to patient, verify header shows name, DOB, and profile link
+
+### Implementation for User Story 3a
+
+- [ ] T200 [P] [US3a] Create components/conversations/PatientContextHeader.tsx with patient name, DOB, and profile link
+- [ ] T201 [P] [US3a] Create components/conversations/LinkPatientButton.tsx for unlinked conversations with patient search
+- [ ] T202 [US3a] Implement app/api/outreach/conversations/[conversationId]/patient/route.ts (GET patient context, PATCH link patient) per FR-039, FR-041
+- [ ] T203 [US3a] Extend Conversation type in types/sms.ts with optional patient_id, patient_first_name, patient_last_name, patient_dob
+- [ ] T204 [US3a] Integrate PatientContextHeader with ConversationDetail header - display patient info when linked
+- [ ] T205 [US3a] Implement cross-zone navigation to patient profile using hard navigation (window.location) per FR-040
+
+**Checkpoint**: Coordinators can view patient clinical context without leaving messaging interface
+
+---
+
+## Phase 5b: User Story 3b - Filter Conversations by Status (Priority: P1)
+
+**Goal**: Enable coordinators to filter conversation list by status for workflow efficiency
+
+**Independent Test**: Apply each filter (All, Unread, SLA Risk, Archived) and verify correct conversations display
+
+### Implementation for User Story 3b
+
+- [ ] T206 [P] [US3b] Create components/conversations/ConversationFilter.tsx with segmented control (All, Unread, SLA Risk, Archived)
+- [ ] T207 [US3b] Extend useConversations hook with filterStatus parameter and real-time filter updates
+- [ ] T208 [US3b] Integrate ConversationFilter with ConversationList page header
+- [ ] T209 [US3b] Update app/api/outreach/conversations/route.ts to accept status filter query parameter
+- [ ] T210 [US3b] Add real-time filter update when conversation status changes (message read, SLA threshold exceeded)
+
+**Checkpoint**: Coordinators can quickly focus on conversations requiring attention
+
+---
+
 ## Phase 6: User Story 4 - Use Message Templates (Priority: P2)
 
 **Goal**: Allow coordinators to use pre-built templates with dynamic variables for efficient messaging
@@ -143,6 +180,9 @@ Based on plan.md structure:
 - [ ] T046 [US4] Integrate TemplateSelector with MessageComposer - populate template content on selection
 - [ ] T047 [US4] Add variable detection and prompt for missing values before send ({{variableName}} syntax)
 - [ ] T048 [US4] Track template usage via increment_sms_template_usage when template is used to send
+- [ ] T211 [P] [US4] Create components/templates/QuickTemplateButton.tsx with ⚡ icon and popover UI per FR-022a
+- [ ] T212 [US4] Implement recently/frequently used templates query in hooks/useTemplates.ts per FR-022b
+- [ ] T213 [US4] Integrate QuickTemplateButton with MessageComposer - position next to send button
 
 **Checkpoint**: Coordinators can use templates for efficient, consistent messaging
 
@@ -324,7 +364,11 @@ Phase 2 (Foundational) ───────────────────
      │                                     │   after Phase 2
      ├── Phase 5 (US3: History) ──────────┘
      │
-     │   [MVP Complete after US1-3]
+     ├── Phase 5a (US3a: Patient Context) ─┐── Can run in parallel
+     │                                      │   after US3
+     ├── Phase 5b (US3b: Status Filters) ──┘
+     │
+     │   [MVP Complete after US1-3, US3a, US3b]
      │
      ├── Phase 6 (US4: Use Templates) ────┐
      │                                     │
@@ -354,6 +398,8 @@ Phase 12 (Deployment) ─── Can start after Phase 1; independent of feature 
 | US1 (Send/Receive) | Phase 2 | US2, US3 |
 | US2 (New Conversation) | Phase 2 | US1, US3 |
 | US3 (View History) | Phase 2 | US1, US2 |
+| US3a (Patient Context) | US3 (ConversationDetail) | US3b, US4, US5 |
+| US3b (Status Filters) | US3 (ConversationList) | US3a, US4, US5 |
 | US4 (Use Templates) | US1 (MessageComposer) | US5, US6 |
 | US5 (Manage Templates) | Phase 2 | US4, US6 |
 | US6 (SLA Monitoring) | US1, US3 (message flow) | US4, US5 |
@@ -513,13 +559,15 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 
 | Metric | Value |
 |--------|-------|
-| **Total Tasks** | 118 (T001-T116 + T028a, T028b, excluding T089 which was merged into T027a) |
+| **Total Tasks** | 134 (T001-T116, T200-T213, + T028a, T028b, excluding T089 which was merged into T027a) |
 | **Phase 1 (Setup)** | 10 tasks (T001-T009a) |
 | **Phase 2 (Foundational)** | 9 tasks |
 | **Phase 3 (US1)** | 11 tasks (T019-T027a) ✅ **COMPLETE** (E2E verified 2025-12-02) |
 | **Phase 4 (US2)** | 7 tasks (T028-T032 + T028a, T028b for patient search) |
 | **Phase 5 (US3)** | 8 tasks |
-| **Phase 6 (US4)** | 8 tasks |
+| **Phase 5a (US3a: Patient Context)** | 6 tasks (T200-T205) |
+| **Phase 5b (US3b: Status Filters)** | 5 tasks (T206-T210) |
+| **Phase 6 (US4)** | 11 tasks (T041-T048, T211-T213 for Quick Template) |
 | **Phase 7 (US5)** | 7 tasks |
 | **Phase 8 (US6)** | 7 tasks |
 | **Phase 9 (US7)** | 8 tasks |
@@ -527,8 +575,8 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 | **Phase 11 (Polish)** | 14 tasks (T078-T088, T090-T092; T089 moved to T027a) |
 | **Phase 11.5 (Hardening)** | 15 tasks (T102-T116, from Phase 3 checklist gaps) |
 | **Phase 12 (Deployment)** | 10 tasks (T093-T101, includes T099a BAA gate) |
-| **Parallel Opportunities** | 49 tasks marked [P] |
-| **MVP Scope** | T001-T040 + T028a, T028b (44 tasks with T019a, T027a) |
+| **Parallel Opportunities** | 55 tasks marked [P] |
+| **MVP Scope** | T001-T040, T200-T210 + T028a, T028b (55 tasks with T019a, T027a, US3a, US3b) |
 | **Multi-Zone Integration** | T091 configures sleepconnect rewrites for /outreach; T028a uses sleepconnect /api/patients |
 
 ### Format Validation ✅
