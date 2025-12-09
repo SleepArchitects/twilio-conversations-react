@@ -13,8 +13,24 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@auth0/nextjs-auth0";
-import { api } from "@/lib/api";
+import { type UserContext, withUserContext } from "@/lib/auth";
+import { api, buildPath } from "@/lib/api";
+
+/**
+ * Lambda API base path for SMS outreach
+ */
+const LAMBDA_API_BASE = "/outreach";
+
+/**
+ * Get headers for Lambda API calls with user context
+ */
+function getLambdaHeaders(userContext: UserContext): Record<string, string> {
+  return {
+    "x-tenant-id": userContext.tenantId,
+    "x-practice-id": userContext.practiceId,
+    "x-coordinator-sax-id": String(userContext.saxId),
+  };
+}
 
 // =============================================================================
 // Type Definitions
@@ -42,26 +58,28 @@ interface LinkPatientRequest {
  * Returns 404 if conversation is not linked to a patient.
  *
  * @param request - Next.js request object
- * @param params - Route parameters containing conversationId
+ * @param userContext - User context from authentication
+ * @param conversationId - Conversation ID from route params
  * @returns Patient context or error response
  */
-export async function GET(
+async function handleGet(
   request: NextRequest,
-  { params }: { params: { conversationId: string } },
+  userContext: UserContext,
+  conversationId: string,
 ) {
   try {
-    // Verify authentication
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { conversationId } = params;
-
     // Fetch patient context from Lambda API
     // The Lambda API will query the conversation record and join with patient data
     const response = await api.get(
-      `/api/outreach/conversations/${conversationId}/patient`,
+      buildPath(LAMBDA_API_BASE, "conversations", conversationId, "patient"),
+      {
+        params: {
+          tenant_id: userContext.tenantId,
+          practice_id: userContext.practiceId,
+          coordinator_sax_id: String(userContext.saxId),
+        },
+        headers: getLambdaHeaders(userContext),
+      },
     );
 
     const patientContext = response as PatientContext;
@@ -91,6 +109,19 @@ export async function GET(
   }
 }
 
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ conversationId: string }> },
+): Promise<NextResponse> {
+  const { conversationId } = await params;
+
+  const handler = withUserContext(async (request, userContext) => {
+    return handleGet(request as NextRequest, userContext, conversationId);
+  });
+
+  return handler(req) as Promise<NextResponse>;
+}
+
 // =============================================================================
 // PATCH - Link Patient to Conversation
 // =============================================================================
@@ -102,22 +133,16 @@ export async function GET(
  * This enables patient context display in the conversation header.
  *
  * @param request - Next.js request object with patient_id in body
- * @param params - Route parameters containing conversationId
+ * @param userContext - User context from authentication
+ * @param conversationId - Conversation ID from route params
  * @returns Success response or error
  */
-export async function PATCH(
+async function handlePatch(
   request: NextRequest,
-  { params }: { params: { conversationId: string } },
+  userContext: UserContext,
+  conversationId: string,
 ) {
   try {
-    // Verify authentication
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { conversationId } = params;
-
     // Parse request body
     const body = (await request.json()) as LinkPatientRequest;
     const { patient_id } = body;
@@ -136,8 +161,16 @@ export async function PATCH(
     // 2. Update conversation record with patient_id
     // 3. Return updated conversation with patient context
     const response = await api.patch(
-      `/api/outreach/conversations/${conversationId}/patient`,
-      { patient_id },
+      buildPath(LAMBDA_API_BASE, "conversations", conversationId, "patient"),
+      {
+        patient_id,
+        tenant_id: userContext.tenantId,
+        practice_id: userContext.practiceId,
+        coordinator_sax_id: String(userContext.saxId),
+      },
+      {
+        headers: getLambdaHeaders(userContext),
+      },
     );
 
     return NextResponse.json(response, { status: 200 });
@@ -171,4 +204,17 @@ export async function PATCH(
       { status: 500 },
     );
   }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ conversationId: string }> },
+): Promise<NextResponse> {
+  const { conversationId } = await params;
+
+  const handler = withUserContext(async (request, userContext) => {
+    return handlePatch(request as NextRequest, userContext, conversationId);
+  });
+
+  return handler(req) as Promise<NextResponse>;
 }
