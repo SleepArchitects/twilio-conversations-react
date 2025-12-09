@@ -270,7 +270,11 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **FR-019**: System MUST auto-detect variables in template content when saving
 - **FR-020**: System MUST organize templates by categories: welcome, reminder, follow-up, education, general
 - **FR-021**: System MUST allow private templates to be copied, edited, and deleted by their owner
-- **FR-022**: System MUST warn when sending a message with unresolved template variables
+- **FR-022**: System MUST prevent sending messages containing unresolved template variables (e.g., {{firstName}}, {{appointmentDate}} remaining in message body). When send is attempted with unresolved variables:
+  - Display modal showing list of unresolved variables
+  - Disable send button with message: "Please fill in required fields: {{firstName}}, {{appointmentDate}}"
+  - Send only enabled after coordinator replaces all variables
+  - This prevents patients from receiving malformed messages with unfilled placeholders
 - **FR-022a**: System MUST provide a "Quick Template" button (⚡ icon) in the message composer for fast template access
 - **FR-022b**: Quick Template popover MUST display recently used and frequently used templates for one-click insertion
 
@@ -333,7 +337,11 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **SC-003**: 95% of messages deliver successfully on first attempt
 - **SC-004**: Average coordinator response time to patient messages is under 10 minutes
 - **SC-005**: Coordinators can create and use a template to send a personalized message in under 30 seconds
-- **SC-006**: SLA alerts trigger within 1 minute of the 10-minute threshold being exceeded
+- **SC-006**: SLA Risk visual indicator MUST appear within 1 minute of the 10-minute wait threshold being exceeded (acceptable window: 10:00-11:00 due to 60-second polling interval)
+  - Threshold: 10 minutes wait time from last patient message with no coordinator reply
+  - Detection Latency: System checks SLA status every 60 seconds (polling-based)
+  - Alert Window: SLA visual indicator may appear between 10:00-11:00 (acceptable 1-minute detection lag)
+  - Backend Tracking: Response time metrics calculated from message timestamps (exact 10:00 threshold for reporting)
 - **SC-007**: Complete conversation history loads within 2 seconds for conversations with up to 500 messages
 - **SC-008**: System supports at least 100 concurrent active conversations without performance degradation
 - **SC-009**: Sentiment analysis provides accurate categorization for 85% of patient messages
