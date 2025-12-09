@@ -2,6 +2,15 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { TemplateSelector } from "@/components/templates/TemplateSelector";
+import { TemplatePreview } from "@/components/templates/TemplatePreview";
+import { QuickTemplateButton } from "@/components/templates/QuickTemplateButton";
+import { useTemplates, useFrequentTemplates } from "@/hooks/useTemplates";
+import {
+  detectUnresolvedVariables,
+  validateTemplateVariables,
+} from "@/lib/templates";
+import type { Template, TemplateCategory } from "@/types/sms";
 
 // =============================================================================
 // Types & Interfaces
@@ -99,6 +108,40 @@ function SpinnerIcon({ className, ...props }: IconProps) {
   );
 }
 
+/** Template icon */
+function TemplateIcon({ className, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className={cn("h-5 w-5", className)}
+      {...props}
+    >
+      <path
+        fillRule="evenodd"
+        d="M13.5 4v1.5a.75.75 0 0 0 1.5 0V4a2.25 2.25 0 0 0-2.25-2.25h-3A2.25 2.25 0 0 0 8.25 4v1.5a.75.75 0 0 0 1.5 0V4c0-.414.336-.75.75-.75h3c.414 0 .75.336.75.75ZM11 10a.75.75 0 0 1-.75.75H7.612l2.158 1.96a.75.75 0 1 1-1.04 1.08l-3.5-3.25a.75.75 0 0 1 0-1.08l3.5-3.25a.75.75 0 1 1 1.04 1.08L7.612 9.25H10.25A.75.75 0 0 1 11 10Zm-2.25 4a.75.75 0 0 1 .75-.75h2.638l-2.158-1.96a.75.75 0 1 1 1.04-1.08l3.5 3.25a.75.75 0 0 1 0 1.08l-3.5 3.25a.75.75 0 1 1-1.04-1.08l2.158-1.96H9.5a.75.75 0 0 1-.75-.75Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+/** Close icon */
+function CloseIcon({ className, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className={cn("h-5 w-5", className)}
+      {...props}
+    >
+      <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+    </svg>
+  );
+}
+
 // =============================================================================
 // MessageComposer Component
 // =============================================================================
@@ -122,22 +165,55 @@ export function MessageComposer({
   // State
   const [message, setMessage] = React.useState("");
   const [isSending, setIsSending] = React.useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = React.useState(false);
+  const [showVariablePrompt, setShowVariablePrompt] = React.useState(false);
+  const [pendingSend, setPendingSend] = React.useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = React.useState<
+    TemplateCategory | "all"
+  >("all");
+  const [searchQuery, setSearchQuery] = React.useState("");
 
   // Refs
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const modalRef = React.useRef<HTMLDivElement>(null);
+  const variablePromptRef = React.useRef<HTMLDivElement>(null);
+
+  // Template hooks
+  const {
+    templates,
+    selectedTemplate,
+    isLoading: isLoadingTemplates,
+    selectTemplate,
+    selectTemplateObject,
+  } = useTemplates({
+    category: categoryFilter,
+    searchQuery,
+  });
+
+  const { data: frequentTemplates = [], isLoading: isLoadingFrequent } =
+    useFrequentTemplates(5);
+
+  // Detect unresolved variables for validation
+  const unresolvedVariables = React.useMemo(
+    () => detectUnresolvedVariables(message),
+    [message],
+  );
+  const hasUnresolvedVars = unresolvedVariables.length > 0;
 
   // Derived state
   const characterCount = message.length;
   const segmentCount = calculateSegmentCount(characterCount);
   const isOverLimit = characterCount > maxLength;
   const isEmpty = message.trim().length === 0;
-  const isSendDisabled = disabled || isEmpty || isSending || isOverLimit;
+  // Per FR-022: Prevent sending if unresolved variables exist
+  const isSendDisabled =
+    disabled || isEmpty || isSending || isOverLimit || hasUnresolvedVars;
 
   // Character count color
   const charCountColor = getCharacterCountColor(characterCount);
 
   /**
-   * Handle sending the message
+   * Handle sending the message with variable validation
    */
   const handleSend = React.useCallback(async () => {
     if (isSendDisabled) return;
@@ -145,6 +221,16 @@ export function MessageComposer({
     const trimmedMessage = message.trim();
     if (!trimmedMessage) return;
 
+    // Check for unresolved template variables
+    const validation = validateTemplateVariables(trimmedMessage);
+    if (!validation.isValid) {
+      // Show variable prompt modal
+      setPendingSend(trimmedMessage);
+      setShowVariablePrompt(true);
+      return;
+    }
+
+    // Proceed with sending
     setIsSending(true);
     try {
       await onSend(trimmedMessage);
@@ -153,6 +239,8 @@ export function MessageComposer({
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
+      // Clear template selection
+      selectTemplate(null);
     } catch (error) {
       // Error handling is delegated to the parent component
       console.error("Failed to send message:", error);
@@ -161,7 +249,76 @@ export function MessageComposer({
       // Refocus the textarea after sending
       textareaRef.current?.focus();
     }
-  }, [isSendDisabled, message, onSend]);
+  }, [isSendDisabled, message, onSend, selectTemplate]);
+
+  /**
+   * Handle template selection
+   */
+  const handleTemplateSelect = React.useCallback(
+    (template: Template) => {
+      selectTemplateObject(template);
+      setMessage(template.content);
+      setShowTemplateSelector(false);
+      // Focus textarea after template selection
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+    },
+    [selectTemplateObject],
+  );
+
+  /**
+   * Handle quick template selection
+   */
+  const handleQuickTemplateSelect = React.useCallback(
+    (template: Template) => {
+      handleTemplateSelect(template);
+    },
+    [handleTemplateSelect],
+  );
+
+  /**
+   * Handle variable prompt - user must close modal and fix variables
+   * Per FR-022: System MUST prevent sending messages with unresolved variables
+   */
+  const handleVariablePromptClose = React.useCallback(() => {
+    setShowVariablePrompt(false);
+    setPendingSend(null);
+    // Focus textarea so user can fix variables
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 100);
+  }, []);
+
+  /**
+   * Close template selector modal on backdrop click
+   */
+  const handleTemplateModalBackdrop = React.useCallback(
+    (event: React.MouseEvent) => {
+      if (
+        modalRef.current &&
+        !modalRef.current.contains(event.target as Node)
+      ) {
+        setShowTemplateSelector(false);
+      }
+    },
+    [],
+  );
+
+  /**
+   * Close variable prompt modal on backdrop click
+   */
+  const handleVariablePromptBackdrop = React.useCallback(
+    (event: React.MouseEvent) => {
+      if (
+        variablePromptRef.current &&
+        !variablePromptRef.current.contains(event.target as Node)
+      ) {
+        handleVariablePromptClose();
+      }
+    },
+    [handleVariablePromptClose],
+  );
 
   /**
    * Handle keyboard events
@@ -224,111 +381,312 @@ export function MessageComposer({
   }, [characterCount, maxLength, segmentCount]);
 
   return (
-    <div className="flex flex-col gap-2 p-4 border-t border-gray-700 bg-gray-900">
-      {/* Textarea container */}
-      <div className="flex gap-3 items-end">
-        <div className="relative flex-1">
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
+    <>
+      <div className="flex flex-col gap-2 p-4 border-t border-gray-700 bg-gray-900">
+        {/* Template Preview (if template selected) */}
+        {selectedTemplate && (
+          <div className="mb-2">
+            <TemplatePreview template={selectedTemplate} />
+          </div>
+        )}
+
+        {/* Unresolved Variables Warning */}
+        {hasUnresolvedVars && (
+          <div
+            className="flex items-center gap-2 rounded-lg border border-yellow-600/50 bg-yellow-900/20 px-3 py-2 text-xs text-yellow-300"
+            role="alert"
+          >
+            <span>⚠️</span>
+            <span>
+              Unresolved variables:{" "}
+              {unresolvedVariables.map((v) => `{{${v}}}`).join(", ")}
+            </span>
+          </div>
+        )}
+
+        {/* Textarea container */}
+        <div className="flex gap-2 items-end">
+          {/* Quick Template Button */}
+          {!isLoadingFrequent && frequentTemplates.length > 0 && (
+            <QuickTemplateButton
+              templates={frequentTemplates}
+              onSelect={handleQuickTemplateSelect}
+              disabled={disabled || isSending}
+            />
+          )}
+
+          {/* Template Selector Button */}
+          <button
+            type="button"
+            onClick={() => setShowTemplateSelector(true)}
             disabled={disabled || isSending}
-            rows={1}
-            aria-label="Message input"
-            aria-describedby="message-composer-status"
-            aria-invalid={isOverLimit}
+            aria-label="Select template"
             className={cn(
-              "w-full resize-none rounded-lg border bg-gray-800 px-4 py-3 text-sm text-gray-100",
-              "placeholder:text-gray-500",
+              "flex-shrink-0 inline-flex items-center justify-center",
+              "h-11 w-11 rounded-lg",
+              "transition-all duration-200",
               "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-              "transition-colors duration-200",
-              // Border colors based on state
-              isOverLimit
-                ? "border-red-500 focus:ring-red-500"
-                : characterCount > 140
-                  ? "border-yellow-500/50 focus:ring-yellow-500"
-                  : "border-gray-600 focus:ring-purple-500",
+              disabled || isSending
+                ? "bg-gray-700 text-gray-500 cursor-not-allowed opacity-50"
+                : [
+                    "bg-gray-800 text-gray-300 border border-gray-700",
+                    "hover:bg-gray-700 hover:text-white",
+                    "focus:ring-purple-500",
+                  ],
             )}
-            style={{ minHeight: "44px", maxHeight: "200px" }}
-          />
+          >
+            <TemplateIcon aria-hidden={true} />
+          </button>
+
+          <div className="relative flex-1">
+            <textarea
+              ref={textareaRef}
+              value={message}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              disabled={disabled || isSending}
+              rows={1}
+              aria-label="Message input"
+              aria-describedby="message-composer-status"
+              aria-invalid={isOverLimit || hasUnresolvedVars}
+              className={cn(
+                "w-full resize-none rounded-lg border bg-gray-800 px-4 py-3 text-sm text-gray-100",
+                "placeholder:text-gray-500",
+                "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
+                "disabled:cursor-not-allowed disabled:opacity-50",
+                "transition-colors duration-200",
+                // Border colors based on state
+                isOverLimit
+                  ? "border-red-500 focus:ring-red-500"
+                  : hasUnresolvedVars
+                    ? "border-yellow-500/50 focus:ring-yellow-500"
+                    : characterCount > 140
+                      ? "border-yellow-500/50 focus:ring-yellow-500"
+                      : "border-gray-600 focus:ring-purple-500",
+              )}
+              style={{ minHeight: "44px", maxHeight: "200px" }}
+            />
+          </div>
+
+          {/* Send button */}
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={isSendDisabled}
+            aria-label={isSending ? "Sending message" : "Send message"}
+            className={cn(
+              "flex-shrink-0 inline-flex items-center justify-center",
+              "h-11 w-11 rounded-lg",
+              "transition-all duration-200",
+              "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
+              // Enabled state: purple/blue gradient
+              !isSendDisabled && [
+                "bg-gradient-to-r from-purple-600 to-blue-600",
+                "hover:from-purple-500 hover:to-blue-500",
+                "text-white",
+                "focus:ring-purple-500",
+                "shadow-lg shadow-purple-500/25",
+              ],
+              // Disabled state: gray
+              isSendDisabled && [
+                "bg-gray-700",
+                "text-gray-500",
+                "cursor-not-allowed",
+              ],
+            )}
+          >
+            {isSending ? (
+              <SpinnerIcon aria-hidden={true} />
+            ) : (
+              <SendIcon aria-hidden={true} />
+            )}
+          </button>
         </div>
 
-        {/* Send button */}
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={isSendDisabled}
-          aria-label={isSending ? "Sending message" : "Send message"}
-          className={cn(
-            "flex-shrink-0 inline-flex items-center justify-center",
-            "h-11 w-11 rounded-lg",
-            "transition-all duration-200",
-            "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
-            // Enabled state: purple/blue gradient
-            !isSendDisabled && [
-              "bg-gradient-to-r from-purple-600 to-blue-600",
-              "hover:from-purple-500 hover:to-blue-500",
-              "text-white",
-              "focus:ring-purple-500",
-              "shadow-lg shadow-purple-500/25",
-            ],
-            // Disabled state: gray
-            isSendDisabled && [
-              "bg-gray-700",
-              "text-gray-500",
-              "cursor-not-allowed",
-            ],
-          )}
+        {/* Status bar: character count and segment info */}
+        <div
+          id="message-composer-status"
+          className="flex items-center justify-between text-xs"
+          role="status"
+          aria-live="polite"
         >
-          {isSending ? (
-            <SpinnerIcon aria-hidden={true} />
-          ) : (
-            <SendIcon aria-hidden={true} />
-          )}
-        </button>
-      </div>
+          {/* Character count */}
+          <div className="flex items-center gap-2">
+            <span className={cn("tabular-nums", charCountColor)}>
+              {characterCount} / {GSM7_FIRST_SEGMENT}
+            </span>
 
-      {/* Status bar: character count and segment info */}
-      <div
-        id="message-composer-status"
-        className="flex items-center justify-between text-xs"
-        role="status"
-        aria-live="polite"
-      >
-        {/* Character count */}
-        <div className="flex items-center gap-2">
-          <span className={cn("tabular-nums", charCountColor)}>
-            {characterCount} / {GSM7_FIRST_SEGMENT}
-          </span>
+            {/* Segment count (only shown for multi-segment messages) */}
+            {segmentInfo && (
+              <>
+                <span className="text-gray-600">•</span>
+                <span className="text-gray-400">{segmentInfo}</span>
+              </>
+            )}
+          </div>
 
-          {/* Segment count (only shown for multi-segment messages) */}
-          {segmentInfo && (
-            <>
-              <span className="text-gray-600">•</span>
-              <span className="text-gray-400">{segmentInfo}</span>
-            </>
-          )}
+          {/* Keyboard shortcut hint */}
+          <div className="text-gray-500 hidden sm:block">
+            <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 text-[10px] font-mono">
+              Enter
+            </kbd>
+            <span className="mx-1">to send</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 text-[10px] font-mono">
+              Shift+Enter
+            </kbd>
+            <span className="ml-1">for newline</span>
+          </div>
         </div>
 
-        {/* Keyboard shortcut hint */}
-        <div className="text-gray-500 hidden sm:block">
-          <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 text-[10px] font-mono">
-            Enter
-          </kbd>
-          <span className="mx-1">to send</span>
-          <kbd className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 text-[10px] font-mono">
-            Shift+Enter
-          </kbd>
-          <span className="ml-1">for newline</span>
-        </div>
+        {/* Screen reader only: full description */}
+        <span className="sr-only">{ariaDescription}</span>
       </div>
 
-      {/* Screen reader only: full description */}
-      <span className="sr-only">{ariaDescription}</span>
-    </div>
+      {/* Template Selector Modal */}
+      {showTemplateSelector && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={handleTemplateModalBackdrop}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="template-selector-title"
+        >
+          <div
+            ref={modalRef}
+            className={cn(
+              "relative z-10 w-full max-w-2xl mx-4",
+              "bg-gray-800 rounded-xl shadow-2xl",
+              "border border-gray-700",
+              "max-h-[90vh] overflow-hidden flex flex-col",
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+              <h2
+                id="template-selector-title"
+                className="text-lg font-semibold text-white"
+              >
+                Select Template
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowTemplateSelector(false)}
+                className={cn(
+                  "p-2 rounded-lg text-gray-400",
+                  "hover:text-white hover:bg-gray-700",
+                  "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800",
+                  "transition-colors",
+                )}
+                aria-label="Close template selector"
+              >
+                <CloseIcon aria-hidden={true} />
+              </button>
+            </div>
+
+            {/* Template Selector */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <TemplateSelector
+                templates={templates}
+                selectedTemplateId={selectedTemplate?.id || null}
+                onSelect={handleTemplateSelect}
+                categoryFilter={categoryFilter}
+                onCategoryChange={setCategoryFilter}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                isLoading={isLoadingTemplates}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Variable Prompt Modal */}
+      {showVariablePrompt && pendingSend && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={handleVariablePromptBackdrop}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="variable-prompt-title"
+        >
+          <div
+            ref={variablePromptRef}
+            className={cn(
+              "relative z-10 w-full max-w-md mx-4",
+              "bg-gray-800 rounded-xl shadow-2xl",
+              "border border-gray-700",
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+              <h2
+                id="variable-prompt-title"
+                className="text-lg font-semibold text-yellow-300"
+              >
+                Unresolved Template Variables
+              </h2>
+              <button
+                type="button"
+                onClick={handleVariablePromptClose}
+                className={cn(
+                  "p-2 rounded-lg text-gray-400",
+                  "hover:text-white hover:bg-gray-700",
+                  "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800",
+                  "transition-colors",
+                )}
+                aria-label="Close"
+              >
+                <CloseIcon aria-hidden={true} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 py-4">
+              <p className="text-sm text-gray-300 mb-4">
+                Your message contains unresolved template variables that must be
+                replaced before sending:
+              </p>
+              <div className="mb-4 rounded-lg border border-red-600/50 bg-red-900/20 p-3">
+                <div className="flex flex-wrap gap-2">
+                  {unresolvedVariables.map((variable) => (
+                    <span
+                      key={variable}
+                      className="rounded bg-red-900/40 px-2 py-1 text-xs font-mono text-red-300"
+                    >
+                      {`{{${variable}}}`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <p className="text-sm text-gray-400">
+                Please replace all variables in the message before sending. The
+                send button is disabled until all variables are resolved.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end px-6 py-4 border-t border-gray-700">
+              <button
+                type="button"
+                onClick={handleVariablePromptClose}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium",
+                  "bg-purple-600 text-white",
+                  "hover:bg-purple-500",
+                  "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800",
+                  "transition-colors",
+                )}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

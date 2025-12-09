@@ -476,6 +476,35 @@ export const POST = withUserContext(
         hasMedia: !!(body.mediaUrls && body.mediaUrls.length > 0),
       });
 
+      // Track template usage (non-blocking, fire-and-forget)
+      if (body.templateId) {
+        // Call increment_sms_template_usage via Lambda API
+        // This is non-blocking - we don't wait for it to complete
+        api
+          .post(
+            buildPath(LAMBDA_API_BASE, "templates", body.templateId, "usage"),
+            {
+              tenant_id: userContext.tenantId,
+            },
+            {
+              headers: {
+                "x-tenant-id": userContext.tenantId,
+                "x-practice-id": userContext.practiceId,
+                "x-coordinator-sax-id": String(userContext.saxId),
+              },
+            },
+          )
+          .catch((error) => {
+            // Log error but don't fail the request
+            console.error("Failed to track template usage", {
+              templateId: body.templateId,
+              errorType: error instanceof Error ? error.name : "Unknown",
+              errorMessage:
+                error instanceof Error ? error.message : "Unknown error",
+            });
+          });
+      }
+
       return NextResponse.json(storedMessage, { status: 201 });
     } catch (error) {
       // Log error without PHI
