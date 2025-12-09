@@ -120,7 +120,7 @@ export function PatientContextHeader({
 
   // Patient profile URL - uses hard navigation for cross-zone (SleepConnect)
   // Patient profile is in the main SleepConnect zone, not /outreach
-  const profileUrl = `/patients/${patientId}`;
+  const profileUrl = `/patients?patientId=${patientId}`;
 
   return (
     <div

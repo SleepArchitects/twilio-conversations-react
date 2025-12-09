@@ -21,6 +21,7 @@ export interface LinkPatientButtonProps {
 /** Patient record from SleepConnect /api/patients endpoint */
 interface Patient {
   people_id: string;
+  sax_id: string;
   first_name: string;
   last_name: string;
   phone: string;
@@ -237,10 +238,11 @@ export function LinkPatientButton({
 
       try {
         // Call API to link patient to conversation
+        // Use sax_id (BIGINT) not people_id (UUID) - the database function expects sax_id
         await api.patch(
           `/api/outreach/conversations/${conversationId}/patient`,
           {
-            patient_id: patient.people_id,
+            patient_id: patient.sax_id,
           },
         );
 
@@ -248,7 +250,7 @@ export function LinkPatientButton({
         setIsOpen(false);
         setSearchQuery("");
         setSearchResults([]);
-        onPatientLinked?.(patient.people_id);
+        onPatientLinked?.(patient.sax_id);
       } catch (err) {
         console.error("Error linking patient:", err);
         setError("Failed to link patient. Please try again.");

@@ -88,10 +88,12 @@ As a care coordinator, I want to see patient clinical context (name, DOB, and li
 **Feature Clarification - Why "Link Patient"?**
 
 Conversations can be created via two paths:
+
 1. **Patient Search (US2)**: Coordinator searches for patient by name, selects from results → conversation is **automatically linked** to patient record (patient_id is set)
 2. **Manual Phone Entry (US2)**: Coordinator enters phone number directly without searching → conversation is **unlinked** (patient_id is NULL)
 
 The "Link Patient" button appears ONLY for unlinked conversations (manual phone entry path), allowing coordinators to retroactively associate the conversation with a SleepConnect patient record. This enables:
+
 - Viewing patient clinical context (name, DOB) in conversation header
 - Direct navigation to patient profile for chart review
 - Proper record-keeping and audit trail association
