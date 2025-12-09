@@ -104,6 +104,14 @@ export interface Conversation extends TenantScope, AuditFields {
 	lastMessagePreview: string | null;
 	/** Whether the patient has opted out of messaging */
 	optedOut?: boolean;
+	/** Optional: SAX ID of linked patient (US3a - Patient Context) */
+	patientId?: string | null;
+	/** Optional: Patient first name (US3a - Patient Context) */
+	patientFirstName?: string | null;
+	/** Optional: Patient last name (US3a - Patient Context) */
+	patientLastName?: string | null;
+	/** Optional: Patient date of birth in ISO 8601 format (US3a - Patient Context) */
+	patientDob?: string | null;
 }
 
 /**

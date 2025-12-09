@@ -57,9 +57,37 @@ Based on plan.md structure:
 - [N/A] T016 ~~Create app/api/outreach/token/route.ts for Twilio access token generation~~ *PIVOTED: Not needed - using Twilio Messaging API (REST) instead of Conversations SDK*
 - [N/A] T017 ~~Implement hooks/useTwilioClient.ts for Twilio Conversations SDK~~ *PIVOTED: Using API-based messaging with React Query polling instead. Rationale: Serverless-compatible (Lambda), ~$475/mo cheaper, simpler maintenance, single source of truth (PostgreSQL). See ADR below.*
 - [X] T018 Auth0 route protection via SleepConnect middleware.ts (multi-zone architecture - middleware lives in sleepconnect repo, forwards user context to Outreach zone via cookies)
-- [ ] T018a [P] **NEXT: Ready to implement** - Integrate SleepConnect shell in app/layout.tsx - import `ShellHeader` and `ShellFooter` from `@/components/layout/SleepConnectShell` (stub created, needs integration); use `<a href>` for cross-zone links per NFR-005
+- [X] T018a [P] Multi-zone shell integration - **COMPLETE**: Using proxy-level header rendering (Option D - cleanest approach). SleepConnect reverse proxy provides header/footer at proxy level. Outreach zone layout.tsx does NOT include header/footer (content-only). `ShellHeader`/`ShellFooter` exist only as stubs for standalone dev mode.
 
-**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
+**Checkpoint**: Foundation ready - user story implementation can now begin in parallel ✅
+
+### T018a Implementation: Proxy-Level Header Rendering (Option D - CHOSEN)
+
+**Status**: ✅ **COMPLETE** - Cleanest multi-zone architecture implemented
+
+**Implementation**:
+- ✅ Outreach `app/layout.tsx` does NOT render header/footer (content-only zone)
+- ✅ SleepConnect acts as reverse proxy and renders complete shell
+- ✅ User requests → SleepConnect proxy → wraps Outreach content with shell → seamless UX
+- ✅ `ShellHeader`/`ShellFooter` exist only for standalone dev mode (not used in production)
+
+**How It Works**:
+1. User navigates to `https://sleepconnect.com/outreach/conversations`
+2. SleepConnect proxy intercepts and fetches Outreach zone content
+3. Proxy wraps content with SleepConnect header/footer (SSR at proxy level)
+4. User sees seamless interface with consistent shell across all zones
+
+**Benefits Over Options A/B/C**:
+- **Single source of truth**: Header lives only in SleepConnect (no duplication)
+- **Automatic consistency**: All zones get header updates instantly
+- **No shared packages**: No need for NPM packages, Git submodules, or Module Federation
+- **Zero maintenance**: Header changes propagate automatically to all zones
+- **Correct Next.js pattern**: Standard multi-zone architecture per Next.js docs
+
+**Cross-Zone Navigation** (T092):
+- Use `<a href>` for links to other zones (hard navigation)
+- Use `<Link>` for links within Outreach zone (soft navigation)
+- Example: `<a href="/patients/123">View Patient</a>` (SleepConnect zone)
 
 ---
 
@@ -96,8 +124,8 @@ Based on plan.md structure:
 ### Implementation for User Story 2
 
 - [X] T028 [P] [US2] Create components/conversations/NewConversationModal.tsx with phone input, name input, and validation
-- [ ] T028a [P] [US2] Add patient search autocomplete to NewConversationModal.tsx - call SleepConnect core patient search endpoint `GET /api/patients?search=` (owned by SleepConnect backend, not part of `contracts/sms-api.yaml`) with 300ms debounce (FR-006a)
-- [ ] T028b [US2] Wire patient selection to auto-fill phone number and friendly name (first_name + last_name) from patient record returned by SleepConnect patient search API (FR-006b)
+- [X] T028a [P] [US2] Add patient search autocomplete to NewConversationModal.tsx - call SleepConnect core patient search endpoint `GET /api/patients?search=` (owned by SleepConnect backend, not part of `contracts/sms-api.yaml`) with 300ms debounce (FR-006a)
+- [X] T028b [US2] Wire patient selection to auto-fill phone number and friendly name (first_name + last_name) from patient record returned by SleepConnect patient search API (FR-006b)
 - [X] T029 [US2] Implement app/api/outreach/conversations/route.ts (GET list, POST create) per sms-api.yaml
 - [X] T030 [US2] Add duplicate conversation detection - navigate to existing conversation if phone number already has active conversation
 - [X] T031 [US2] Integrate NewConversationModal with ConversationList for triggering new conversation flow *(integration complete via ConversationList onNewConversation prop)*
@@ -136,15 +164,15 @@ Based on plan.md structure:
 
 ### Implementation for User Story 3a
 
-- [ ] T200 [P] [US3a] Create components/conversations/PatientContextHeader.tsx with patient name, DOB, and profile link
-- [ ] T201 [P] [US3a] Create components/conversations/LinkPatientButton.tsx for unlinked conversations with patient search
-- [ ] T202 [US3a] Implement app/api/outreach/conversations/[conversationId]/patient/route.ts (GET patient context, PATCH link patient) per FR-039, FR-041
-- [ ] T203 [US3a] Extend Conversation type in types/sms.ts with optional patient_id, patient_first_name, patient_last_name, patient_dob
-- [ ] T204 [US3a] Integrate PatientContextHeader with ConversationDetail header - display patient info when linked
-- [ ] T205 [US3a] Implement cross-zone navigation to patient profile using hard navigation (window.location) per FR-040
-- [ ] T205a [P] [US3a] Create lib/format.ts with `formatPatientDob(date: string): string` (→ 'MMM DD, YYYY') and `formatLocalTimestamp(utc: string): string` utilities using Intl.DateTimeFormat
+- [X] T200 [P] [US3a] Create components/conversations/PatientContextHeader.tsx with patient name, DOB, and profile link
+- [X] T201 [P] [US3a] Create components/conversations/LinkPatientButton.tsx for unlinked conversations with patient search
+- [X] T202 [US3a] Implement app/api/outreach/conversations/[conversationId]/patient/route.ts (GET patient context, PATCH link patient) per FR-039, FR-041
+- [X] T203 [US3a] Extend Conversation type in types/sms.ts with optional patient_id, patient_first_name, patient_last_name, patient_dob
+- [X] T204 [US3a] Integrate PatientContextHeader with ConversationDetail header - display patient info when linked
+- [X] T205 [US3a] Implement cross-zone navigation to patient profile using hard navigation (window.location) per FR-040
+- [X] T205a [P] [US3a] Create lib/format.ts with `formatPatientDob(date: string): string` (→ 'MMM DD, YYYY') and `formatLocalTimestamp(utc: string): string` utilities using Intl.DateTimeFormat
 
-**Checkpoint**: Coordinators can view patient clinical context without leaving messaging interface
+**Checkpoint**: Coordinators can view patient clinical context without leaving messaging interface ✅ **COMPLETE**
 
 ---
 
@@ -156,13 +184,33 @@ Based on plan.md structure:
 
 ### Implementation for User Story 3b
 
-- [ ] T206 [P] [US3b] Create components/conversations/ConversationFilter.tsx with segmented control (All, Unread, SLA Risk, Archived)
-- [ ] T207 [US3b] Extend useConversations hook with filterStatus parameter and real-time filter updates
-- [ ] T208 [US3b] Integrate ConversationFilter with ConversationList page header
-- [ ] T209 [US3b] Update app/api/outreach/conversations/route.ts to accept status filter query parameter
-- [ ] T210 [US3b] Add real-time filter update when conversation status changes (message read, SLA threshold exceeded)
+- [X] T206 [P] [US3b] Create components/conversations/ConversationFilter.tsx with segmented control (All, Unread, SLA Risk, Archived)
+- [X] T207 [US3b] Extend useConversations hook with filterStatus parameter and real-time filter updates
+- [X] T208 [US3b] Integrate ConversationFilter with ConversationList page header
+- [X] T209 [US3b] Update app/api/outreach/conversations/route.ts to accept status filter query parameter
+- [X] T210 [US3b] Add real-time filter update when conversation status changes (message read, SLA threshold exceeded)
 
-**Checkpoint**: Coordinators can quickly focus on conversations requiring attention
+**Checkpoint**: Coordinators can quickly focus on conversations requiring attention ✅ **COMPLETE**
+
+---
+
+## 🎉 MVP MILESTONE ACHIEVED (December 8, 2025)
+
+**All Priority 1 (P1) User Stories Complete!**
+
+- ✅ **Phase 1**: Setup (10/10 tasks)
+- ✅ **Phase 2**: Foundation (10/10 tasks)
+- ✅ **Phase 3**: Send/Receive SMS - US1 (11/11 tasks) - E2E Verified
+- ✅ **Phase 4**: New Conversation - US2 (7/7 tasks)
+- ✅ **Phase 5**: View History - US3 (8/8 tasks)
+- ✅ **Phase 5a**: Patient Context - US3a (7/7 tasks)
+- ✅ **Phase 5b**: Status Filters - US3b (5/5 tasks)
+
+**Total MVP**: 58/58 tasks complete (100%) 🎯
+
+See `specs/001-sms-outreach-integration/MVP-COMPLETE.md` for full implementation summary.
+
+**Next Steps**: Deploy to development environment for stakeholder review, then proceed with P2 features (Templates & SLA) or production hardening.
 
 ---
 

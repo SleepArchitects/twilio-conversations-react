@@ -1,11 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ConversationList } from "@/components/conversations/ConversationList";
+import {
+  ConversationFilter,
+  type ConversationFilterValue,
+} from "@/components/conversations/ConversationFilter";
 import { NewConversationModal } from "@/components/conversations/NewConversationModal";
-import type { ConversationStatus, Conversation } from "@/types/sms";
-import { cn } from "@/lib/utils";
+import type { Conversation } from "@/types/sms";
 
 // =============================================================================
 // Page Component
@@ -15,13 +18,25 @@ import { cn } from "@/lib/utils";
  * Main conversation list page.
  * Displays all active conversations with filtering and search capabilities.
  * Supports creating new conversations via modal.
+ * Implements FR-014c: Status filters with URL query param persistence.
  */
 export default function ConversationsPage(): React.ReactElement {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Read filter from URL query params (FR-014c)
+  const urlFilterStatus = searchParams.get(
+    "status",
+  ) as ConversationFilterValue | null;
+  const initialFilter: ConversationFilterValue =
+    urlFilterStatus &&
+    ["all", "unread", "sla_risk", "archived"].includes(urlFilterStatus)
+      ? urlFilterStatus
+      : "all";
 
   // State for filters
-  const [statusFilter, setStatusFilter] =
-    React.useState<ConversationStatus>("active");
+  const [filterStatus, setFilterStatus] =
+    React.useState<ConversationFilterValue>(initialFilter);
 
   // New conversation modal state
   const [isNewConversationOpen, setIsNewConversationOpen] =
@@ -39,6 +54,18 @@ export default function ConversationsPage(): React.ReactElement {
   // ==========================================================================
   // Handlers
   // ==========================================================================
+
+  const handleFilterChange = React.useCallback(
+    (newFilter: ConversationFilterValue) => {
+      setFilterStatus(newFilter);
+
+      // Update URL query params for bookmarkability (FR-014c)
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("status", newFilter);
+      router.push(`/conversations?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   const handleConversationSelect = React.useCallback(
     (conversation: Conversation) => {
@@ -90,31 +117,11 @@ export default function ConversationsPage(): React.ReactElement {
             </p>
           </div>
 
-          {/* Status filter tabs */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setStatusFilter("active")}
-              className={cn(
-                "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                statusFilter === "active"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-400 hover:bg-gray-700 hover:text-white",
-              )}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setStatusFilter("archived")}
-              className={cn(
-                "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                statusFilter === "archived"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-400 hover:bg-gray-700 hover:text-white",
-              )}
-            >
-              Archived
-            </button>
-          </div>
+          {/* Status filter - FR-014c */}
+          <ConversationFilter
+            value={filterStatus}
+            onChange={handleFilterChange}
+          />
         </div>
       </header>
 
@@ -124,7 +131,7 @@ export default function ConversationsPage(): React.ReactElement {
           selectedConversationId={selectedConversationId}
           onConversationSelect={handleConversationSelect}
           onNewConversation={handleNewConversation}
-          statusFilter={statusFilter}
+          filterStatus={filterStatus}
           searchQuery={searchQuery}
           className="h-full"
         />

@@ -5,7 +5,9 @@ const nextConfig = {
 
 	// Multi-zone configuration for sleepconnect integration
 	basePath: "/outreach",
-	assetPrefix: "/outreach-static",
+	// Use /outreach-static in production (CloudFront path), /outreach in dev (local server)
+	// This fixes CSS 404s in local dev while maintaining production multi-zone architecture
+	assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outreach",
 
 	// Disable ESLint during builds (we run separately)
 	eslint: {

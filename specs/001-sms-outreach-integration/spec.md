@@ -85,6 +85,17 @@ As a care coordinator, I want to see patient clinical context (name, DOB, and li
 
 **Independent Test**: Can be fully tested by opening a conversation linked to a SleepConnect patient and verifying the header displays patient name, date of birth, and a clickable link to the patient profile.
 
+**Feature Clarification - Why "Link Patient"?**
+
+Conversations can be created via two paths:
+1. **Patient Search (US2)**: Coordinator searches for patient by name, selects from results → conversation is **automatically linked** to patient record (patient_id is set)
+2. **Manual Phone Entry (US2)**: Coordinator enters phone number directly without searching → conversation is **unlinked** (patient_id is NULL)
+
+The "Link Patient" button appears ONLY for unlinked conversations (manual phone entry path), allowing coordinators to retroactively associate the conversation with a SleepConnect patient record. This enables:
+- Viewing patient clinical context (name, DOB) in conversation header
+- Direct navigation to patient profile for chart review
+- Proper record-keeping and audit trail association
+
 **Acceptance Scenarios**:
 
 1. **Given** a conversation is linked to a SleepConnect patient, **When** the conversation loads, **Then** the header displays patient first name, last name, and date of birth formatted as `MMM DD, YYYY` (e.g., `Jan 02, 1980`)
@@ -344,4 +355,4 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **Twilio Messaging API (Programmable SMS)**: For bi-directional SMS messaging
 - **AWS Lambda + PostgreSQL/RDS**: For data persistence and business logic (NOT DynamoDB)
 - **SleepConnect Platform**: For user authentication and authorization context
-- **AI/ML Service**: For sentiment analysis (specific provider TBD based on existing infrastructure)
+- **AWS Comprehend**: For sentiment analysis (HIPAA-eligible, same AWS ecosystem per research.md)
