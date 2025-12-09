@@ -1,15 +1,40 @@
 /**
- * SleepConnect Shell Integration
+ * SleepConnect Shell Integration - PROXY-LEVEL RENDERING (Cleanest Approach)
  *
- * Provides Header and Footer components from the SleepConnect multi-zone shell.
- * These components ensure consistent branding and navigation across all zones.
+ * Multi-Zone Architecture Pattern:
+ * ================================
+ * In production, SleepConnect acts as the reverse proxy and renders the complete
+ * shell (header + footer) at the proxy level. Each zone (core, outreach, admin)
+ * only renders its content area.
  *
- * Implementation Notes (T018a):
- * - This is a stub for multi-zone integration with SleepConnect
- * - In production, these components should be imported from a shared package or
- *   fetched from SleepConnect's component export endpoint
- * - Use <a href> for cross-zone navigation (not Next.js <Link>)
- * - Auth context is passed via cookies from SleepConnect middleware
+ * How It Works:
+ * 1. User requests: https://sleepconnect.com/outreach/conversations
+ * 2. SleepConnect proxy (main zone) intercepts the request
+ * 3. Proxy fetches content from Outreach zone: GET /outreach/conversations
+ * 4. Proxy wraps Outreach content with SleepConnect header/footer
+ * 5. User receives: SleepConnect shell + Outreach content (seamless)
+ *
+ * Benefits:
+ * - Single source of truth for header/footer (no duplication)
+ * - Automatic consistency across all zones
+ * - No need for shared component packages or imports
+ * - Header updates propagate instantly to all zones
+ * - Auth context shared via cookies/headers (no API calls)
+ *
+ * Implementation (T018a - COMPLETE):
+ * - Outreach layout.tsx does NOT render header/footer
+ * - SleepConnect next.config.js has rewrites: /outreach/* → Outreach zone
+ * - Cross-zone navigation uses <a href> (hard navigation, not <Link>)
+ * - This file exists only for documentation and standalone dev mode
+ *
+ * Standalone Dev Mode:
+ * - When running Outreach zone independently (pnpm dev), use these stubs
+ * - For production multi-zone, these components are never used
+ */
+
+/**
+ * NOTE: These components are ONLY used in standalone dev mode.
+ * In production, SleepConnect proxy provides the actual header/footer.
  */
 
 import React from "react";
@@ -33,18 +58,18 @@ export interface ShellFooterProps {
 }
 
 /**
- * ShellHeader - Top navigation bar from SleepConnect
+ * ShellHeader - STUB FOR STANDALONE DEV MODE ONLY
  *
- * TODO (T018a Implementation):
- * - Replace this stub with actual import from SleepConnect shared package
- * - Possible approaches:
- *   1. NPM package: @sleepconnect/shell-components
- *   2. Git submodule: Import from ../sleepconnect/components/shell
- *   3. Component federation: Remote module via Module Federation
- *   4. Server-side fetch: Fetch component HTML from SleepConnect endpoint
+ * ⚠️ WARNING: This component is NOT used in production!
  *
- * @param props - Header configuration
+ * Production Multi-Zone Flow:
+ * - SleepConnect proxy renders actual header at reverse proxy level
+ * - Outreach zone layout.tsx does NOT include <ShellHeader>
+ * - This stub only exists for standalone development (pnpm dev)
+ *
+ * @param props - Header configuration (ignored in production)
  */
+
 export function ShellHeader({
   userName,
   currentZone = "outreach",
@@ -61,18 +86,21 @@ export function ShellHeader({
         </a>
 
         {/* Navigation - Use <a> for cross-zone links */}
-        <nav className="hidden md:flex items-center gap-6">
+        <nav className="flex items-center gap-6">
           <a
-            href="/dashboard"
+            href={`${process.env.NEXT_PUBLIC_APP_BASE_URL}/dashboard`}
             className="hover:text-white/80 transition-colors"
           >
             Dashboard
           </a>
-          <a href="/patients" className="hover:text-white/80 transition-colors">
+          <a
+            href={`${process.env.NEXT_PUBLIC_APP_BASE_URL}/patients`}
+            className="hover:text-white/80 transition-colors"
+          >
             Patients
           </a>
           <a
-            href="/outreach"
+            href={`${process.env.NEXT_PUBLIC_APP_BASE_URL}/outreach`}
             className={
               currentZone === "outreach"
                 ? "font-semibold"
@@ -138,7 +166,7 @@ export function ShellFooter({ variant = "default" }: ShellFooterProps) {
             <ul className="space-y-2 text-sm">
               <li>
                 <a
-                  href="/dashboard"
+                  href={`${process.env.NEXT_PUBLIC_APP_BASE_URL}/dashboard`}
                   className="hover:text-white transition-colors"
                 >
                   Dashboard
@@ -146,7 +174,7 @@ export function ShellFooter({ variant = "default" }: ShellFooterProps) {
               </li>
               <li>
                 <a
-                  href="/patients"
+                  href={`${process.env.NEXT_PUBLIC_APP_BASE_URL}/patients`}
                   className="hover:text-white transition-colors"
                 >
                   Patients
@@ -154,7 +182,7 @@ export function ShellFooter({ variant = "default" }: ShellFooterProps) {
               </li>
               <li>
                 <a
-                  href="/outreach"
+                  href={`${process.env.NEXT_PUBLIC_APP_BASE_URL}/outreach`}
                   className="hover:text-white transition-colors"
                 >
                   SMS Outreach

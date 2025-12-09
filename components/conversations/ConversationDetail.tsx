@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { formatDateHeader, isSameDay } from "@/lib/datetime";
 import { MessageBubble } from "@/components/conversations/MessageBubble";
 import { MessageComposer } from "@/components/conversations/MessageComposer";
+import { PatientContextHeader } from "@/components/conversations/PatientContextHeader";
+import { LinkPatientButton } from "@/components/conversations/LinkPatientButton";
 import { useMessages } from "@/hooks/useMessages";
 import type { Conversation } from "@/types/sms";
 
@@ -346,6 +348,23 @@ export function ConversationDetail({
     conversationId,
   });
 
+  // State for patient context
+  const [conversationData, setConversationData] =
+    React.useState<Conversation>(conversation);
+
+  // Update conversation data when prop changes or patient is linked
+  React.useEffect(() => {
+    setConversationData(conversation);
+  }, [conversation]);
+
+  // Callback when patient is linked via LinkPatientButton
+  const handlePatientLinked = React.useCallback(() => {
+    // Refresh conversation to get updated patient context
+    // In a real implementation, this would refetch from the API
+    // For now, we'll trigger a page refresh to get the updated data
+    window.location.reload();
+  }, []);
+
   // Refs for auto-scroll functionality
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const messageListRef = React.useRef<HTMLDivElement>(null);
@@ -426,9 +445,16 @@ export function ConversationDetail({
   }, [messages]);
 
   // Extract display name from conversation
-  const displayName = conversation.friendlyName || "Unknown Patient";
-  const phoneNumber = conversation.patientPhone;
-  const isOptedOut = conversation.optedOut === true;
+  const displayName = conversationData.friendlyName || "Unknown Patient";
+  const phoneNumber = conversationData.patientPhone;
+  const isOptedOut = conversationData.optedOut === true;
+
+  // Check if patient is linked
+  const isPatientLinked = !!(
+    conversationData.patientId &&
+    conversationData.patientFirstName &&
+    conversationData.patientLastName
+  );
 
   return (
     <div
@@ -448,6 +474,21 @@ export function ConversationDetail({
           </div>
         </div>
       </header>
+
+      {/* Patient Context Header or Link Patient Button (US3a) */}
+      {isPatientLinked ? (
+        <PatientContextHeader
+          patientId={conversationData.patientId!}
+          firstName={conversationData.patientFirstName!}
+          lastName={conversationData.patientLastName!}
+          dateOfBirth={conversationData.patientDob || null}
+        />
+      ) : (
+        <LinkPatientButton
+          conversationId={conversationId}
+          onPatientLinked={handlePatientLinked}
+        />
+      )}
 
       {/* Opted Out Warning */}
       {isOptedOut && <OptedOutWarning />}

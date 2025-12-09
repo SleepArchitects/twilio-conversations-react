@@ -8,13 +8,16 @@ import type {
   SlaStatus,
   Pagination,
 } from "@/types/sms";
+import type { ConversationFilterValue } from "@/components/conversations/ConversationFilter";
 
 // =============================================================================
 // Types & Interfaces
 // =============================================================================
 
 export interface UseConversationsOptions {
-  /** Status filter (active or archived) */
+  /** Filter by conversation status (all, unread, sla_risk, archived) per FR-014c */
+  filterStatus?: ConversationFilterValue;
+  /** Status filter (active or archived) - DEPRECATED: use filterStatus instead */
   statusFilter?: ConversationStatus;
   /** SLA status filter */
   slaFilter?: SlaStatus;
@@ -187,6 +190,7 @@ export function useConversations(
   options: UseConversationsOptions = {}
 ): UseConversationsReturn {
   const {
+    filterStatus,
     statusFilter,
     slaFilter,
     searchQuery,
@@ -216,6 +220,12 @@ export function useConversations(
           offset: reset ? 0 : state.offset,
         };
 
+        // Use new filterStatus parameter (FR-014c) if provided
+        if (filterStatus) {
+          params.filterStatus = filterStatus;
+        }
+
+        // Fallback to legacy statusFilter for backward compatibility
         if (statusFilter) {
           params.status = statusFilter;
         }
@@ -246,7 +256,7 @@ export function useConversations(
         dispatch({ type: "FETCH_ERROR", payload: message });
       }
     },
-    [pageSize, state.offset, statusFilter, slaFilter]
+    [pageSize, state.offset, filterStatus, statusFilter, slaFilter]
   );
 
   // Initial fetch
@@ -259,7 +269,7 @@ export function useConversations(
   // Refetch when filters change
   React.useEffect(() => {
     fetchConversations(true);
-  }, [statusFilter, slaFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filterStatus, statusFilter, slaFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ==========================================================================
   // Polling for Real-time Updates

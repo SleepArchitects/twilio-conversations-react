@@ -4,6 +4,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { api, ApiError } from "@/lib/api";
 import { ConversationListItem } from "./ConversationListItem";
+import type { ConversationFilterValue } from "./ConversationFilter";
 import type {
   Conversation,
   ConversationStatus,
@@ -22,7 +23,9 @@ export interface ConversationListProps {
   onConversationSelect?: (conversation: Conversation) => void;
   /** Callback to trigger new conversation modal */
   onNewConversation?: () => void;
-  /** Status filter */
+  /** Filter by conversation status (all, unread, sla_risk, archived) per FR-014c */
+  filterStatus?: ConversationFilterValue;
+  /** Status filter - DEPRECATED: use filterStatus instead */
   statusFilter?: ConversationStatus;
   /** SLA filter */
   slaFilter?: SlaStatus;
@@ -137,6 +140,7 @@ export function ConversationList({
   selectedConversationId,
   onConversationSelect,
   onNewConversation,
+  filterStatus,
   statusFilter,
   slaFilter,
   searchQuery,
@@ -177,6 +181,12 @@ export function ConversationList({
           offset: currentOffset,
         };
 
+        // Use new filterStatus parameter (FR-014c) if provided
+        if (filterStatus) {
+          params.filterStatus = filterStatus;
+        }
+
+        // Fallback to legacy statusFilter for backward compatibility
         if (statusFilter) {
           params.status = statusFilter;
         }
@@ -217,13 +227,13 @@ export function ConversationList({
         setIsLoadingMore(false);
       }
     },
-    [offset, statusFilter, slaFilter],
+    [offset, filterStatus, statusFilter, slaFilter],
   );
 
   // Initial load and filter changes
   React.useEffect(() => {
     fetchConversations(true);
-  }, [statusFilter, slaFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filterStatus, statusFilter, slaFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ==========================================================================
   // Infinite Scroll

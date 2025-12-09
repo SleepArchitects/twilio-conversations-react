@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import { UserProvider } from "@auth0/nextjs-auth0/client";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
 import { Providers } from "./providers";
+import Banner from "@/components/layout/Banner";
+import Header from "@/components/layout/Header/MainHeader";
+import Footer from "@/components/layout/Footer";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -12,18 +14,20 @@ export const metadata: Metadata = {
   description: "Patient SMS communication management",
 };
 
-// Check if auth is disabled (for development)
-const isAuthDisabled = process.env.NEXT_PUBLIC_DISABLE_AUTH === "true";
-
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // When auth is disabled, don't wrap with UserProvider to avoid /api/auth/me calls
+  // Render complete page structure with SleepConnect header/footer
   const content = (
     <Providers>
-      {children}
+      <div className="flex min-h-screen flex-col">
+        <Banner />
+        <Header />
+        <main className="flex-1 page-content">{children}</main>
+        <Footer />
+      </div>
       <Toaster position="top-right" richColors closeButton theme="dark" />
     </Providers>
   );
@@ -46,7 +50,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.className} bg-white dark:bg-gray-900`}>
-        {isAuthDisabled ? content : <UserProvider>{content}</UserProvider>}
+        {content}
       </body>
     </html>
   );

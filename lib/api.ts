@@ -147,6 +147,17 @@ async function parseErrorResponse(response: Response): Promise<ApiError> {
 }
 
 /**
+ * Get a cookie value by name (client-side only)
+ */
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  const match = document.cookie.match(new RegExp(`(^|;\\s*)${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+/**
  * Core fetch wrapper with error handling
  */
 async function request<T>(
@@ -166,6 +177,16 @@ async function request<T>(
     Accept: "application/json",
     ...customHeaders,
   };
+
+  // Add x-sax-user-context header from cookie if present (multi-zone mode)
+  // This forwards the user context from SleepConnect to Outreach API routes
+  if (typeof window !== "undefined") {
+    const userContext = getCookie("x-sax-user-context");
+    if (userContext) {
+      (headers as Record<string, string>)["x-sax-user-context"] = userContext;
+      console.log("[API] Added x-sax-user-context header from cookie");
+    }
+  }
 
   const config: RequestInit = {
     method,

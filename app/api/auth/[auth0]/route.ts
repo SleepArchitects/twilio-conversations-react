@@ -1,4 +1,4 @@
-import { handleAuth } from "@auth0/nextjs-auth0";
+import { auth0 } from "@/lib/auth0";
 
 /**
  * Auth0 authentication route handler
@@ -8,6 +8,8 @@ import { handleAuth } from "@auth0/nextjs-auth0";
  * - /api/auth/logout - Logs out user
  * - /api/auth/callback - Handles OAuth callback
  * - /api/auth/me - Returns current user session
+ *
+ * Uses shared auth0 instance to ensure session compatibility with SleepConnect
  */
-export const GET = handleAuth();
-export const POST = handleAuth();
+export const GET = auth0.handleAuth();
+export const POST = auth0.handleAuth();

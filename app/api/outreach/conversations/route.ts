@@ -118,6 +118,7 @@ function isValidPhone(phone: string): boolean {
 function parseListParams(searchParams: URLSearchParams): {
   status?: ConversationStatus;
   slaStatus?: SlaStatus;
+  filterStatus?: string;
   limit: number;
   offset: number;
   phone?: string;
@@ -131,7 +132,17 @@ function parseListParams(searchParams: URLSearchParams): {
   let offset = parseInt(searchParams.get("offset") || "0", 10);
   if (Number.isNaN(offset) || offset < 0) offset = 0;
 
-  // Parse status filter
+  // Parse filterStatus (FR-014c) - new unified filter parameter
+  const filterStatusParam = searchParams.get("filterStatus");
+  const filterStatus =
+    filterStatusParam === "all" ||
+    filterStatusParam === "unread" ||
+    filterStatusParam === "sla_risk" ||
+    filterStatusParam === "archived"
+      ? filterStatusParam
+      : undefined;
+
+  // Parse status filter (legacy, for backward compatibility)
   const statusParam = searchParams.get("status");
   const status =
     statusParam === "active" || statusParam === "archived"
@@ -150,7 +161,7 @@ function parseListParams(searchParams: URLSearchParams): {
   // Parse phone for duplicate detection
   const phone = searchParams.get("phone") || undefined;
 
-  return { status, slaStatus, limit, offset, phone };
+  return { status, slaStatus, filterStatus, limit, offset, phone };
 }
 
 /**
@@ -233,7 +244,8 @@ async function findActiveConversationByPhone(
  * Supports filtering by status, SLA status, and phone number lookup.
  *
  * Query Parameters:
- * - status: 'active' | 'archived' (optional)
+ * - filterStatus: 'all' | 'unread' | 'sla_risk' | 'archived' (optional, per FR-014c)
+ * - status: 'active' | 'archived' (optional, legacy)
  * - slaStatus: 'ok' | 'warning' | 'breached' (optional)
  * - limit: number (default 50, max 100)
  * - offset: number (default 0)
@@ -310,13 +322,34 @@ async function handleGet(
   console.debug(`Start conv handler`);
   try {
     const { searchParams } = new URL(req.url);
-    const { status, slaStatus, limit, offset, phone } =
+    const { status, slaStatus, filterStatus, limit, offset, phone } =
       parseListParams(searchParams);
 
     // Mock mode for local development without Lambda backend
     if (isMockMode()) {
       console.log("[MOCK] Returning mock conversations data");
-      const mockConversations = getMockConversations();
+      let mockConversations = getMockConversations();
+
+      // Apply filterStatus filtering (FR-014c)
+      if (filterStatus) {
+        mockConversations = mockConversations.filter((conv) => {
+          switch (filterStatus) {
+            case "all":
+              return conv.status === "active" && !conv.archivedOn;
+            case "unread":
+              return conv.unreadCount > 0;
+            case "sla_risk":
+              return (
+                conv.slaStatus === "breached" || conv.slaStatus === "warning"
+              );
+            case "archived":
+              return conv.archivedOn !== null;
+            default:
+              return true;
+          }
+        });
+      }
+
       const data = mockConversations.map(toConversationSummary);
       const pagination: Pagination = {
         total: mockConversations.length,
@@ -374,12 +407,38 @@ async function handleGet(
       offset,
     };
 
-    if (status) {
-      queryParams.status = status;
-    }
+    // Handle filterStatus parameter (FR-014c)
+    // Map filterStatus to appropriate Lambda API parameters
+    if (filterStatus) {
+      switch (filterStatus) {
+        case "all":
+          // Show active conversations only (not archived)
+          queryParams.status = "active";
+          break;
+        case "unread":
+          // Lambda API should support unread_only parameter
+          // For now, we'll filter client-side after response
+          queryParams.status = "active";
+          queryParams.unread_only = "true";
+          break;
+        case "sla_risk":
+          // Filter for warning or breached SLA status
+          queryParams.status = "active";
+          queryParams.sla_risk_only = "true";
+          break;
+        case "archived":
+          queryParams.status = "archived";
+          break;
+      }
+    } else {
+      // Fallback to legacy status filter
+      if (status) {
+        queryParams.status = status;
+      }
 
-    if (slaStatus) {
-      queryParams.sla_status = slaStatus;
+      if (slaStatus) {
+        queryParams.sla_status = slaStatus;
+      }
     }
 
     // Call Lambda API to list conversations
@@ -391,12 +450,27 @@ async function handleGet(
       },
     );
 
+    // Client-side filtering for unread and sla_risk if Lambda doesn't support it yet
+    let filteredConversations = response.conversations;
+    if (filterStatus === "unread") {
+      filteredConversations = filteredConversations.filter(
+        (conv) => conv.unreadCount > 0,
+      );
+    } else if (filterStatus === "sla_risk") {
+      filteredConversations = filteredConversations.filter(
+        (conv) => conv.slaStatus === "breached" || conv.slaStatus === "warning",
+      );
+    }
+
     // Map to summary format
-    const data = response.conversations.map(toConversationSummary);
+    const data = filteredConversations.map(toConversationSummary);
 
     // Build pagination response
     const pagination: Pagination = {
-      total: response.total,
+      total:
+        filterStatus === "unread" || filterStatus === "sla_risk"
+          ? data.length // Use filtered count for client-side filters
+          : response.total,
       limit,
       offset,
       hasMore: offset + data.length < response.total,
