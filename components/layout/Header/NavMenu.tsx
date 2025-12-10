@@ -50,8 +50,8 @@ export default function NavMenu() {
             History
           </a>
         </li>
-
-        {/* SMS Outreach - Always visible for coordinators */}
+        {/* 
+        //  SMS Outreach - Always visible for coordinators
         <li>
           <a
             className="block rounded py-2 pl-3 pr-4 text-gray-900 hover:text-purple-600 dark:text-white dark:hover:text-purple-400 lg:p-0"
@@ -59,17 +59,7 @@ export default function NavMenu() {
           >
             SMS Outreach
           </a>
-        </li>
-
-        {/* Template Management - Always visible for coordinators */}
-        <li>
-          <a
-            className="block rounded py-2 pl-3 pr-4 text-gray-900 hover:text-purple-600 dark:text-white dark:hover:text-purple-400 lg:p-0"
-            href="/outreach/templates"
-          >
-            Templates
-          </a>
-        </li>
+        </li> */}
 
         {/* Role-based: Patients */}
         {mounted && hasPatients && (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button, Modal } from "flowbite-react";
 import { HiPlus, HiArrowLeft } from "react-icons/hi";
 import { useTemplates } from "@/hooks/useTemplates";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { TemplateList } from "@/components/templates/TemplateList";
 import { TemplateEditor } from "@/components/templates/TemplateEditor";
 import { type Template } from "@/types/sms";
@@ -79,33 +80,37 @@ export default function TemplatesPage() {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="flex h-screen flex-col bg-gray-900">
+      <PageHeader
+        title="Message Templates"
+        subtitle="Manage SMS templates"
+        className="px-4"
+      >
         <div className="flex items-center gap-4">
           <Link href="/conversations">
             <Button color="gray" size="sm">
-              <HiArrowLeft className="h-4 w-4" />
+              <HiArrowLeft className="mr-2 h-4 w-4" />
+              Back
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Message Templates
-          </h1>
+          {/* Mobile create button */}
+          <div className="sm:hidden">
+            <Button onClick={handleCreate} color="blue" size="sm">
+              <HiPlus className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
-        {/* Mobile create button */}
-        <div className="sm:hidden">
-          <Button onClick={handleCreate} color="blue" size="sm">
-            <HiPlus className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
+      </PageHeader>
 
-      <TemplateList
-        templates={templates}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onCreate={handleCreate}
-        isLoading={isLoading}
-      />
+      <div className="flex-1 overflow-auto p-4">
+        <TemplateList
+          templates={templates}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onCreate={handleCreate}
+          isLoading={isLoading}
+        />
+      </div>
 
       <Modal
         show={editorOpen}

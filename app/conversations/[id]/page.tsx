@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Spinner } from "flowbite-react";
 import { ConversationDetail } from "@/components/conversations/ConversationDetail";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { ArrowLeftIcon } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
 import type { Conversation } from "@/types/sms";
-import { cn } from "@/lib/utils";
 
 // =============================================================================
 // Types
@@ -30,7 +31,6 @@ interface ConversationResponse {
  */
 export default function ConversationPage(): React.ReactElement {
   const params = useParams();
-  const router = useRouter();
   const conversationId = params.id as string;
 
   // Conversation data
@@ -98,16 +98,10 @@ export default function ConversationPage(): React.ReactElement {
   }, [conversationId, conversation]);
 
   // ==========================================================================
-  // Handlers
-  // ==========================================================================
-
-  const handleBack = React.useCallback(() => {
-    router.push("/conversations");
-  }, [router]);
-
-  // ==========================================================================
   // Render States
   // ==========================================================================
+
+  // =========================================================================
 
   // Loading conversation metadata
   if (isLoading) {
@@ -164,40 +158,20 @@ export default function ConversationPage(): React.ReactElement {
   // ==========================================================================
 
   return (
-    <div className="flex h-screen flex-col bg-gray-900">
+    <div className="flex flex-col bg-gray-900">
       {/* Header with back button */}
-      <header className="border-b border-gray-700 bg-gray-800 px-4 py-3">
-        <div className="flex items-center gap-3">
-          {/* Back button */}
-          <button
-            onClick={handleBack}
-            className={cn(
-              "rounded-lg p-2 text-gray-400",
-              "hover:bg-gray-700 hover:text-white",
-            )}
-            title="Back to conversations"
+      <PageHeader
+        title={conversation.friendlyName}
+        className="px-4 py-3"
+        startAction={
+          <Link
+            href="/conversations"
+            className="text-gray-400 hover:text-white"
           >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-          </button>
-
-          {/* Page title */}
-          <h1 className="text-lg font-semibold text-white">
-            {conversation.friendlyName}
-          </h1>
-        </div>
-      </header>
+            <ArrowLeftIcon className="h-6 w-6" />
+          </Link>
+        }
+      />
 
       {/* Conversation Detail Component handles messages, scrolling, etc */}
       <div className="flex-1 overflow-hidden">
