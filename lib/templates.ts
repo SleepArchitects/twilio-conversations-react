@@ -26,6 +26,9 @@ const VARIABLE_PATTERN = /\{\{(\w+)\}\}/g;
  * // Returns: ["firstName", "appointmentDate"]
  */
 export function extractVariables(content: string): string[] {
+  if (!content || typeof content !== "string") {
+    return [];
+  }
   const matches = Array.from(content.matchAll(VARIABLE_PATTERN));
   const variables = matches.map((match) => match[1]);
   return [...new Set(variables)]; // Return unique variables
@@ -50,6 +53,9 @@ export function detectUnresolvedVariables(message: string): string[] {
  * @returns True if message contains unresolved variables
  */
 export function hasUnresolvedVariables(message: string): boolean {
+  if (!message || typeof message !== "string") {
+    return false;
+  }
   return VARIABLE_PATTERN.test(message);
 }
 

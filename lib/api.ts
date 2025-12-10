@@ -73,7 +73,9 @@ function buildUrl(
 ): string {
   // For relative paths to internal API routes (starting with /api/), prepend the basePath
   // This is for client-side calls to Next.js API routes
-  // Don't apply to external API calls or paths that already have the basePath
+  // Don't apply if:
+  // - Path already starts with BASE_PATH
+  // - This is a server-side call (API routes don't need basePath on server)
   let fullPath = path;
   if (
     typeof window !== "undefined" &&

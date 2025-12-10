@@ -8,6 +8,9 @@ import { MessageComposer } from "@/components/conversations/MessageComposer";
 import { PatientContextHeader } from "@/components/conversations/PatientContextHeader";
 import { LinkPatientButton } from "@/components/conversations/LinkPatientButton";
 import { useMessages } from "@/hooks/useMessages";
+import { usePracticeName } from "@/hooks/usePracticeName";
+import { useAuth } from "@/hooks/useAuth";
+import { useOutreachTemplateContext } from "@/hooks/useOutreachTemplateContext";
 import type { Conversation } from "@/types/sms";
 
 // =============================================================================
@@ -410,10 +413,10 @@ export function ConversationDetail({
     }
   }, [loadMore, hasMore, isLoadingMore]);
 
-  // Handle sending messages
+  // Handle sending messages with optional template tracking
   const handleSendMessage = React.useCallback(
-    async (body: string) => {
-      await sendMessage(body);
+    async (body: string, templateId?: string) => {
+      await sendMessage(body, templateId);
       // Auto-scroll to bottom after sending
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -448,6 +451,20 @@ export function ConversationDetail({
   const displayName = conversationData.friendlyName || "Unknown Patient";
   const phoneNumber = conversationData.patientPhone;
   const isOptedOut = conversationData.optedOut === true;
+  const practiceId = conversationData.practiceId;
+
+  const { user } = useAuth();
+
+  // Fetch practice name from SleepConnect API layer; fall back to embedded/env values
+  const { data: practiceData } = usePracticeName(practiceId);
+
+  const practiceName =
+    (conversationData as { practiceName?: string }).practiceName ||
+    user?.practiceName ||
+    practiceData?.name ||
+    process.env.NEXT_PUBLIC_PRACTICE_NAME;
+
+  const { context: templateContext } = useOutreachTemplateContext();
 
   // Check if patient is linked
   const isPatientLinked = !!(
@@ -455,6 +472,99 @@ export function ConversationDetail({
     conversationData.patientFirstName &&
     conversationData.patientLastName
   );
+
+  // Patient/practice context for template variable substitution
+  const templateVariableValues = React.useMemo(() => {
+    const values: Record<string, string> = {};
+
+    const addValue = (key: string, value?: string | null) => {
+      if (value === undefined || value === null) return;
+      const stringValue = `${value}`.trim();
+      if (!stringValue) return;
+      values[key] = stringValue;
+    };
+
+    const ctx = templateContext || {};
+
+    // Seed with any context written by SleepConnect writers (patient + practice + user)
+    addValue("practiceId", ctx.practiceId);
+    addValue("practiceName", ctx.practiceName);
+    addValue("tenantId", ctx.tenantId);
+    addValue("saxId", ctx.saxId);
+    addValue("userEmail", ctx.userEmail);
+    addValue("userName", ctx.userName);
+    addValue("patientId", ctx.patientId);
+    addValue("patientFirstName", ctx.patientFirstName);
+    addValue("patientLastName", ctx.patientLastName);
+    addValue("patientName", ctx.patientName);
+    addValue("patientPhone", ctx.patientPhone);
+    addValue("patientEmail", ctx.patientEmail);
+    if (ctx.patientFirstName) addValue("firstName", ctx.patientFirstName);
+    if (ctx.patientLastName) addValue("lastName", ctx.patientLastName);
+    if (ctx.patientName) addValue("fullName", ctx.patientName);
+
+    // Overlay with the live conversation data (takes precedence)
+    addValue("practiceId", conversationData.practiceId);
+    addValue("tenantId", conversationData.tenantId);
+
+    addValue(
+      "userName",
+      user?.name || (user as { nickname?: string } | undefined)?.nickname,
+    );
+    addValue("userEmail", user?.email);
+    addValue("saxId", (user as { saxId?: string } | undefined)?.saxId);
+
+    addValue("patientFirstName", conversationData.patientFirstName);
+    addValue("patientLastName", conversationData.patientLastName);
+
+    const fullName = [
+      conversationData.patientFirstName,
+      conversationData.patientLastName,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    if (fullName) {
+      addValue("fullName", fullName);
+      addValue("patientName", fullName);
+      addValue("firstName", conversationData.patientFirstName);
+      addValue("lastName", conversationData.patientLastName);
+    } else if (conversationData.friendlyName) {
+      addValue("patientName", conversationData.friendlyName);
+    }
+
+    if (conversationData.patientPhone) {
+      addValue("phone", conversationData.patientPhone);
+      addValue("patientPhone", conversationData.patientPhone);
+    }
+
+    if (conversationData.patientDob) {
+      addValue("dob", conversationData.patientDob);
+    }
+
+    if (practiceName) {
+      addValue("practiceName", practiceName);
+    }
+
+    // Coordinator alias for templates that reference the sender
+    if (values.userName) {
+      addValue("coordinatorName", values.userName);
+    }
+
+    return values;
+  }, [
+    conversationData.friendlyName,
+    conversationData.patientDob,
+    conversationData.patientFirstName,
+    conversationData.patientLastName,
+    conversationData.patientPhone,
+    conversationData.practiceId,
+    conversationData.tenantId,
+    practiceName,
+    templateContext,
+    user,
+  ]);
 
   return (
     <div
@@ -537,6 +647,7 @@ export function ConversationDetail({
               ? "Patient has opted out of messaging"
               : "Type a message..."
           }
+          variableValues={templateVariableValues}
         />
       </div>
     </div>

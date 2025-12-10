@@ -1,0 +1,31 @@
+# Prettier ignore patterns
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+.build/
+
+# Testing
+coverage/
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Auto-generated files
+next-env.d.ts
+react-app-env.d.ts
+
+# Compiled JS from TS (if any)
+*.min.js
+
+# Logs
+*.log

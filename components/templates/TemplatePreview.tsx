@@ -40,6 +40,11 @@ function highlightVariables(content: string): Array<{
   isVariable: boolean;
   variableName?: string;
 }> {
+  // Defensive null check
+  if (!content || typeof content !== "string") {
+    return [{ text: "", isVariable: false }];
+  }
+
   const regex = /\{\{(\w+)\}\}/g;
   const segments: Array<{
     text: string;
@@ -91,6 +96,11 @@ function renderTemplate(
   content: string,
   variableValues: Record<string, string>,
 ): string {
+  // Defensive null check
+  if (!content || typeof content !== "string") {
+    return "";
+  }
+
   let rendered = content;
   Object.entries(variableValues).forEach(([key, value]) => {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
@@ -131,11 +141,11 @@ export function TemplatePreview({
   }
 
   const content = variableValues
-    ? renderTemplate(template.content, variableValues)
-    : template.content;
+    ? renderTemplate(template.content || "", variableValues)
+    : template.content || "";
   const segments = variableValues
     ? [{ text: content, isVariable: false }]
-    : highlightVariables(template.content);
+    : highlightVariables(template.content || "");
 
   return (
     <div

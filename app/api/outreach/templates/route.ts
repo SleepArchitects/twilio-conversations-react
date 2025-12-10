@@ -12,25 +12,21 @@ export const runtime = "nodejs";
 const LAMBDA_API_BASE = "/outreach";
 
 /**
- * Lambda template format (snake_case from database)
+ * Lambda template format from API response
+ * Note: Lambda returns camelCase, not snake_case with out_ prefix
  */
 interface LambdaTemplate {
   id: string;
-  tenant_id: string;
-  practice_id: string | null;
-  owner_sax_id: number | null;
+  tenantId: string;
+  practiceId: string | null;
+  ownerSaxId: string | null;
   name: string;
   category: string;
   content: string;
   variables: string[];
-  usage_count: number;
-  last_used_at: string | null;
-  created_on: string;
-  created_by: number | null;
-  updated_on: string;
-  updated_by: number | null;
-  archived_on: string | null;
-  archived_by: number | null;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
   active: boolean;
 }
 
@@ -42,25 +38,26 @@ interface LambdaTemplatesResponse {
 }
 
 /**
- * Transform Lambda template (snake_case) to frontend Template (camelCase)
+ * Transform Lambda template to frontend Template format
+ * Lambda already returns camelCase, just need to rename timestamp fields
  */
 function transformTemplate(template: LambdaTemplate): Template {
   return {
     id: template.id,
-    tenantId: template.tenant_id,
-    practiceId: template.practice_id,
-    ownerSaxId: template.owner_sax_id,
+    tenantId: template.tenantId,
+    practiceId: template.practiceId,
+    ownerSaxId: template.ownerSaxId ? Number(template.ownerSaxId) : null,
     name: template.name,
     category: template.category as TemplateCategory,
     content: template.content,
-    variables: template.variables || [],
-    usageCount: template.usage_count || 0,
-    createdOn: template.created_on,
-    createdBy: template.created_by,
-    updatedOn: template.updated_on,
-    updatedBy: template.updated_by,
-    archivedOn: template.archived_on,
-    archivedBy: template.archived_by,
+    variables: template.variables,
+    usageCount: template.usageCount || 0,
+    createdOn: template.createdAt,
+    createdBy: null, // Not returned by Lambda
+    updatedOn: template.updatedAt,
+    updatedBy: null, // Not returned by Lambda
+    archivedOn: null, // Not returned by Lambda
+    archivedBy: null, // Not returned by Lambda
     active: template.active ?? true,
   };
 }
@@ -107,23 +104,27 @@ function errorResponse(
  */
 export const GET = withUserContext(
   async (req: Request, userContext: UserContext) => {
+    console.log(`[TEMPLATES API] START`);
     try {
       const { searchParams } = new URL(req.url);
       const category = searchParams.get("category");
-      const includeGlobalParam = searchParams.get("includeGlobal");
-      const includeGlobal =
-        includeGlobalParam === null || includeGlobalParam === "true";
+      // const includeGlobalParam = searchParams.get("includeGlobal");
+      // const includeGlobal =
+      //   includeGlobalParam === null || includeGlobalParam === "true";
 
       // Build query parameters for Lambda API
-      const queryParams: Record<string, string | number | undefined> = {
+      // Based on PHASE-6B-BACKEND-HANDOVER.md:
+      // GET /outreach/templates?tenant_id=X&practice_id=Y&category_id=Z (optional)
+      const queryParams: Record<string, string> = {
         tenant_id: userContext.tenantId,
         practice_id: userContext.practiceId,
-        coordinator_sax_id: userContext.saxId,
-        include_global: includeGlobal ? "true" : "false",
       };
 
+      // Note: Backend stored procedure accepts category_id (UUID), not category name
+      // For now, we'll omit category filtering until we have category mapping
+      // TODO: Add category name -> category_id lookup when implementing full template management
       if (category) {
-        // Validate category
+        // Validate category name
         const validCategories: TemplateCategory[] = [
           "welcome",
           "reminder",
@@ -138,7 +139,8 @@ export const GET = withUserContext(
             400,
           );
         }
-        queryParams.category = category;
+        // TODO: Map category name to category_id UUID and add to queryParams
+        // queryParams.category_id = categoryNameToId(category);
       }
 
       // Call Lambda API to get templates

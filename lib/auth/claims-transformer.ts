@@ -17,6 +17,7 @@ export interface TransformedClaims {
   practiceId?: string;
   tenantId?: string;
   saxId?: string;
+  practiceName?: string;
   userMetadata?: UserMetadata;
   appMetadata?: AppMetadata;
 }
@@ -90,6 +91,14 @@ export function transformNamespacedClaims(user: any): TransformedClaims {
             appMetadata.sax_id,
           );
         }
+
+        if (appMetadata.practice_name) {
+          result.practiceName = toStringHelper(appMetadata.practice_name);
+          console.debug(
+            "[Claims Transformer] Extracted practiceName:",
+            appMetadata.practice_name,
+          );
+        }
       }
     }
 
@@ -111,6 +120,9 @@ export function transformNamespacedClaims(user: any): TransformedClaims {
     if (key.includes("/sax_id")) {
       result.saxId = toStringHelper(user[key]);
     }
+    if (key.includes("/practice_name")) {
+      result.practiceName = toStringHelper(user[key]);
+    }
   }
 
   // Fallback to custom: prefixed claims for backwards compatibility
@@ -122,6 +134,10 @@ export function transformNamespacedClaims(user: any): TransformedClaims {
   }
   if (!result.saxId && user["custom:sax_id"]) {
     result.saxId = toStringHelper(user["custom:sax_id"]);
+  }
+
+  if (!result.practiceName && user["custom:practice_name"]) {
+    result.practiceName = toStringHelper(user["custom:practice_name"]);
   }
 
   return result;
@@ -162,6 +178,7 @@ export function createPlainUserObject(user: any): any {
     practiceId: transformedClaims.practiceId,
     tenantId: transformedClaims.tenantId,
     saxId: toStringHelper(transformedClaims.saxId),
+    practiceName: transformedClaims.practiceName,
 
     // Token validation fields
     exp: user.exp,
