@@ -66,18 +66,21 @@ Based on plan.md structure:
 **Status**: ✅ **COMPLETE** - Cleanest multi-zone architecture implemented
 
 **Implementation**:
+
 - ✅ Outreach `app/layout.tsx` does NOT render header/footer (content-only zone)
 - ✅ SleepConnect acts as reverse proxy and renders complete shell
 - ✅ User requests → SleepConnect proxy → wraps Outreach content with shell → seamless UX
 - ✅ `ShellHeader`/`ShellFooter` exist only for standalone dev mode (not used in production)
 
 **How It Works**:
+
 1. User navigates to `https://sleepconnect.com/outreach/conversations`
 2. SleepConnect proxy intercepts and fetches Outreach zone content
 3. Proxy wraps content with SleepConnect header/footer (SSR at proxy level)
 4. User sees seamless interface with consistent shell across all zones
 
 **Benefits Over Options A/B/C**:
+
 - **Single source of truth**: Header lives only in SleepConnect (no duplication)
 - **Automatic consistency**: All zones get header updates instantly
 - **No shared packages**: No need for NPM packages, Git submodules, or Module Federation
@@ -85,6 +88,7 @@ Based on plan.md structure:
 - **Correct Next.js pattern**: Standard multi-zone architecture per Next.js docs
 
 **Cross-Zone Navigation** (T092):
+
 - Use `<a href>` for links to other zones (hard navigation)
 - Use `<Link>` for links within Outreach zone (soft navigation)
 - Example: `<a href="/patients/123">View Patient</a>` (SleepConnect zone)
@@ -220,22 +224,43 @@ See `specs/001-sms-outreach-integration/MVP-COMPLETE.md` for full implementation
 
 **Independent Test**: Select template, verify variables highlighted, send message with variables replaced
 
-### Implementation for User Story 4
+**⚠️ BLOCKER**: Frontend complete, backend infrastructure missing. See `BACKEND-PHASE-6-REQUIREMENTS.md` for required sleepconnect work.
 
-- [ ] T041 [P] [US4] Create components/templates/TemplateSelector.tsx with category filter and search
-- [ ] T042 [P] [US4] Create components/templates/TemplatePreview.tsx showing template content with highlighted variables
-- [ ] T043 [US4] Implement app/api/outreach/templates/route.ts (GET list) per sms-api.yaml *(Note: T051 adds POST to same file)*
-- [ ] T043a [US4] Implement app/api/outreach/templates/frequent/route.ts (GET) - return top N frequently/recently used templates for current coordinator (FR-022b)
-- [ ] T044 [US4] Implement app/api/outreach/templates/[templateId]/render/route.ts (POST render with variables)
-- [ ] T045 [US4] Implement hooks/useTemplates.ts for template list and selection state
-- [ ] T046 [US4] Integrate TemplateSelector with MessageComposer - populate template content on selection
-- [ ] T047 [US4] Add variable detection and prompt for missing values before send ({{variableName}} syntax)
-- [ ] T048 [US4] Track template usage via increment_sms_template_usage when template is used to send
-- [ ] T211 [P] [US4] Create components/templates/QuickTemplateButton.tsx with ⚡ icon and popover UI per FR-022a
-- [ ] T212 [US4] Implement recently/frequently used templates query in hooks/useTemplates.ts - consume T043a /api/outreach/templates/frequent endpoint (FR-022b)
-- [ ] T213 [US4] Integrate QuickTemplateButton with MessageComposer - position next to send button
+### Phase 6A: Frontend Implementation (twilio-conversations-react) ✅ COMPLETE
 
-**Checkpoint**: Coordinators can use templates for efficient, consistent messaging
+- [X] T041 [P] [US4] Create components/templates/TemplateSelector.tsx with category filter and search
+- [X] T042 [P] [US4] Create components/templates/TemplatePreview.tsx showing template content with highlighted variables
+- [X] T043 [US4] Implement app/api/outreach/templates/route.ts (GET list) per sms-api.yaml *(Note: T051 adds POST to same file)*
+- [X] T043a [US4] Implement app/api/outreach/templates/frequent/route.ts (GET) - return top N frequently/recently used templates for current coordinator (FR-022b)
+- [X] T044 [US4] Implement app/api/outreach/templates/[templateId]/render/route.ts (POST render with variables)
+- [X] T045 [US4] Implement hooks/useTemplates.ts for template list and selection state
+- [X] T046 [US4] Integrate TemplateSelector with MessageComposer - populate template content on selection
+- [X] T047 [US4] Add variable detection and prompt for missing values before send ({{variableName}} syntax)
+- [X] T211 [P] [US4] Create components/templates/QuickTemplateButton.tsx with ⚡ icon and popover UI per FR-022a
+- [X] T212 [US4] Implement recently/frequently used templates query in hooks/useTemplates.ts - consume T043a /api/outreach/templates/frequent endpoint (FR-022b)
+- [X] T213 [US4] Integrate QuickTemplateButton with MessageComposer - position next to send button
+
+### Phase 6B: Backend Implementation (sleepconnect) ✅ COMPLETE
+
+**Location**: `/home/dan/code/SAX/sleepconnect/`  
+**Status**: Deployed to SAXDBDEV (December 9, 2025)
+**Reference**: `PHASE-6B-BACKEND-HANDOVER.md` in sleepconnect repo
+
+- [X] T043-BACKEND Create sms_templates table migration (table already existed)
+- [X] T043-BACKEND Create get_sms_templates() stored procedure
+- [X] T043-BACKEND Create get_sms_templates/ Lambda function (GET /outreach/templates)
+- [X] T043a-BACKEND Create get_frequent_sms_templates() stored procedure  
+- [X] T043a-BACKEND Create get_frequent_sms_templates/ Lambda function (GET /outreach/templates/frequent)
+- [X] T044-BACKEND Create get_sms_template_by_id() stored procedure
+- [X] T044-BACKEND Create get_sms_template_by_id/ Lambda function (GET /outreach/templates/{id})
+- [X] T048-BACKEND Create increment_sms_template_usage() stored procedure
+- [X] T048-BACKEND Create increment_template_usage/ Lambda function (POST /outreach/templates/{id}/usage)
+- [X] T048-BACKEND Update insert_sms_message/ Lambda to call increment usage when template_id provided
+- [X] T048-BACKEND Create seed data with default global templates (10 templates seeded)
+- [X] T048-BACKEND Deploy all template functions to development environment
+- [X] T048-BACKEND Integration test: Frontend → Lambda → Database → Frontend
+
+**Checkpoint**: ✅ **READY** - Backend deployed, frontend integration in progress
 
 ---
 
@@ -245,7 +270,9 @@ See `specs/001-sms-outreach-integration/MVP-COMPLETE.md` for full implementation
 
 **Independent Test**: Create template with variables, edit it, verify it appears in template library
 
-### Implementation for User Story 5
+**⚠️ BLOCKER**: Requires Phase 6B backend completion first. See `BACKEND-PHASE-6-REQUIREMENTS.md` for required sleepconnect work.
+
+### Phase 7A: Frontend Implementation (twilio-conversations-react)
 
 - [ ] T049 [P] [US5] Create components/templates/TemplateEditor.tsx with name, category selector, content textarea, and variable detection
 - [ ] T050 [P] [US5] Create components/templates/TemplateList.tsx showing all templates with edit/delete actions
@@ -255,7 +282,21 @@ See `specs/001-sms-outreach-integration/MVP-COMPLETE.md` for full implementation
 - [ ] T054 [US5] Auto-detect variables from content using regex \{\{(\w+)\}\} and display in editor
 - [ ] T055 [US5] Add copy to clipboard functionality for template content
 
-**Checkpoint**: Coordinators can manage their own template library
+### Phase 7B: Backend Implementation (sleepconnect)
+
+**Location**: `/home/dan/code/SAX/sleepconnect/`  
+**Depends On**: Phase 6B complete
+
+- [ ] T051-BACKEND Create insert_sms_template() stored procedure
+- [ ] T051-BACKEND Create insert_sms_template/ Lambda function (POST /outreach/templates)
+- [ ] T052-BACKEND Create update_sms_template() stored procedure
+- [ ] T052-BACKEND Create update_sms_template/ Lambda function (PATCH /outreach/templates/{id})
+- [ ] T052-BACKEND Create delete_sms_template() stored procedure (soft delete)
+- [ ] T052-BACKEND Create delete_sms_template/ Lambda function (DELETE /outreach/templates/{id})
+- [ ] T052-BACKEND Deploy template CRUD functions to development
+- [ ] T052-BACKEND Integration test: Create/Update/Delete templates end-to-end
+
+**Checkpoint**: ⏸️ **BLOCKED** - Coordinators can manage their own template library (pending backend)
 
 ---
 
@@ -611,31 +652,47 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 
 | Metric | Value |
 |--------|-------|
-| **Total Tasks** | 138 (T001-T116, T200-T213, + T018a, T028a, T028b, T043a, T205a, T089; T061, T080 superseded) |
-| **Phase 1 (Setup)** | 10 tasks (T001-T009a) |
-| **Phase 2 (Foundational)** | 10 tasks (T010-T018a) |
-| **Phase 3 (US1)** | 11 tasks (T019-T027a) ✅ **COMPLETE** (E2E verified 2025-12-02) |
-| **Phase 4 (US2)** | 7 tasks (T028-T032 + T028a, T028b for patient search) |
-| **Phase 5 (US3)** | 8 tasks |
-| **Phase 5a (US3a: Patient Context)** | 7 tasks (T200-T205a) |
-| **Phase 5b (US3b: Status Filters)** | 5 tasks (T206-T210) |
-| **Phase 6 (US4)** | 12 tasks (T041-T048, T043a frequent templates API, T211-T213 for Quick Template) |
-| **Phase 7 (US5)** | 7 tasks |
-| **Phase 8 (US6)** | 7 tasks |
-| **Phase 9 (US7)** | 8 tasks |
-| **Phase 10 (US8)** | 7 tasks |
-| **Phase 11 (Polish)** | 15 tasks (T078-T092) |
-| **Phase 11.5 (Hardening)** | 15 tasks (T102-T116, from Phase 3 checklist gaps) |
-| **Phase 12 (Deployment)** | 10 tasks (T093-T101, includes T099a BAA gate) |
-| **Parallel Opportunities** | 55 tasks marked [P] |
-| **MVP Scope** | T001-T040, T200-T210 + T028a, T028b (55 tasks with T019a, T027a, US3a, US3b) |
-| **Multi-Zone Integration** | T091 configures sleepconnect rewrites for /outreach; T028a uses sleepconnect /api/patients |
+| **Total Frontend Tasks** | 138 (T001-T116, T200-T213, + T018a, T028a, T028b, T043a, T205a, T089; T061, T080 superseded) |
+| **Total Backend Tasks** | 21 (Phase 6B: 13 tasks, Phase 7B: 8 tasks) - sleepconnect repository |
+| **Phase 1 (Setup)** | 10 tasks ✅ COMPLETE |
+| **Phase 2 (Foundational)** | 10 tasks ✅ COMPLETE |
+| **Phase 3 (US1)** | 11 tasks ✅ COMPLETE (E2E verified 2025-12-02) |
+| **Phase 4 (US2)** | 7 tasks ✅ COMPLETE |
+| **Phase 5 (US3)** | 8 tasks ✅ COMPLETE |
+| **Phase 5a (US3a: Patient Context)** | 7 tasks ✅ COMPLETE |
+| **Phase 5b (US3b: Status Filters)** | 5 tasks ✅ COMPLETE |
+| **Phase 6A (US4: Frontend)** | 11 tasks ✅ COMPLETE |
+| **Phase 6B (US4: Backend)** | 13 tasks ⏳ **BLOCKED** (sleepconnect) |
+| **Phase 7A (US5: Frontend)** | 7 tasks ⏸️ PENDING (awaiting Phase 6B) |
+| **Phase 7B (US5: Backend)** | 8 tasks ⏸️ PENDING (sleepconnect) |
+| **Phase 8 (US6)** | 7 tasks ⏸️ PENDING |
+| **Phase 9 (US7)** | 8 tasks ⏸️ PENDING |
+| **Phase 10 (US8)** | 7 tasks ⏸️ PENDING |
+| **Phase 11 (Polish)** | 15 tasks (T078-T092) ⏸️ PENDING |
+| **Phase 11.5 (Hardening)** | 15 tasks (T102-T116) ⏸️ PENDING |
+| **Phase 12 (Deployment)** | 10 tasks (T093-T101) ⏸️ PENDING |
+| **MVP Scope** | 58 tasks ✅ **100% COMPLETE** |
+| **Phase 6+ Status** | ⚠️ **BLOCKED** - Backend infrastructure required |
+
+### Phase 6+ Backend Dependencies
+
+**CRITICAL**: Phase 6A frontend is complete but **non-functional** without backend infrastructure.
+
+**Required Work** (sleepconnect repository):
+
+- See `BACKEND-PHASE-6-REQUIREMENTS.md` for complete implementation spec
+- Database: `sms_templates` table migration
+- Stored Procedures: 7 new functions (get, insert, update, delete, increment usage)
+- Lambda Functions: 7 new API endpoints
+- Seed Data: Default global templates
+
+**Impact**: All template-related features (Phase 6-7) are blocked until backend is deployed.
 
 ### Format Validation ✅
 
 All tasks follow the required checklist format:
 
-- ✅ Checkbox prefix `- [ ]`
+- ✅ Checkbox prefix `- [ ]` or `- [X]`
 - ✅ Task ID (T001-T116, with T009a, T019a, T027a, T028a, T028b, T099a additions)
 - ✅ [P] marker for parallelizable tasks
 - ✅ [US#] label for user story phase tasks
@@ -645,8 +702,11 @@ All tasks follow the required checklist format:
 
 ## Notes
 
+- **⚠️ ARCHITECTURE SPLIT**: Frontend (twilio-conversations-react) + Backend (sleepconnect Lambda/DB)
 - All API routes follow OpenAPI spec in `contracts/sms-api.yaml`
-- Database functions referenced (e.g., `insert_sms_*`, `get_sms_*`, `update_sms_*`) are PostgreSQL stored procedures defined in the database schema, executed via SAX Backend API (`/home/dan/code/SAX/sax-backend`) - see T009a for full list and `sleepconnect/specs/sms-outreach-database-integration.md` for implementation tasks
+- Database functions are PostgreSQL stored procedures in `sleepconnect/database/functions/sms/`
+- Lambda functions are in `sleepconnect/lambdas/lambda-sms-outreach/`
+- Phase 6B backend tasks documented in `BACKEND-PHASE-6-REQUIREMENTS.md`
 - ~~Twilio SDK patterns from `research.md` section 4~~ *Superseded by ADR-001*
 - Auth0 integration patterns from `research.md` section 3
 - UI components use Flowbite React matching sleepconnect
