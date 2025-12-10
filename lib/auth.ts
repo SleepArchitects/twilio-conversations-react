@@ -195,14 +195,20 @@ export async function getSession(): Promise<{ user: SaxClaims } | null> {
  * Works in both standalone and multi-zone modes
  */
 export function withApiAuthRequired(
-  handler: (req: NextRequest) => Promise<NextResponse>,
-): (req: NextRequest) => Promise<NextResponse> {
-  return async (req: NextRequest) => {
+  handler: (
+    req: NextRequest,
+    routeContext?: Record<string, unknown>,
+  ) => Promise<NextResponse>,
+): (
+  req: NextRequest,
+  routeContext?: Record<string, unknown>,
+) => Promise<NextResponse> {
+  return async (req: NextRequest, routeContext?: Record<string, unknown>) => {
     console.debug("[AUTH] withApiAuthRequired - starting");
     // Dev mode: bypass auth when disabled
     if (isAuthDisabled()) {
       console.debug("[AUTH] Auth disabled - bypassing authentication");
-      return handler(req);
+      return handler(req, routeContext);
     }
 
     // Multi-zone mode: validate forwarded cookie
@@ -216,14 +222,14 @@ export function withApiAuthRequired(
       } else {
         console.debug("[AUTH] Multi-zone: found user context:", user.sax_id);
       }
-      return handler(req);
+      return handler(req, routeContext);
     }
 
     // Standalone mode: use Auth0 auth wrapper
-    return auth0.withApiAuthRequired(handler)(
-      req,
-      {} as Record<string, never>,
-    ) as Promise<NextResponse>;
+    return auth0.withApiAuthRequired(
+      (authReq: NextRequest, authContext: Record<string, unknown>) =>
+        handler(authReq, authContext),
+    )(req, routeContext as Record<string, never>) as Promise<NextResponse>;
   };
 }
 
@@ -297,10 +303,17 @@ export async function getUserContext(): Promise<UserContext | null> {
  * ```
  */
 export function withUserContext(
-  handler: (req: NextRequest, context: UserContext) => Promise<NextResponse>,
+  handler: (
+    req: NextRequest,
+    context: UserContext,
+    routeContext?: Record<string, unknown>,
+  ) => Promise<NextResponse>,
 ) {
   return withApiAuthRequired(
-    async (req: NextRequest): Promise<NextResponse> => {
+    async (
+      req: NextRequest,
+      routeContext?: Record<string, unknown>,
+    ): Promise<NextResponse> => {
       console.debug("[AUTH] withUserContext - starting");
       const session = await getSession();
       console.debug(
@@ -332,11 +345,15 @@ export function withUserContext(
         );
       }
       console.debug("[AUTH] withUserContext - calling handler with context");
-      return handler(req, {
-        saxId: user.sax_id,
-        tenantId: user.tenant_id,
-        practiceId: user.practice_id,
-      });
+      return handler(
+        req,
+        {
+          saxId: user.sax_id,
+          tenantId: user.tenant_id,
+          practiceId: user.practice_id,
+        },
+        routeContext,
+      );
     },
   );
 }

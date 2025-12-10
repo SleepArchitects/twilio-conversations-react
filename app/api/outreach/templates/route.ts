@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
 import { type UserContext, withUserContext } from "@/lib/auth";
-import type { Template, TemplateCategory } from "@/types/sms";
+import type {
+  Template,
+  TemplateCategory,
+  CreateTemplateRequest,
+} from "@/types/sms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -70,6 +74,7 @@ function getLambdaHeaders(userContext: UserContext): Record<string, string> {
     "x-tenant-id": userContext.tenantId,
     "x-practice-id": userContext.practiceId,
     "x-coordinator-sax-id": String(userContext.saxId),
+    "x-user-sax-id": String(userContext.saxId),
   };
 }
 
@@ -172,6 +177,68 @@ export const GET = withUserContext(
       }
 
       return errorResponse("INTERNAL_ERROR", "Failed to fetch templates", 500);
+    }
+  },
+);
+
+/**
+ * POST /api/outreach/templates
+ *
+ * Create a new message template.
+ *
+ * Request Body: CreateTemplateRequest
+ *
+ * @returns { data: Template }
+ */
+export const POST = withUserContext(
+  async (req: Request, userContext: UserContext) => {
+    console.log(`[TEMPLATES API] CREATE`);
+    try {
+      const body = (await req.json()) as CreateTemplateRequest;
+
+      // Basic validation
+      if (!body.name || !body.body) {
+        return errorResponse(
+          "INVALID_REQUEST",
+          "Name and body are required",
+          400,
+        );
+      }
+
+      // Call Lambda API to create template
+      const lambdaResponse = await api.post<LambdaTemplate>(
+        buildPath(LAMBDA_API_BASE, "templates"),
+        {
+          name: body.name,
+          content: body.body,
+          category: body.category || "general",
+          variables: body.variables || [],
+          isGlobal: body.isGlobal || false,
+        },
+        {
+          headers: getLambdaHeaders(userContext),
+        },
+      );
+
+      // Transform Lambda response to frontend format
+      const template = transformTemplate(lambdaResponse);
+
+      return NextResponse.json({ data: template }, { status: 201 });
+    } catch (error) {
+      console.error("Failed to create template", {
+        saxId: userContext.saxId,
+        tenantId: userContext.tenantId,
+        errorType: error instanceof Error ? error.name : "Unknown",
+      });
+
+      if (error instanceof ApiError) {
+        return NextResponse.json(
+          { code: error.code, message: error.message },
+          { status: error.status },
+        );
+      }
+
+      return errorResponse("INTERNAL_ERROR", "Failed to create template", 500);
     }
   },
 );

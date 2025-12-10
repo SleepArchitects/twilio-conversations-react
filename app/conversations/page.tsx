@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Button } from "flowbite-react";
+import { HiTemplate } from "react-icons/hi";
 import { ConversationList } from "@/components/conversations/ConversationList";
 import {
   ConversationFilter,
@@ -117,11 +120,21 @@ export default function ConversationsPage(): React.ReactElement {
             </p>
           </div>
 
-          {/* Status filter - FR-014c */}
-          <ConversationFilter
-            value={filterStatus}
-            onChange={handleFilterChange}
-          />
+          <div className="flex items-center gap-4">
+            {/* Templates Link */}
+            <Link href="/templates">
+              <Button color="gray" size="sm">
+                <HiTemplate className="mr-2 h-4 w-4" />
+                Templates
+              </Button>
+            </Link>
+
+            {/* Status filter - FR-014c */}
+            <ConversationFilter
+              value={filterStatus}
+              onChange={handleFilterChange}
+            />
+          </div>
         </div>
       </header>
 
