@@ -72,11 +72,14 @@ export function TemplateList({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-          Message Templates
-        </h2>
+        {/**
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            Message Templates
+          </h2>
+      **/}
+        <div></div>
         <Button onClick={onCreate} color="blue">
-          <HiPlus className="mr-2 h-5 w-5" />
+          <HiPlus className="mr-2 h-5 w-5 " />
           New Template
         </Button>
       </div>

@@ -11,6 +11,7 @@ import {
   type ConversationFilterValue,
 } from "@/components/conversations/ConversationFilter";
 import { NewConversationModal } from "@/components/conversations/NewConversationModal";
+import { PageHeader } from "@/components/layout/PageHeader";
 import type { Conversation } from "@/types/sms";
 
 // =============================================================================
@@ -109,34 +110,25 @@ export default function ConversationsPage(): React.ReactElement {
   // ==========================================================================
 
   return (
-    <div className="flex h-screen flex-col bg-gray-900">
-      {/* Header */}
-      <header className="border-b border-gray-700 bg-gray-800 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white">SMS Conversations</h1>
-            <p className="mt-1 text-sm text-gray-400">
-              Manage patient conversations
-            </p>
-          </div>
+    <div className="flex flex-col bg-gray-900">
+      <PageHeader
+        title="SMS Conversations"
+        subtitle="Manage patient conversations"
+      >
+        {/* Templates Link */}
+        <Link href="/templates">
+          <Button color="gray" size="sm">
+            <HiTemplate className="mr-2 h-4 w-4" />
+            Templates
+          </Button>
+        </Link>
 
-          <div className="flex items-center gap-4">
-            {/* Templates Link */}
-            <Link href="/templates">
-              <Button color="gray" size="sm">
-                <HiTemplate className="mr-2 h-4 w-4" />
-                Templates
-              </Button>
-            </Link>
-
-            {/* Status filter - FR-014c */}
-            <ConversationFilter
-              value={filterStatus}
-              onChange={handleFilterChange}
-            />
-          </div>
-        </div>
-      </header>
+        {/* Status filter - FR-014c */}
+        <ConversationFilter
+          value={filterStatus}
+          onChange={handleFilterChange}
+        />
+      </PageHeader>
 
       {/* Main Content - ConversationList handles its own data fetching */}
       <main className="flex-1 overflow-hidden">

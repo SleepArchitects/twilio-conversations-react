@@ -3,6 +3,7 @@
 import * as React from "react";
 import { MessageBubble } from "@/components/conversations/MessageBubble";
 import { MessageComposer } from "@/components/conversations/MessageComposer";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { formatDisplayPhoneNumber } from "@/lib/validation";
 import type { MessageDirection, MessageStatus } from "@/types/sms";
 
@@ -199,20 +200,20 @@ export default function DemoPage() {
   return (
     <div className="flex h-screen flex-col bg-gray-900">
       {/* Demo Controls */}
-      <div className="flex items-center justify-between border-b border-gray-700 bg-gray-800 px-4 py-2">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-white">
-            SMS Components Demo
-          </h1>
-          <span className="text-sm text-gray-400">
-            Patient: {formatDisplayPhoneNumber("+15551234567")}
-          </span>
-          {isOptedOut && (
-            <span className="rounded bg-red-900/50 px-2 py-1 text-xs text-red-300">
-              OPTED OUT
-            </span>
-          )}
-        </div>
+      <PageHeader
+        title="SMS Components Demo"
+        subtitle={
+          <div className="flex items-center gap-2">
+            <span>Patient: {formatDisplayPhoneNumber("+15551234567")}</span>
+            {isOptedOut && (
+              <span className="rounded bg-red-900/50 px-2 py-1 text-xs text-red-300">
+                OPTED OUT
+              </span>
+            )}
+          </div>
+        }
+        className="px-4 py-2"
+      >
         <div className="flex gap-2">
           <button
             onClick={handleAddInbound}
@@ -237,7 +238,7 @@ export default function DemoPage() {
             </button>
           )}
         </div>
-      </div>
+      </PageHeader>
 
       {/* Opt-out Warning Banner */}
       {isOptedOut && (
