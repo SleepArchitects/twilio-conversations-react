@@ -473,7 +473,7 @@ export function MessageComposer({
             <HiTemplate className="h-5 w-5" aria-hidden={true} />
           </button>
 
-          <div className="relative flex-1">
+          <div className="relative flex-1 flex items-end">
             <textarea
               ref={textareaRef}
               value={message}
