@@ -310,6 +310,8 @@ export interface UpdateTemplateRequest {
 	name?: string;
 	/** Updated template body */
 	body?: string;
+	/** Updated template content */
+	content?: string;
 	/** Updated template category */
 	category?: TemplateCategory;
 	/** Updated variable names */

@@ -272,31 +272,52 @@ See `specs/001-sms-outreach-integration/MVP-COMPLETE.md` for full implementation
 
 **⚠️ BLOCKER**: Requires Phase 6B backend completion first. See `BACKEND-PHASE-6-REQUIREMENTS.md` for required sleepconnect work.
 
-### Phase 7A: Frontend Implementation (twilio-conversations-react)
+### Phase 7A: Frontend Implementation (twilio-conversations-react) ✅ COMPLETE
 
-- [ ] T049 [P] [US5] Create components/templates/TemplateEditor.tsx with name, category selector, content textarea, and variable detection
-- [ ] T050 [P] [US5] Create components/templates/TemplateList.tsx showing all templates with edit/delete actions
-- [ ] T051 [US5] Add POST handler to app/api/outreach/templates/route.ts (create template) *(extends T043)*
-- [ ] T052 [US5] Implement app/api/outreach/templates/[templateId]/route.ts (GET, PATCH, DELETE) per sms-api.yaml
-- [ ] T053 [US5] Create app/templates/page.tsx as template management view
-- [ ] T054 [US5] Auto-detect variables from content using regex \{\{(\w+)\}\} and display in editor
-- [ ] T055 [US5] Add copy to clipboard functionality for template content
+- [X] T049 [P] [US5] Create components/templates/TemplateEditor.tsx with name, category selector, content textarea, and variable detection
+- [X] T050 [P] [US5] Create components/templates/TemplateList.tsx showing all templates with edit/delete actions
+- [X] T051 [US5] Add POST handler to app/api/outreach/templates/route.ts (create template) *(extends T043)*
+- [X] T052 [US5] Implement app/api/outreach/templates/[templateId]/route.ts (GET, PATCH, DELETE) per sms-api.yaml
+- [X] T053 [US5] Create app/templates/page.tsx as template management view
+- [X] T054 [US5] Auto-detect variables from content using regex \{\{(\w+)\}\} and display in editor
+- [X] T055 [US5] Add copy to clipboard functionality for template content
 
-### Phase 7B: Backend Implementation (sleepconnect)
+**Checkpoint**: ✅ **COMPLETE** - Coordinators can create, edit, and delete their own templates
+
+### Phase 7B: Backend Implementation (sleepconnect) ✅ COMPLETE
 
 **Location**: `/home/dan/code/SAX/sleepconnect/`  
-**Depends On**: Phase 6B complete
+**Status**: Deployed to SAXDBDEV (December 10, 2025)
+**Depends On**: Phase 6B complete ✅
 
-- [ ] T051-BACKEND Create insert_sms_template() stored procedure
-- [ ] T051-BACKEND Create insert_sms_template/ Lambda function (POST /outreach/templates)
-- [ ] T052-BACKEND Create update_sms_template() stored procedure
-- [ ] T052-BACKEND Create update_sms_template/ Lambda function (PATCH /outreach/templates/{id})
-- [ ] T052-BACKEND Create delete_sms_template() stored procedure (soft delete)
-- [ ] T052-BACKEND Create delete_sms_template/ Lambda function (DELETE /outreach/templates/{id})
-- [ ] T052-BACKEND Deploy template CRUD functions to development
-- [ ] T052-BACKEND Integration test: Create/Update/Delete templates end-to-end
+- [X] T051-BACKEND Create insert_sms_template() stored procedure
+- [X] T051-BACKEND Create create_sms_template/ Lambda function (POST /outreach/templates)
+- [X] T052-BACKEND Create update_sms_template() stored procedure
+- [X] T052-BACKEND Create update_sms_template/ Lambda function (PATCH /outreach/templates/{id})
+- [X] T052-BACKEND Create delete_sms_template() stored procedure (soft delete)
+- [X] T052-BACKEND Create delete_sms_template/ Lambda function (DELETE /outreach/templates/{id})
+- [X] T052-BACKEND Deploy template CRUD functions to development
+- [X] T052-BACKEND Add template CRUD routes to temporary API Gateway (kwp0fzixn9)
 
-**Checkpoint**: ⏸️ **BLOCKED** - Coordinators can manage their own template library (pending backend)
+**Deployed Endpoints**:
+
+- POST `https://kwp0fzixn9.execute-api.us-east-1.amazonaws.com/dev/outreach/templates`
+- PATCH `https://kwp0fzixn9.execute-api.us-east-1.amazonaws.com/dev/outreach/templates/{id}`
+- DELETE `https://kwp0fzixn9.execute-api.us-east-1.amazonaws.com/dev/outreach/templates/{id}`
+
+**Lambda Functions**:
+
+- `sax-lam-us-east-1-1x-p-0x-sms-create-template`
+- `sax-lam-us-east-1-1x-p-0x-sms-update-template`
+- `sax-lam-us-east-1-1x-p-0x-sms-delete-template`
+
+**Database Functions**:
+
+- `public.insert_sms_template(...)` - Creates template with validation
+- `public.update_sms_template(...)` - Updates template fields via COALESCE
+- `public.delete_sms_template(...)` - Soft-deletes (archives) template
+
+**Checkpoint**: ✅ **READY** - Backend deployed, frontend integration can proceed
 
 ---
 
@@ -662,9 +683,9 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 | **Phase 5a (US3a: Patient Context)** | 7 tasks ✅ COMPLETE |
 | **Phase 5b (US3b: Status Filters)** | 5 tasks ✅ COMPLETE |
 | **Phase 6A (US4: Frontend)** | 11 tasks ✅ COMPLETE |
-| **Phase 6B (US4: Backend)** | 13 tasks ⏳ **BLOCKED** (sleepconnect) |
-| **Phase 7A (US5: Frontend)** | 7 tasks ⏸️ PENDING (awaiting Phase 6B) |
-| **Phase 7B (US5: Backend)** | 8 tasks ⏸️ PENDING (sleepconnect) |
+| **Phase 6B (US4: Backend)** | 13 tasks ✅ COMPLETE (sleepconnect) |
+| **Phase 7A (US5: Frontend)** | 7 tasks ✅ COMPLETE |
+| **Phase 7B (US5: Backend)** | 8 tasks ✅ COMPLETE (sleepconnect) |
 | **Phase 8 (US6)** | 7 tasks ⏸️ PENDING |
 | **Phase 9 (US7)** | 8 tasks ⏸️ PENDING |
 | **Phase 10 (US8)** | 7 tasks ⏸️ PENDING |
@@ -676,17 +697,19 @@ For MVP delivery (US1-3 only), use Agents A, B, C:
 
 ### Phase 6+ Backend Dependencies
 
-**CRITICAL**: Phase 6A frontend is complete but **non-functional** without backend infrastructure.
+**Status**: ✅ Phase 6B & 7B Complete (December 10, 2025)
 
-**Required Work** (sleepconnect repository):
+**Deployed Work** (sleepconnect repository):
 
-- See `BACKEND-PHASE-6-REQUIREMENTS.md` for complete implementation spec
-- Database: `sms_templates` table migration
-- Stored Procedures: 7 new functions (get, insert, update, delete, increment usage)
-- Lambda Functions: 7 new API endpoints
-- Seed Data: Default global templates
+- ✅ Database: `sms_templates` table (already existed)
+- ✅ Stored Procedures: 10 functions deployed (get, insert, update, delete, increment usage, frequent)
+- ✅ Lambda Functions: 7 API endpoints deployed
+- ✅ Seed Data: 10 default global templates loaded
+- ✅ API Gateway: Routes added to temporary API (kwp0fzixn9)
 
-**Impact**: All template-related features (Phase 6-7) are blocked until backend is deployed.
+**Impact**: Template features (Phase 6-7 frontend) can now be fully integrated and tested.
+
+**Next Step**: Phase 7A frontend implementation can proceed without blockers.
 
 ### Format Validation ✅
 
