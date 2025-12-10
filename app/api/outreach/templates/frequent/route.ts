@@ -18,26 +18,38 @@ const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 20;
 
 /**
- * Lambda template format (snake_case from database)
+ * Lambda template format
+ * Supports both camelCase (standard Lambda) and snake_case with out_ prefix (raw stored proc)
  */
 interface LambdaTemplate {
-  id: string;
-  tenant_id: string;
-  practice_id: string | null;
-  owner_sax_id: number | null;
-  name: string;
-  category: string;
-  content: string;
-  variables: string[];
-  usage_count: number;
-  last_used_at: string | null;
-  created_on: string;
-  created_by: number | null;
-  updated_on: string;
-  updated_by: number | null;
-  archived_on: string | null;
-  archived_by: number | null;
-  active: boolean;
+  // Standard Lambda response (camelCase)
+  id?: string;
+  tenantId?: string;
+  practiceId?: string | null;
+  name?: string;
+  content?: string;
+  category?: string;
+  usageCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  active?: boolean;
+  variables?: string[];
+
+  // Raw stored procedure response (snake_case with out_ prefix)
+  out_id?: string;
+  out_tenant_id?: string;
+  out_practice_id?: string | null;
+  out_category_id?: string | null;
+  out_category_name?: string;
+  out_name?: string;
+  out_content?: string;
+  out_is_default?: boolean;
+  out_usage_count?: number;
+  out_active?: boolean;
+  out_created_by?: string | null;
+  out_updated_by?: string | null;
+  out_created_on?: string;
+  out_updated_on?: string;
 }
 
 /**
@@ -48,26 +60,49 @@ interface LambdaTemplatesResponse {
 }
 
 /**
- * Transform Lambda template (snake_case) to frontend Template (camelCase)
+ * Extract variables from template content
+ * Looks for {variable_name} tokens
+ */
+function extractVariables(content: string): string[] {
+  const regex = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
+  const variables: string[] = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    if (!variables.includes(match[1])) {
+      variables.push(match[1]);
+    }
+  }
+  return variables;
+}
+
+/**
+ * Transform Lambda template to frontend Template
+ * Handles both camelCase and out_ prefix formats
  */
 function transformTemplate(template: LambdaTemplate): Template {
+  const content = template.content ?? template.out_content ?? "";
+
   return {
-    id: template.id,
-    tenantId: template.tenant_id,
-    practiceId: template.practice_id,
-    ownerSaxId: template.owner_sax_id,
-    name: template.name,
-    category: template.category as TemplateCategory,
-    content: template.content,
-    variables: template.variables || [],
-    usageCount: template.usage_count || 0,
-    createdOn: template.created_on,
-    createdBy: template.created_by,
-    updatedOn: template.updated_on,
-    updatedBy: template.updated_by,
-    archivedOn: template.archived_on,
-    archivedBy: template.archived_by,
-    active: template.active ?? true,
+    id: template.id ?? template.out_id ?? "",
+    tenantId: template.tenantId ?? template.out_tenant_id ?? "",
+    practiceId: template.practiceId ?? template.out_practice_id ?? null,
+    ownerSaxId: null,
+    name: template.name ?? template.out_name ?? "",
+    category: (template.category ??
+      template.out_category_name ??
+      "general") as TemplateCategory,
+    content: content,
+    variables: template.variables ?? extractVariables(content),
+    usageCount: template.usageCount ?? template.out_usage_count ?? 0,
+    createdOn:
+      template.createdAt ?? template.out_created_on ?? new Date().toISOString(),
+    createdBy: null,
+    updatedOn:
+      template.updatedAt ?? template.out_updated_on ?? new Date().toISOString(),
+    updatedBy: null,
+    archivedOn: null,
+    archivedBy: null,
+    active: template.active ?? template.out_active ?? true,
   };
 }
 
@@ -124,11 +159,12 @@ export const GET = withUserContext(
       if (limit > MAX_LIMIT) limit = MAX_LIMIT;
 
       // Build query parameters for Lambda API
-      const queryParams: Record<string, string | number | undefined> = {
+      // Based on PHASE-6B-BACKEND-HANDOVER.md:
+      // GET /outreach/templates/frequent?tenant_id=X&practice_id=Y&limit=N
+      const queryParams: Record<string, string> = {
         tenant_id: userContext.tenantId,
         practice_id: userContext.practiceId,
-        coordinator_sax_id: userContext.saxId,
-        limit,
+        limit: String(limit),
       };
 
       // Call Lambda API to get frequent templates

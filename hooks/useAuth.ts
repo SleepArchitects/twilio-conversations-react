@@ -28,6 +28,7 @@ export type Auth0DefaultUser = {
   practiceId?: string;
   tenantId?: string;
   saxId?: string;
+   practiceName?: string;
 };
 
 // Support typical namespaced custom claim keys like "https://example.com/role"

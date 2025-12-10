@@ -18,7 +18,9 @@ interface TemplateApiResponse {
   tenantId: string;
   practiceId: string | null;
   name: string;
-  body: string; // API uses "body"
+  // API currently returns camelCase `content`; older shape used `body`. Support both defensively.
+  content?: string;
+  body?: string;
   category: TemplateCategory;
   variables: string[];
   isGlobal: boolean;
@@ -91,9 +93,9 @@ function mapApiTemplateToTemplate(apiTemplate: TemplateApiResponse): Template {
     ownerSaxId: null, // Not provided by API, set to null
     name: apiTemplate.name,
     category: apiTemplate.category,
-    content: apiTemplate.body, // Map body to content
+    content: apiTemplate.content ?? apiTemplate.body ?? "",
     variables: apiTemplate.variables,
-    usageCount: apiTemplate.usageCount,
+    usageCount: apiTemplate.usageCount ?? 0,
     createdOn: apiTemplate.createdOn,
     updatedOn: apiTemplate.updatedOn,
     createdBy: null, // Not provided by API
@@ -125,7 +127,11 @@ async function fetchTemplates(
     params,
   });
 
-  return response.data.map(mapApiTemplateToTemplate);
+  // API already returns `{ data: TemplateApiResponse[] }`
+  const templatesArray = response.data ?? [];
+  return templatesArray
+    .map(mapApiTemplateToTemplate)
+    .filter((t) => t.id && t.name); // Filter out malformed templates
 }
 
 // =============================================================================
@@ -257,11 +263,16 @@ const frequentTemplatesQueryKey = () => ["templates", "frequent"] as const;
 /**
  * Fetch frequent templates from API
  */
-async function fetchFrequentTemplates(): Promise<Template[]> {
+async function fetchFrequentTemplates(limit: number): Promise<Template[]> {
   const response = await api.get<TemplatesListResponse>(
     `${API_BASE_PATH}/frequent`,
+    { params: { limit } },
   );
-  return response.data.map(mapApiTemplateToTemplate);
+  // API already returns `{ data: TemplateApiResponse[] }`
+  const templatesArray = response.data ?? [];
+  return templatesArray
+    .map(mapApiTemplateToTemplate)
+    .filter((t) => t.id && t.name); // Filter out malformed templates
 }
 
 /**
@@ -279,8 +290,8 @@ async function fetchFrequentTemplates(): Promise<Template[]> {
  */
 export function useFrequentTemplates(limit: number = 5) {
   return useQuery({
-    queryKey: frequentTemplatesQueryKey(),
-    queryFn: fetchFrequentTemplates,
+    queryKey: [...frequentTemplatesQueryKey(), limit],
+    queryFn: () => fetchFrequentTemplates(limit),
     staleTime: 5 * 60 * 1000, // 5 minutes cache
     select: (data) => data.slice(0, limit), // Limit results client-side
   });

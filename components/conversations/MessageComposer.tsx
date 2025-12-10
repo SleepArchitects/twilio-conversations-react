@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { HiTemplate, HiChevronDown, HiChevronUp } from "react-icons/hi";
 import { cn } from "@/lib/utils";
 import { TemplateSelector } from "@/components/templates/TemplateSelector";
 import { TemplatePreview } from "@/components/templates/TemplatePreview";
@@ -8,6 +9,7 @@ import { QuickTemplateButton } from "@/components/templates/QuickTemplateButton"
 import { useTemplates, useFrequentTemplates } from "@/hooks/useTemplates";
 import {
   detectUnresolvedVariables,
+  renderTemplate,
   validateTemplateVariables,
 } from "@/lib/templates";
 import type { Template, TemplateCategory } from "@/types/sms";
@@ -17,14 +19,16 @@ import type { Template, TemplateCategory } from "@/types/sms";
 // =============================================================================
 
 export interface MessageComposerProps {
-  /** Callback when message is sent */
-  onSend: (message: string) => Promise<void>;
+  /** Callback when message is sent - includes optional templateId for usage tracking */
+  onSend: (message: string, templateId?: string) => Promise<void>;
   /** Whether the composer is disabled */
   disabled?: boolean;
   /** Placeholder text for the textarea */
   placeholder?: string;
   /** Maximum character length (default: 1600 for 10 segments) */
   maxLength?: number;
+  /** Values to substitute into templates (e.g., patient context) */
+  variableValues?: Record<string, string>;
 }
 
 // =============================================================================
@@ -108,25 +112,6 @@ function SpinnerIcon({ className, ...props }: IconProps) {
   );
 }
 
-/** Template icon */
-function TemplateIcon({ className, ...props }: IconProps) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      className={cn("h-5 w-5", className)}
-      {...props}
-    >
-      <path
-        fillRule="evenodd"
-        d="M13.5 4v1.5a.75.75 0 0 0 1.5 0V4a2.25 2.25 0 0 0-2.25-2.25h-3A2.25 2.25 0 0 0 8.25 4v1.5a.75.75 0 0 0 1.5 0V4c0-.414.336-.75.75-.75h3c.414 0 .75.336.75.75ZM11 10a.75.75 0 0 1-.75.75H7.612l2.158 1.96a.75.75 0 1 1-1.04 1.08l-3.5-3.25a.75.75 0 0 1 0-1.08l3.5-3.25a.75.75 0 1 1 1.04 1.08L7.612 9.25H10.25A.75.75 0 0 1 11 10Zm-2.25 4a.75.75 0 0 1 .75-.75h2.638l-2.158-1.96a.75.75 0 1 1 1.04-1.08l3.5 3.25a.75.75 0 0 1 0 1.08l-3.5 3.25a.75.75 0 1 1-1.04-1.08l2.158-1.96H9.5a.75.75 0 0 1-.75-.75Z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
 /** Close icon */
 function CloseIcon({ className, ...props }: IconProps) {
   return (
@@ -161,6 +146,7 @@ export function MessageComposer({
   disabled = false,
   placeholder = "Type a message...",
   maxLength = 1600,
+  variableValues,
 }: MessageComposerProps) {
   // State
   const [message, setMessage] = React.useState("");
@@ -172,6 +158,7 @@ export function MessageComposer({
     TemplateCategory | "all"
   >("all");
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [isPreviewExpanded, setIsPreviewExpanded] = React.useState(false);
 
   // Refs
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -193,18 +180,33 @@ export function MessageComposer({
   const { data: frequentTemplates = [], isLoading: isLoadingFrequent } =
     useFrequentTemplates(5);
 
+  // Prefer frequent templates; fall back to a handful of all templates so the
+  // quick button is never empty in environments where frequent usage data is
+  // unavailable.
+  const quickTemplates = React.useMemo(() => {
+    if (frequentTemplates && frequentTemplates.length > 0) {
+      return frequentTemplates;
+    }
+
+    if (templates && templates.length > 0) {
+      return templates.slice(0, 5);
+    }
+
+    return [] as typeof templates;
+  }, [frequentTemplates, templates]);
+
   // Detect unresolved variables for validation
   const unresolvedVariables = React.useMemo(
-    () => detectUnresolvedVariables(message),
+    () => detectUnresolvedVariables(message || ""),
     [message],
   );
   const hasUnresolvedVars = unresolvedVariables.length > 0;
 
   // Derived state
-  const characterCount = message.length;
+  const characterCount = (message || "").length;
   const segmentCount = calculateSegmentCount(characterCount);
   const isOverLimit = characterCount > maxLength;
-  const isEmpty = message.trim().length === 0;
+  const isEmpty = (message || "").trim().length === 0;
   // Per FR-022: Prevent sending if unresolved variables exist
   const isSendDisabled =
     disabled || isEmpty || isSending || isOverLimit || hasUnresolvedVars;
@@ -213,12 +215,12 @@ export function MessageComposer({
   const charCountColor = getCharacterCountColor(characterCount);
 
   /**
-   * Handle sending the message with variable validation
+   * Handle sending the message with variable validation and template tracking
    */
   const handleSend = React.useCallback(async () => {
     if (isSendDisabled) return;
 
-    const trimmedMessage = message.trim();
+    const trimmedMessage = (message || "").trim();
     if (!trimmedMessage) return;
 
     // Check for unresolved template variables
@@ -233,7 +235,8 @@ export function MessageComposer({
     // Proceed with sending
     setIsSending(true);
     try {
-      await onSend(trimmedMessage);
+      // Pass template ID if message was created from a template (for usage tracking)
+      await onSend(trimmedMessage, selectedTemplate?.id);
       setMessage("");
       // Reset textarea height after clearing
       if (textareaRef.current) {
@@ -249,7 +252,7 @@ export function MessageComposer({
       // Refocus the textarea after sending
       textareaRef.current?.focus();
     }
-  }, [isSendDisabled, message, onSend, selectTemplate]);
+  }, [isSendDisabled, message, onSend, selectTemplate, selectedTemplate]);
 
   /**
    * Handle template selection
@@ -257,14 +260,18 @@ export function MessageComposer({
   const handleTemplateSelect = React.useCallback(
     (template: Template) => {
       selectTemplateObject(template);
-      setMessage(template.content);
+      const resolvedContent =
+        variableValues && Object.keys(variableValues).length > 0
+          ? renderTemplate(template.content || "", variableValues)
+          : template.content || "";
+      setMessage(resolvedContent);
       setShowTemplateSelector(false);
       // Focus textarea after template selection
       setTimeout(() => {
         textareaRef.current?.focus();
       }, 100);
     },
-    [selectTemplateObject],
+    [selectTemplateObject, variableValues],
   );
 
   /**
@@ -343,7 +350,10 @@ export function MessageComposer({
       const newValue = event.target.value;
 
       // Only update if within max length or if deleting
-      if (newValue.length <= maxLength || newValue.length < message.length) {
+      if (
+        newValue.length <= maxLength ||
+        newValue.length < (message || "").length
+      ) {
         setMessage(newValue);
       }
 
@@ -352,7 +362,7 @@ export function MessageComposer({
       textarea.style.height = "auto";
       textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
     },
-    [maxLength, message.length],
+    [maxLength, message],
   );
 
   /**
@@ -385,8 +395,31 @@ export function MessageComposer({
       <div className="flex flex-col gap-2 p-4 border-t border-gray-700 bg-gray-900">
         {/* Template Preview (if template selected) */}
         {selectedTemplate && (
-          <div className="mb-2">
-            <TemplatePreview template={selectedTemplate} />
+          <div className="mb-2 rounded-lg border border-gray-700 bg-gray-800/50 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setIsPreviewExpanded(!isPreviewExpanded)}
+              className="flex w-full items-center justify-between px-3 py-2 text-xs text-gray-400 hover:bg-gray-800 hover:text-gray-300 transition-colors focus:outline-none"
+            >
+              <span className="flex items-center gap-2">
+                <span className="font-medium">Template:</span>
+                <span className="text-gray-300">{selectedTemplate.name}</span>
+              </span>
+              {isPreviewExpanded ? (
+                <HiChevronUp className="h-4 w-4" />
+              ) : (
+                <HiChevronDown className="h-4 w-4" />
+              )}
+            </button>
+
+            {isPreviewExpanded && (
+              <div className="px-3 pb-3 pt-1 border-t border-gray-700/50">
+                <TemplatePreview
+                  template={selectedTemplate}
+                  variableValues={variableValues}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -406,14 +439,16 @@ export function MessageComposer({
 
         {/* Textarea container */}
         <div className="flex gap-2 items-end">
-          {/* Quick Template Button */}
-          {!isLoadingFrequent && frequentTemplates.length > 0 && (
-            <QuickTemplateButton
-              templates={frequentTemplates}
-              onSelect={handleQuickTemplateSelect}
-              disabled={disabled || isSending}
-            />
-          )}
+          {/* Quick Template Button - show once we have any templates available */}
+          {!isLoadingFrequent &&
+            !isLoadingTemplates &&
+            quickTemplates.length > 0 && (
+              <QuickTemplateButton
+                templates={quickTemplates}
+                onSelect={handleQuickTemplateSelect}
+                disabled={disabled || isSending}
+              />
+            )}
 
           {/* Template Selector Button */}
           <button
@@ -435,7 +470,7 @@ export function MessageComposer({
                   ],
             )}
           >
-            <TemplateIcon aria-hidden={true} />
+            <HiTemplate className="h-5 w-5" aria-hidden={true} />
           </button>
 
           <div className="relative flex-1">

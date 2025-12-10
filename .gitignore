@@ -4,13 +4,21 @@
 /.pnp
 .pnp.js
 
-
 # testing
 /coverage
+
+# Next.js
+/.next/
+/out/
+.next
+out
+.vercel
+.turbo
 
 # production
 /build
 .build
+dist/
 
 # misc
 /.idea
@@ -18,15 +26,25 @@
 .replit
 replit.nix
 .DS_Store
+Thumbs.db
 .env*
+!.env.example
 react-app-env.d.ts
 public/firebase-config.js
 public/firebase-messaging-sw.js
 
+# logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
 
+# temporary files
+*.tmp
+*.swp
+*~
+
+# Automation Tests
 AutomationTests/environments/env_data
 
 dynamicConfig.yml
