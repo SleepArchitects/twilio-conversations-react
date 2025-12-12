@@ -7,6 +7,7 @@ import { MessageBubble } from "@/components/conversations/MessageBubble";
 import { MessageComposer } from "@/components/conversations/MessageComposer";
 import { PatientContextHeader } from "@/components/conversations/PatientContextHeader";
 import { LinkPatientButton } from "@/components/conversations/LinkPatientButton";
+import { SlaIndicator } from "@/components/conversations/SlaIndicator";
 import { useMessages } from "@/hooks/useMessages";
 import { usePracticeName } from "@/hooks/usePracticeName";
 import { useAuth } from "@/hooks/useAuth";
@@ -583,6 +584,16 @@ export function ConversationDetail({
             <span>{phoneNumber}</span>
           </div>
         </div>
+        {/* SLA Status - show prominently in header */}
+        {conversationData.status !== "archived" &&
+          conversationData.slaStatus !== "ok" && (
+            <SlaIndicator
+              status={conversationData.slaStatus}
+              lastMessageAt={conversationData.lastMessageAt}
+              variant="full"
+              className="flex-shrink-0"
+            />
+          )}
       </header>
 
       {/* Patient Context Header or Link Patient Button (US3a) */}

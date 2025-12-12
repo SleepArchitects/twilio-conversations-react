@@ -11,8 +11,12 @@ export interface UserRole {
 }
 
 export async function fetchUserRoles(saxId: number): Promise<UserRole[]> {
-  const { data } = await axios.post<UserRole[]>(`/api/users/${saxId}/roles`, null, {
-    params: { sax_id: saxId },
-  });
+  const { data } = await axios.post<UserRole[]>(
+    `/api/users/${saxId}/roles`,
+    null,
+    {
+      params: { sax_id: saxId },
+    },
+  );
   return data;
 }

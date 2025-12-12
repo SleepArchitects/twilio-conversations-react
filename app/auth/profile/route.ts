@@ -9,9 +9,9 @@ import { NextRequest, NextResponse } from "next/server";
  */
 export async function GET(request: NextRequest) {
   try {
-    console.debug(
-      `[AUTH PROFILE PROXY] Received request for /outreach/auth/profile`,
-    );
+    // console.debug(
+    //   `[AUTH PROFILE PROXY] Received request for /outreach/auth/profile`,
+    // );
     // Get the base URL from env or construct it
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_BASE_URL || "http://localhost:3000";
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     // Forward the request to the actual auth profile endpoint
     const profileUrl = `${baseUrl}/auth/profile`;
 
-    console.log(`[Auth Profile Proxy] Forwarding request to: ${profileUrl}`);
+    // console.log(`[Auth Profile Proxy] Forwarding request to: ${profileUrl}`);
 
     const response = await fetch(profileUrl, {
       method: "GET",
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       credentials: "include",
     });
 
-    console.log(`[Auth Profile Proxy] Response status: ${response.status}`);
+    // console.log(`[Auth Profile Proxy] Response status: ${response.status}`);
 
     // Get the response data
     const data = await response.json();

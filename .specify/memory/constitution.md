@@ -46,10 +46,11 @@ All data MUST be retained indefinitely. Under **NO circumstances** shall any dat
 
 **Implementation Requirements**:
 
-- All database tables with deletable records MUST include a `deleted_at` timestamp column (NULL = active)
-- All queries MUST filter out soft-deleted records by default unless explicitly requested
-- Archive operations MUST preserve full data fidelity with restoration capability
-- Cascade deletes are PROHIBITED; use soft delete cascades instead
+- Under **NO circumstances** shall records be permanently deleted as part of normal application behavior.
+- All "delete" operations MUST be implemented as **archival** / **deactivation** using fields such as `active` (boolean) and/or `archived_at` timestamps (or equivalent status flags).
+- All queries MUST filter out archived/inactive records by default unless explicitly requested.
+- Archive operations MUST preserve full data fidelity with restoration capability.
+- Cascade deletes are PROHIBITED; use archival/deactivation cascades instead.
 
 ### II. Patient-First Privacy & Security (NON-NEGOTIABLE)
 
@@ -61,7 +62,9 @@ All development MUST follow a specification-driven workflow. This includes creat
 
 ### IV. Clear, Maintainable, and Testable Code
 
-All code MUST be clear, well-documented, and easy for others to understand. Components should be small and focused, adhering to the Single Responsibility Principle. Comprehensive testing (unit, integration, and E2E) is mandatory for all new features and bug fixes.
+All code MUST be clear, well-documented, and easy for others to understand. Components should be small and focused, adhering to the Single Responsibility Principle.
+
+Testing MUST be performed for all new features and bug fixes. At minimum, the feature's **manual verification steps** (from `spec.md` acceptance scenarios / independent tests and/or `tasks.md` checkpoints) MUST be executed by a human (typically the developer/user) and recorded in the PR description or release notes. Automated tests (unit/integration/E2E) are encouraged where practical.
 
 ### V. Comprehensive Documentation
 
@@ -90,11 +93,11 @@ All timestamps stored in the database MUST be in UTC (Coordinated Universal Time
 The project follows the GitHub Spec Kit methodology. All new features and significant changes must adhere to the following workflow:
 
 1. **Specification (`spec.md`)**: Define user stories, functional requirements, and success criteria.
-2. **Planning (`plan.md`)**: Outline the technical approach, project structure, and technology stack.
-3. **Implementation (`tasks.md`)**: Break down the implementation into a series of actionable tasks.
-4. **Implementation**: Write code, following the established a plan.
-5. **Testing**: Write and pass all required tests.
-6. **Code Review**: All code must be peer-reviewed and approved before merging.
+1. **Planning (`plan.md`)**: Outline the technical approach, project structure, and technology stack.
+1. **Implementation (`tasks.md`)**: Break down the implementation into a series of actionable tasks.
+1. **Implementation**: Write code, following the established plan.
+1. **Testing**: Write and pass all required tests. Manual verification is acceptable as a minimum when automated coverage is not yet present, but it MUST be executed and recorded.
+1. **Code Review**: All code must be peer-reviewed and approved before merging.
 
 ## Governance
 

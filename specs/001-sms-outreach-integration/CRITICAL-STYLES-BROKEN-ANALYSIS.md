@@ -32,7 +32,7 @@ assetPrefix: "/outreach-static",  // ❌ PROBLEM
 
 Per NFR-005 and FR-033, the `assetPrefix` is required for production multi-zone deployment:
 - SleepConnect CloudFront serves main app from `/`
-- Outreach zone assets served from `/outreach-static/`
+- Outreach zone assets served from `/outreach-static`
 - Prevents asset path conflicts between zones
 
 **This works in production** (via CloudFront/proxy) but **breaks local development**.

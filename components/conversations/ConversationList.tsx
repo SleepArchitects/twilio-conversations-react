@@ -267,16 +267,42 @@ export function ConversationList({
   // ==========================================================================
 
   const filteredConversations = React.useMemo(() => {
-    if (!searchQuery?.trim()) {
-      return conversations;
-    }
+    const base = searchQuery?.trim()
+      ? (() => {
+          const query = searchQuery.toLowerCase().trim();
+          return conversations.filter(
+            (conv) =>
+              conv.friendlyName.toLowerCase().includes(query) ||
+              conv.patientPhone.includes(query),
+          );
+        })()
+      : conversations;
 
-    const query = searchQuery.toLowerCase().trim();
-    return conversations.filter(
-      (conv) =>
-        conv.friendlyName.toLowerCase().includes(query) ||
-        conv.patientPhone.includes(query),
-    );
+    const slaPriority: Record<SlaStatus, number> = {
+      breached: 0,
+      warning: 1,
+      ok: 2,
+    };
+
+    const byRecencyDesc = (a: Conversation, b: Conversation): number => {
+      const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return bTime - aTime;
+    };
+
+    // Sort overdue conversations to the top (T062).
+    // Keep archived conversations in their normal list ordering.
+    return [...base].sort((a, b) => {
+      if (a.status === "archived" || b.status === "archived") {
+        return byRecencyDesc(a, b);
+      }
+
+      const aPri = slaPriority[a.slaStatus] ?? slaPriority.ok;
+      const bPri = slaPriority[b.slaStatus] ?? slaPriority.ok;
+      if (aPri !== bPri) return aPri - bPri;
+
+      return byRecencyDesc(a, b);
+    });
   }, [conversations, searchQuery]);
 
   // ==========================================================================

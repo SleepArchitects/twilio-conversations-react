@@ -37,6 +37,9 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
+# Legacy code
+src-legacy/
+
 # IDE
 .idea/
 .vscode/

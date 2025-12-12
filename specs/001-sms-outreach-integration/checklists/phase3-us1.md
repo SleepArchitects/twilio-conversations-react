@@ -212,7 +212,7 @@
 ### Multi-Zone Coordination
 
 - [X] CHK089 - Is /outreach basePath applied to all API routes including webhook? [Integration, Spec §FR-031a] ✓ next.config.mjs basePath: '/outreach'
-- [X] CHK090 - Are asset paths (/outreach-static/) correctly configured for message UI? [Integration, Spec §FR-033] ✓ assetPrefix configured
+- [X] CHK090 - Are asset paths (/outreach-static) correctly configured for message UI? [Integration, Spec §FR-033] ✓ assetPrefix configured
 - [X] CHK091 - Is webhook URL in Twilio console matching deployed basePath? [Integration, Gap] ✓ Documented in E2E testing
 
 ### Twilio SDK Integration
