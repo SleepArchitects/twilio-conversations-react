@@ -32,8 +32,33 @@ export async function GET(request: NextRequest) {
 
     // console.log(`[Auth Profile Proxy] Response status: ${response.status}`);
 
-    // Get the response data
-    const data = await response.json();
+    // Get the response text first to check if it's valid JSON
+    const text = await response.text();
+
+    if (!text || text.trim() === "") {
+      console.error(
+        "[Auth Profile Proxy] Empty response from sleepconnect - user may not be authenticated",
+      );
+      return NextResponse.json(
+        { error: "Not authenticated", user: null },
+        { status: 401 },
+      );
+    }
+
+    // Parse the response data
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error(
+        "[Auth Profile Proxy] Failed to parse response:",
+        text.substring(0, 200),
+      );
+      return NextResponse.json(
+        { error: "Invalid response from auth server", user: null },
+        { status: 502 },
+      );
+    }
 
     // Return the response with the same status
     return NextResponse.json(data, {
