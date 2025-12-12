@@ -61,9 +61,9 @@ Where:
 - [ ] T014 [P] [US1] Implement message bubble UI in `components/conversations/MessageBubble.tsx` (sender + timestamp + status per FR-003/FR-009)
 - [ ] T015 [US1] Implement messages API route in `app/api/outreach/conversations/[conversationId]/messages/route.ts` (GET/POST per `specs/001-sms-outreach-integration/contracts/sms-api.yaml`)
 - [ ] T016 [P] [US1] Implement messages query/mutation hook in `hooks/useMessages.ts` (polling interval tuned to SC-002)
-- [ ] T017 [US1] Implement inbound Twilio webhook handler in `app/api/outreach/webhook/route.ts` (signature validation + inbound storage per FR-002)
-- [ ] T018 [US1] Implement status callback handling in `app/api/outreach/webhook/route.ts` (sending→sent→delivered→read→failed per FR-003)
-- [ ] T019 [US1] Implement opt-out detection in `app/api/outreach/webhook/route.ts` + outbound blocking in `app/api/outreach/conversations/[conversationId]/messages/route.ts` (FR-004a)
+- [ ] T017 [US1] Twilio webhook handling is implemented in SleepConnect (API Gateway/Lambda), not this zone (signature validation + inbound storage per FR-002)
+- [ ] T018 [US1] Twilio status callback handling is implemented in SleepConnect (API Gateway/Lambda) (sending→sent→delivered→read→failed per FR-003)
+- [ ] T019 [US1] Opt-out detection is implemented in SleepConnect inbound webhook processing; enforce outbound blocking in `app/api/outreach/conversations/[conversationId]/messages/route.ts` (FR-004a)
 
 **Checkpoint**: SMS send/receive works end-to-end; status updates reflect webhook callbacks.
 
@@ -180,7 +180,7 @@ Where:
 
 - [ ] T050 [P] [US6] Render SLA indicator on list items in `components/conversations/ConversationListItem.tsx` (FR-026)
 - [ ] T051 [P] [US6] Implement SLA status tracking UI helper in `hooks/useSlaMonitor.ts` (client-side calculation; aligns to SC-006)
-- [ ] T052 [US6] Ensure inbound webhook triggers SLA start tracking in `app/api/outreach/webhook/route.ts` (FR-027)
+- [ ] T052 [US6] Ensure inbound webhook triggers SLA start tracking in SleepConnect (API Gateway/Lambda) (FR-027)
 - [ ] T053 [US6] Ensure outbound send path completes SLA tracking in `app/api/outreach/conversations/[conversationId]/messages/route.ts` (FR-027)
 
 **Checkpoint**: SLA risk indicator and response metrics behave per spec.
@@ -224,7 +224,7 @@ Where:
 **Purpose**: Hardening, security, and docs validation.
 
 - [ ] T064 [P] Remove any message-body logging in server routes under `app/api/outreach/**` (PHI-safe logging only) (Constitution II, FR-036)
-- [ ] T065 Ensure Twilio signature validation is enforced outside dev in `app/api/outreach/webhook/route.ts` (FR-002)
+- [ ] T065 Ensure Twilio signature validation is enforced outside dev in SleepConnect (API Gateway/Lambda) (FR-002)
 - [ ] T066 [P] Validate quickstart steps + env vars against current implementation in `specs/001-sms-outreach-integration/quickstart.md`
 
 - [ ] T072 [P] Run manual accessibility + keyboard navigation pass for key flows (conversations list/detail, composer, templates) and record results (NFR-002, NFR-003)

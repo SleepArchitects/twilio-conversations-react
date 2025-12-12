@@ -128,6 +128,7 @@ module.exports = {
 ```
 
 **Key configuration notes:**
+
 - Uses `output: 'standalone'` for OpenNext Lambda deployment
 - Routes `/api/*` requests to main sleepconnect backend
 - Shared UI components from sleepconnect patterns
@@ -265,7 +266,7 @@ Key endpoints:
 | GET/POST/PATCH/DELETE | `/api/outreach/templates` | Template CRUD |
 | GET | `/api/outreach/analytics` | Analytics data |
 | POST | `/api/outreach/token` | Get Twilio access token |
-| POST | `/api/outreach/webhook` | Twilio webhook handler |
+| POST | (external) | Twilio webhook handler (API Gateway/Lambda) |
 
 ---
 
@@ -336,10 +337,12 @@ pnpm deploy:prod
 ```
 
 Deployment uses `scripts/deploy-outreach.cjs` which:
+
 1. Runs `npx open-next build` with `open-next.config.ts`
 2. Uploads assets to S3 (`/outreach-static/*`)
 3. Updates Lambda function code
 4. Invalidates CloudFront cache
+
 
 ### Environment-Specific Configuration
 
@@ -361,6 +364,7 @@ CloudFront Behaviors:
 ```
 
 **Origin Configuration:**
+
 - Lambda function: `outreach-zone-server` (via Lambda URL or API Gateway)
 - S3 bucket: `mydreamconnect-assets-{stage}` (static assets with /outreach-static prefix)
 
@@ -370,31 +374,24 @@ CloudFront Behaviors:
 
 ### Twilio Console Setup
 
-1. **Create Conversations Service**:
-   - Go to Twilio Console → Conversations → Services
-   - Create new service for SMS Outreach
-   - Note the Service SID (`ISxxx`)
+- **Create Conversations Service**:
+  - Go to Twilio Console → Conversations → Services
+  - Create new service for SMS Outreach
+  - Note the Service SID (`ISxxx`)
 
-2. **Configure Webhooks**:
-   - Set Pre-Event URL: `https://your-domain.com/outreach/api/outreach/webhook`
-   - Set Post-Event URL: `https://your-domain.com/outreach/api/outreach/webhook`
-   - Enable events: `onMessageAdded`, `onConversationUpdated`
+- **Configure Webhooks**:
+  - Configure Twilio webhooks to point to the **SleepConnect API Gateway/Lambda** webhook endpoint (not this Next.js zone).
+  - Example (dev): `https://kwp0fzixn9.execute-api.us-east-1.amazonaws.com/dev/outreach/webhooks/status`
 
-3. **API Keys**:
-   - Generate API Key under Account → API Keys
-   - Use for frontend access token generation
+- **API Keys**:
+  - Generate API Key under Account → API Keys
+  - Use for frontend access token generation
 
 ### Testing Twilio Locally
 
-Use ngrok to expose local webhook endpoint:
+Twilio webhooks are handled by SleepConnect (API Gateway/Lambda). This zone does not serve a webhook endpoint.
 
-```bash
-# Start ngrok tunnel
-ngrok http 3001
-
-# Update Twilio webhook URLs to ngrok URL:
-# https://abc123.ngrok.io/outreach/api/outreach/webhook
-```
+If you need to test webhook handling locally, run the SleepConnect webhook Lambda locally (or use the deployed API Gateway endpoint).
 
 ---
 
@@ -407,6 +404,7 @@ ngrok http 3001
 **Error**: `Callback URL mismatch`
 
 **Solution**: Ensure Auth0 application has the correct callback URL:
+
 - Development: `http://localhost:3001/outreach/api/auth/callback`
 - Production: `https://mydreamconnect.com/outreach/api/auth/callback`
 
@@ -415,6 +413,7 @@ ngrok http 3001
 **Error**: `Unable to generate access token`
 
 **Solution**: Verify API Key credentials in `.env.local`:
+
 - `TWILIO_API_KEY_SID` should start with `SK`
 - `TWILIO_API_KEY_SECRET` is the key's secret (not auth token)
 
@@ -422,7 +421,8 @@ ngrok http 3001
 
 **Error**: `ECONNREFUSED` or `Connection refused`
 
-**Solution**: 
+**Solution**:
+
 - Ensure AWS credentials are configured
 - For local dev, use direct database URL
 - For production, verify Lambda execution role has RDS access
@@ -432,6 +432,7 @@ ngrok http 3001
 **Error**: 404 on `/outreach` routes
 
 **Solution**:
+
 - Verify `basePath: '/outreach'` in `next.config.js`
 - Check CloudFront behavior configuration for `/outreach/*` and `/outreach-static/*`
 - Ensure Lambda origin is correctly configured

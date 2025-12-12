@@ -78,6 +78,7 @@ pnpm test -- --coverage
 ```
 
 **Files to test**:
+
 - [ ] `lib/datetime.ts` - Timezone conversion utilities
 - [ ] `lib/validation.ts` - Phone number validation
 - [ ] `components/conversations/MessageBubble.tsx`
@@ -94,6 +95,7 @@ pnpm dev
 ```
 
 **Access Points**:
+
 - Main app: `http://localhost:3000/outreach` (with basePath)
 - API routes: `http://localhost:3000/api/outreach/*`
 
@@ -113,6 +115,7 @@ curl -X POST http://localhost:3000/api/outreach/token \
 ```
 
 **Expected Response**:
+
 ```json
 {
   "token": "eyJ...",
@@ -153,21 +156,15 @@ curl -X POST "http://localhost:3000/api/outreach/conversations/{conversationId}/
 
 ---
 
-### 5. Webhook Testing (Local with ngrok)
+### 5. Webhook Testing
 
-```bash
-# Start ngrok tunnel
-ngrok http 3000
+Twilio webhooks are handled by SleepConnect (API Gateway/Lambda), not this Next.js zone.
 
-# Configure Twilio webhook URL in console:
-# https://<ngrok-id>.ngrok.io/api/outreach/webhook
-```
+Example (dev): `https://kwp0fzixn9.execute-api.us-east-1.amazonaws.com/dev/outreach/webhooks/status`
 
 #### 5.1 Test Webhook Health
 
-```bash
-curl -X GET https://<ngrok-id>.ngrok.io/api/outreach/webhook
-```
+If the deployed webhook supports a health check, test it against the deployed API Gateway endpoint.
 
 - [ ] Returns `200 OK` with "Webhook endpoint active"
 
@@ -356,6 +353,6 @@ pnpm lint
 
 **Tested By**: ________________  
 **Date**: ________________  
-**Notes**: 
+**Notes**:
 
 ---
