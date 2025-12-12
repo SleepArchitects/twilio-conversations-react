@@ -1,20 +1,23 @@
-import { useQuery } from '@tanstack/react-query';
-import { useAuth } from './useAuth';
-import { fetchUserRoles, type UserRole } from '@/utils/userAssignedRoles/fetchUserRoles';
-import { fetchRoles } from '@/utils/roles/fetchRoles';
-import type { Role } from '@/components/roles/types';
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "./useAuth";
+import {
+  fetchUserRoles,
+  type UserRole,
+} from "@/utils/userAssignedRoles/fetchUserRoles";
+import { fetchRoles } from "@/utils/roles/fetchRoles";
+import type { Role } from "@/components/roles/types";
 
 /**
  * Hook to fetch all available roles in the system
  */
 export function useAllRoles() {
   return useQuery({
-    queryKey: ['all-roles'],
+    queryKey: ["all-roles"],
     queryFn: async () => {
       const roles = await fetchRoles();
       // Cache in localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('all_roles', JSON.stringify(roles));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("all_roles", JSON.stringify(roles));
       }
       return roles;
     },
@@ -32,23 +35,25 @@ export function useCurrentUserRoles() {
   const saxId = user?.saxId ? Number(user.saxId) : null;
 
   const query = useQuery({
-    queryKey: ['current-user-roles', saxId],
+    queryKey: ["current-user-roles", saxId],
     queryFn: async () => {
       if (!saxId) return [];
-      
-      console.log('[useCurrentUserRoles] Fetching roles for saxId:', saxId);
+
+      console.log("[useCurrentUserRoles] Fetching roles for saxId:", saxId);
       const roles = await fetchUserRoles(saxId);
-      console.log('[useCurrentUserRoles] API returned roles:', {
+      console.log("[useCurrentUserRoles] API returned roles:", {
         count: roles.length,
-        roleIds: roles.map(r => r.role_id),
-        hasSaxRole: roles.some(r => r.role_id === '7742d9e2-0d5b-4eb1-81b7-4e7c476b45f0')
+        roleIds: roles.map((r) => r.role_id),
+        hasSaxRole: roles.some(
+          (r) => r.role_id === "7742d9e2-0d5b-4eb1-81b7-4e7c476b45f0",
+        ),
       });
-      
+
       // Store in localStorage for quick access
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('user_roles', JSON.stringify(roles));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user_roles", JSON.stringify(roles));
       }
-      
+
       return roles;
     },
     enabled: !!saxId,
@@ -71,37 +76,37 @@ export function useCurrentUserRoles() {
 export function useHasRole(roleName: string | string[]): boolean {
   const { data: userRoles } = useCurrentUserRoles();
   const { data: allRoles } = useAllRoles();
-  
+
   // Fallback to localStorage
-  const cachedUserRoles = typeof window !== 'undefined' 
-    ? localStorage.getItem('user_roles') 
-    : null;
-  const cachedAllRoles = typeof window !== 'undefined'
-    ? localStorage.getItem('all_roles')
-    : null;
-  
-  const userRolesList = userRoles || (cachedUserRoles ? JSON.parse(cachedUserRoles) : []);
-  const allRolesList = allRoles || (cachedAllRoles ? JSON.parse(cachedAllRoles) : []);
-  
+  const cachedUserRoles =
+    typeof window !== "undefined" ? localStorage.getItem("user_roles") : null;
+  const cachedAllRoles =
+    typeof window !== "undefined" ? localStorage.getItem("all_roles") : null;
+
+  const userRolesList =
+    userRoles || (cachedUserRoles ? JSON.parse(cachedUserRoles) : []);
+  const allRolesList =
+    allRoles || (cachedAllRoles ? JSON.parse(cachedAllRoles) : []);
+
   // Filter to only active user roles
   const activeUserRoles = userRolesList.filter((r: UserRole) => r.active);
-  
+
   // Super Admin bypasses all checks
   const isSuperAdmin = activeUserRoles.some((ur: UserRole) => {
     const role = allRolesList.find((r: Role) => r.role_id === ur.role_id);
-    return role?.name === 'Super Admin';
+    return role?.name === "Super Admin";
   });
-  
+
   if (isSuperAdmin) return true;
-  
+
   // Support checking multiple roles (OR logic)
   const roleNamesToCheck = Array.isArray(roleName) ? roleName : [roleName];
-  
-  return roleNamesToCheck.some(name => 
+
+  return roleNamesToCheck.some((name) =>
     activeUserRoles.some((ur: UserRole) => {
       const role = allRolesList.find((r: Role) => r.role_id === ur.role_id);
       return role?.name === name;
-    })
+    }),
   );
 }
 
@@ -112,31 +117,31 @@ export function useHasRole(roleName: string | string[]): boolean {
 export function useHasAllRoles(roleNames: string[]): boolean {
   const { data: userRoles } = useCurrentUserRoles();
   const { data: allRoles } = useAllRoles();
-  
-  const cachedUserRoles = typeof window !== 'undefined' 
-    ? localStorage.getItem('user_roles') 
-    : null;
-  const cachedAllRoles = typeof window !== 'undefined'
-    ? localStorage.getItem('all_roles')
-    : null;
-  
-  const userRolesList = userRoles || (cachedUserRoles ? JSON.parse(cachedUserRoles) : []);
-  const allRolesList = allRoles || (cachedAllRoles ? JSON.parse(cachedAllRoles) : []);
+
+  const cachedUserRoles =
+    typeof window !== "undefined" ? localStorage.getItem("user_roles") : null;
+  const cachedAllRoles =
+    typeof window !== "undefined" ? localStorage.getItem("all_roles") : null;
+
+  const userRolesList =
+    userRoles || (cachedUserRoles ? JSON.parse(cachedUserRoles) : []);
+  const allRolesList =
+    allRoles || (cachedAllRoles ? JSON.parse(cachedAllRoles) : []);
   const activeUserRoles = userRolesList.filter((r: UserRole) => r.active);
-  
+
   // Super Admin bypasses all checks
   const isSuperAdmin = activeUserRoles.some((ur: UserRole) => {
     const role = allRolesList.find((r: Role) => r.role_id === ur.role_id);
-    return role?.name === 'Super Admin';
+    return role?.name === "Super Admin";
   });
-  
+
   if (isSuperAdmin) return true;
-  
-  return roleNames.every(name => 
+
+  return roleNames.every((name) =>
     activeUserRoles.some((ur: UserRole) => {
       const role = allRolesList.find((r: Role) => r.role_id === ur.role_id);
       return role?.name === name;
-    })
+    }),
   );
 }
 
@@ -146,22 +151,22 @@ export function useHasAllRoles(roleNames: string[]): boolean {
 export function useUserRoleNames(): string[] {
   const { data: userRoles } = useCurrentUserRoles();
   const { data: allRoles } = useAllRoles();
-  
-  const cachedUserRoles = typeof window !== 'undefined' 
-    ? localStorage.getItem('user_roles') 
-    : null;
-  const cachedAllRoles = typeof window !== 'undefined'
-    ? localStorage.getItem('all_roles')
-    : null;
-  
-  const userRolesList = userRoles || (cachedUserRoles ? JSON.parse(cachedUserRoles) : []);
-  const allRolesList = allRoles || (cachedAllRoles ? JSON.parse(cachedAllRoles) : []);
-  
+
+  const cachedUserRoles =
+    typeof window !== "undefined" ? localStorage.getItem("user_roles") : null;
+  const cachedAllRoles =
+    typeof window !== "undefined" ? localStorage.getItem("all_roles") : null;
+
+  const userRolesList =
+    userRoles || (cachedUserRoles ? JSON.parse(cachedUserRoles) : []);
+  const allRolesList =
+    allRoles || (cachedAllRoles ? JSON.parse(cachedAllRoles) : []);
+
   return userRolesList
     .filter((r: UserRole) => r.active)
     .map((ur: UserRole) => {
       const role = allRolesList.find((r: Role) => r.role_id === ur.role_id);
-      return role?.name || '';
+      return role?.name || "";
     })
     .filter(Boolean);
 }
@@ -170,6 +175,5 @@ export function useUserRoleNames(): string[] {
  * Check if user is Super Admin
  */
 export function useIsSuperAdmin(): boolean {
-  return useHasRole('Super Admin');
+  return useHasRole("Super Admin");
 }
-

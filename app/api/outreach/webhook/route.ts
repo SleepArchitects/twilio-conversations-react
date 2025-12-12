@@ -319,6 +319,26 @@ async function handleInboundMessage(
       conversationSid: ConversationSid,
       messageSid: MessageSid,
     });
+
+    // Start SLA tracking for this inbound message
+    try {
+      await api.post(buildPath(LAMBDA_API_BASE, "sla", "start-tracking"), {
+        conversationId: ConversationSid,
+        messageId: MessageSid,
+        patientId: Author,
+        timestamp: new Date().toISOString(),
+        messageType: "inbound",
+      });
+
+      console.log("[Webhook] SLA tracking started", {
+        conversationSid: ConversationSid,
+        messageSid: MessageSid,
+      });
+    } catch (slaError) {
+      console.error("[Webhook] Failed to start SLA tracking:", slaError);
+      // Don't fail the entire request if SLA tracking fails
+      // The message was successfully stored, SLA is just for monitoring
+    }
   } catch (error) {
     console.error("[Webhook] Failed to store inbound message:", error);
     throw error;

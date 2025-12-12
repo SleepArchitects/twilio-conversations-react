@@ -1,28 +1,28 @@
-export type NotificationType = 
-  | 'alert'
-  | 'follow-up'
-  | 'reminder'
-  | 'marketing'
-  | 'informational'
-  | 'brand'
-  | 'system'
-  | 'compliance'
-  | 'workflow'
-  | 'task';
+export type NotificationType =
+  | "alert"
+  | "follow-up"
+  | "reminder"
+  | "marketing"
+  | "informational"
+  | "brand"
+  | "system"
+  | "compliance"
+  | "workflow"
+  | "task";
 
 export type NotificationCategory =
-  | 'info'
-  | 'warning'
-  | 'error'
-  | 'success'
-  | 'task'
-  | 'reminder'
-  | 'system'
-  | 'general';
+  | "info"
+  | "warning"
+  | "error"
+  | "success"
+  | "task"
+  | "reminder"
+  | "system"
+  | "general";
 
-export type NotificationPriority = 'low' | 'normal' | 'high' | 'critical';
+export type NotificationPriority = "low" | "normal" | "high" | "critical";
 
-export type NotificationChannel = 'sms' | 'email' | 'web';
+export type NotificationChannel = "sms" | "email" | "web";
 
 // Enriched metadata for different notification contexts
 export interface NotificationEnrichedData {
@@ -32,23 +32,23 @@ export interface NotificationEnrichedData {
   ticket_type?: string;
   ticket_title?: string;
   ticket_description?: string;
-  
+
   // Task fields
   task_id?: number;
   task_name?: string;
   task_description?: string;
   task_details?: string;
-  
+
   // Patient context
   patient_id?: number;
   patient_name?: string;
   patient_first_name?: string;
   patient_last_name?: string;
   patient_chart_id?: string;
-  
+
   // Practice context
   practice_name?: string;
-  
+
   // Assignment context
   assigned_by_id?: number;
   assigned_by_name?: string;
@@ -56,21 +56,21 @@ export interface NotificationEnrichedData {
   assigned_to_name?: string;
   owner_id?: number;
   owner_name?: string;
-  
+
   // Additional context
   comments?: string;
   notes?: string;
   priority_display?: string;
   status?: string;
   status_display?: string;
-  
+
   // Dates
   created_on?: string;
   assigned_on?: string;
   due_date?: string;
   start_date?: string;
   completed_date?: string;
-  
+
   // Links
   deepLink?: string;
   action_url?: string;
@@ -98,11 +98,14 @@ export interface Notification {
   recipient_deeplink: string | null;
   title: string;
   message: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payload: Record<string, any> | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata: Record<string, any> | null;
   tags: string[] | null;
   delivery_status: string;
   delivery_timestamp: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   delivery_metadata: Record<string, any> | null;
   is_read: boolean;
   read_on: string | null;
@@ -118,7 +121,7 @@ export interface Notification {
   created_on: string;
   updated_on: string | null;
   updated_by: string | null;
-  
+
   // Computed/enriched fields (not in DB, parsed from payload/metadata)
   enriched?: NotificationEnrichedData;
 }
@@ -151,4 +154,3 @@ export interface CreateNotificationPayload {
   icon_type?: string;
   actor_sax_id?: number;
 }
-

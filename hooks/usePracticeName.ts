@@ -45,7 +45,9 @@ export function usePracticeName(practiceId?: string | null) {
           }
         } else if (practicesRes.status !== 401 && practicesRes.status !== 403) {
           // Only raise if it's not an auth/forbidden scenario; otherwise fall back to profile
-          throw new Error(`Failed to fetch practices list: ${practicesRes.status}`);
+          throw new Error(
+            `Failed to fetch practices list: ${practicesRes.status}`,
+          );
         }
 
         // Fallback to profile to extract practice_name
@@ -61,14 +63,19 @@ export function usePracticeName(practiceId?: string | null) {
             );
             return {};
           }
-          throw new Error(`Failed to fetch practice profile: ${profileRes.status}`);
+          throw new Error(
+            `Failed to fetch practice profile: ${profileRes.status}`,
+          );
         }
 
         const data = await profileRes.json();
         const profileName = data?.profile?.practice_name;
         return profileName ? { name: profileName } : {};
       } catch (error) {
-        console.error("[usePracticeName] Error fetching practice profile", error);
+        console.error(
+          "[usePracticeName] Error fetching practice profile",
+          error,
+        );
         return {};
       }
     },

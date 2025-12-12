@@ -144,7 +144,7 @@ As a care coordinator, I want to use pre-built message templates with dynamic va
 
 ### User Story 5 - Create and Manage Templates (Priority: P2)
 
-As a care coordinator or administrator, I want to create, edit, and delete message templates, so that I can maintain a library of approved messages for the team.
+As a care coordinator or administrator, I want to create, edit, and remove (archive) message templates, so that I can maintain a library of approved messages for the team.
 
 **Why this priority**: Enables customization and scaling of template library over time, but initial templates can be pre-seeded.
 
@@ -154,7 +154,7 @@ As a care coordinator or administrator, I want to create, edit, and delete messa
 
 1. **Given** a coordinator clicks "New Template", **When** they enter a name, category, and content with `{{variable}}` placeholders, **Then** the template is saved and variables are automatically detected and listed
 2. **Given** a coordinator views an existing template, **When** they click "Edit", **Then** they can modify the content and save changes
-3. **Given** a coordinator views a template, **When** they click "Delete" and confirm, **Then** the template is removed from the library
+3. **Given** a coordinator views a template, **When** they click "Delete" and confirm, **Then** the template is archived (soft-deleted; `active=false`) and no longer appears in the default library views
 4. **Given** a coordinator copies a template, **When** they click "Copy", **Then** the template content is copied to clipboard for external use
 
 ---
@@ -271,7 +271,7 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **FR-018**: System MUST support dynamic variables in templates using `{{variableName}}` syntax
 - **FR-019**: System MUST auto-detect variables in template content when saving
 - **FR-020**: System MUST organize templates by categories: welcome, reminder, follow-up, education, general
-- **FR-021**: System MUST allow private templates to be copied, edited, and deleted by their owner
+- **FR-021**: System MUST allow private templates to be copied, edited, and archived (deactivated) by their owner
 - **FR-022**: System MUST prevent sending messages containing unresolved template variables (e.g., {{firstName}}, {{appointmentDate}} remaining in message body). When send is attempted with unresolved variables:
   - Display modal showing list of unresolved variables
   - Disable send button with message: "Please fill in required fields: {{firstName}}, {{appointmentDate}}"
@@ -299,7 +299,7 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **FR-031**: System MUST integrate with SleepConnect (`/home/dan/code/SAX/sleepconnect`) via Next.js multi-zones architecture
 - **FR-031a**: SleepConnect MUST configure rewrites to proxy `/outreach/*` routes to this Outreach zone application
 - **FR-032**: System MUST authenticate users via SleepConnect's existing authorization system (Auth0)
-- **FR-033**: System MUST use a unique asset prefix (`/outreach-static/`) to avoid conflicts with other zones
+- **FR-033**: System MUST use a unique asset prefix (`/outreach-static`) to avoid conflicts with other zones
 - **FR-034**: System MUST handle navigation between zones appropriately (hard navigation for cross-zone)
 
 #### Security & Compliance
@@ -308,6 +308,7 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
 - **FR-036**: System MUST maintain audit logs of all message access and modifications
 - **FR-037**: System MUST transmit all data over TLS/HTTPS
 - **FR-038**: System MUST operate under a Business Associate Agreement (BAA) with Twilio for HIPAA compliance
+  - **Note**: This is a business/legal prerequisite (contracting/procurement) and is tracked outside the software implementation scope. Engineering must confirm the BAA status before production go-live.
 
 ### Key Entities
 
@@ -329,6 +330,7 @@ As a care coordinator, I want AI-powered tone analysis on patient messages, so t
   - Cross-zone links (e.g., Outreach → patient profile) MUST use `<a href>` for hard navigation, not `<Link>`
   - Soft navigation within Outreach zone uses `<Link>` as normal
   - When using Server Actions, Outreach zone MUST set `serverActions.allowedOrigins` to include the user-facing domain
+  - All URL construction MUST use the native `URL` API (avoid manual string concatenation; prevents double-slash and encoding bugs)
 
 ## Success Criteria *(mandatory)*
 

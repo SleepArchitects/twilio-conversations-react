@@ -2,8 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState, useCallback, useMemo } from "react";
-import { api, ApiError } from "@/lib/api";
-import type { Template, TemplateCategory, PaginatedResponse } from "@/types/sms";
+import { api } from "@/lib/api";
+import type { Template, TemplateCategory } from "@/types/sms";
 
 // =============================================================================
 // Types & Interfaces
@@ -78,8 +78,10 @@ const API_BASE_PATH = "/api/outreach/templates";
 /**
  * Query key factory for templates
  */
-const templatesQueryKey = (category?: TemplateCategory | "all", includeGlobal?: boolean) =>
-  ["templates", category, includeGlobal] as const;
+const templatesQueryKey = (
+  category?: TemplateCategory | "all",
+  includeGlobal?: boolean,
+) => ["templates", category, includeGlobal] as const;
 
 /**
  * Map API response to Template type
@@ -114,11 +116,11 @@ async function fetchTemplates(
   includeGlobal: boolean = true,
 ): Promise<Template[]> {
   const params: Record<string, string | boolean> = {};
-  
+
   if (category && category !== "all") {
     params.category = category;
   }
-  
+
   if (includeGlobal !== undefined) {
     params.includeGlobal = includeGlobal;
   }
@@ -232,12 +234,12 @@ export function useTemplates(
 
   // Convert query error to Error
   const error = queryError
-    ? (queryError instanceof Error
-        ? queryError
-        : new Error(
-            (queryError as { message?: string }).message ||
-              "Failed to fetch templates",
-          ))
+    ? queryError instanceof Error
+      ? queryError
+      : new Error(
+          (queryError as { message?: string }).message ||
+            "Failed to fetch templates",
+        )
     : null;
 
   return {

@@ -38,6 +38,7 @@
 		"lib",
 		"hooks",
 		"components",
+		"utils",
 		"types",
 		"middleware.ts",
 		".next/types/**/*.ts"

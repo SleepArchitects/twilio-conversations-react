@@ -3,9 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0";
-import {
-  createPlainUserObject,
-} from "@/lib/auth/claims-transformer";
+import { createPlainUserObject } from "@/lib/auth/claims-transformer";
 
 export interface UseAuthOptions {
   required?: boolean;
@@ -28,7 +26,7 @@ export type Auth0DefaultUser = {
   practiceId?: string;
   tenantId?: string;
   saxId?: string;
-   practiceName?: string;
+  practiceName?: string;
 };
 
 // Support typical namespaced custom claim keys like "https://example.com/role"
@@ -87,7 +85,9 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
   } = options;
 
   const { user, error, isLoading } = useUser();
-  const [accessToken, setAccessToken] = useState<string | undefined>(() => globalAccessToken);
+  const [accessToken, setAccessToken] = useState<string | undefined>(
+    () => globalAccessToken,
+  );
 
   // Register this instance to receive token updates
   useEffect(() => {
@@ -127,13 +127,13 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
   useEffect(() => {
     if (user && !isLoading && !globalAccessTokenFetched) {
       globalAccessTokenFetched = true; // Mark as fetched GLOBALLY to prevent ALL instances from re-fetching
-      
+
       // Fetch access token from API route (client-side can't call getAccessToken directly in v4)
       // Use basePath prefix for the API route
-      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
       fetch(`${basePath}/api/auth/token`, {
-        method: 'GET',
-        credentials: 'include',
+        method: "GET",
+        credentials: "include",
       })
         .then(async (response) => {
           if (!response.ok) {
@@ -141,16 +141,16 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
           }
           const data = await response.json();
           const token = data.accessToken;
-          
+
           globalAccessToken = token;
           setAccessToken(token);
-          
+
           // Notify ALL instances immediately
-          tokenCallbacks.forEach(callback => callback(token));
+          tokenCallbacks.forEach((callback) => callback(token));
         })
         .catch((err: unknown) => {
-          console.error('[useAuth] ✗ Access token fetch failed:', err);
-          
+          console.error("[useAuth] ✗ Access token fetch failed:", err);
+
           // Extract error details
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const code = (err as any)?.code;
@@ -158,23 +158,25 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
           const status = (err as any)?.status;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const message = String((err as any)?.message || err || "");
-          
+
           // Check if this is a 404 (endpoint not found) - this is a configuration issue, not an auth error
-          const is404 = status === 404 || message.includes('404');
-          
+          const is404 = status === 404 || message.includes("404");
+
           if (is404) {
-            console.error('[useAuth] Token endpoint not found (404) - this is a configuration issue, not logging out');
+            console.error(
+              "[useAuth] Token endpoint not found (404) - this is a configuration issue, not logging out",
+            );
             // Don't clear token or redirect on 404 - the user is still authenticated
             // Just log the error and continue
             return;
           }
-          
+
           // Clear token on any error
           globalAccessToken = undefined;
           setAccessToken(undefined);
-          
+
           // Notify ALL instances of token clear
-          tokenCallbacks.forEach(callback => callback(undefined));
+          tokenCallbacks.forEach((callback) => callback(undefined));
           // BUG FIX: Do NOT reset globalAccessTokenFetched here!
           // Resetting the flag on errors would allow all other mounted components
           // to retry, causing a request storm. The flag should only be reset on logout.
@@ -217,9 +219,9 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
       globalAccessToken = undefined;
       setAccessToken(undefined);
       globalAccessTokenFetched = false;
-      
+
       // Notify ALL instances of logout
-      tokenCallbacks.forEach(callback => callback(undefined));
+      tokenCallbacks.forEach((callback) => callback(undefined));
     } else if (user && globalAccessToken) {
       // If another instance already fetched the token, use it
       setAccessToken(globalAccessToken);
@@ -232,43 +234,48 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
       try {
         // Get user's local timezone using Intl API
         const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        
+
         // Store to localStorage
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('dreamconnect-user-time-zone', userTimezone);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("dreamconnect-user-time-zone", userTimezone);
         }
       } catch (error) {
-        console.error('[useAuth] Failed to detect/store timezone:', error);
+        console.error("[useAuth] Failed to detect/store timezone:", error);
       }
     }
   }, [user, isLoading]);
 
   // Track user login - fire once per session
   useEffect(() => {
-    if (user && !isLoading && typeof window !== 'undefined') {
+    if (user && !isLoading && typeof window !== "undefined") {
       // Check if we've already tracked this session
       const sessionKey = `login-tracked-${user.sub}`;
       const hasTracked = sessionStorage.getItem(sessionKey);
-      
+
       if (!hasTracked) {
-        console.log('[useAuth] 📊 Tracking login for user:', user.email || user.sub);
-        
+        console.log(
+          "[useAuth] 📊 Tracking login for user:",
+          user.email || user.sub,
+        );
+
         // Mark as tracked immediately to prevent duplicate calls
-        sessionStorage.setItem(sessionKey, 'true');
-        
+        sessionStorage.setItem(sessionKey, "true");
+
         // Call login tracking API (fire and forget)
-        fetch('/api/track-login', {
-          method: 'POST',
-          credentials: 'include',
-        }).then((res) => {
-          if (res.ok) {
-            console.log('[useAuth] ✅ Login tracked successfully');
-          } else {
-            console.warn('[useAuth] ⚠️ Login tracking failed:', res.status);
-          }
-        }).catch((error) => {
-          console.error('[useAuth] ❌ Login tracking error:', error);
-        });
+        fetch("/api/track-login", {
+          method: "POST",
+          credentials: "include",
+        })
+          .then((res) => {
+            if (res.ok) {
+              console.log("[useAuth] ✅ Login tracked successfully");
+            } else {
+              console.warn("[useAuth] ⚠️ Login tracking failed:", res.status);
+            }
+          })
+          .catch((error) => {
+            console.error("[useAuth] ❌ Login tracking error:", error);
+          });
       }
     }
   }, [user, isLoading]);
@@ -294,16 +301,13 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
     }
   }, [isLoading, typedUser, redirectIfAuthenticated, router]);
 
-  const login = useCallback(
-    (returnTo?: string) => {
-      if (typeof window === "undefined") return;
-      const url =
-        "/auth/login" +
-        (returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : "");
-      window.location.href = url;
-    },
-    [],
-  );
+  const login = useCallback((returnTo?: string) => {
+    if (typeof window === "undefined") return;
+    const url =
+      "/auth/login" +
+      (returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : "");
+    window.location.href = url;
+  }, []);
 
   const logout = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -321,7 +325,7 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
       // Auth routes must NOT use base path - they need to be at root level
       // to share cookies with SleepConnect proxy at localhost:3000
       const profileRoute = "http://localhost:3000/api/auth/profile";
-      
+
       await fetch(profileRoute, {
         method: "GET",
         cache: "no-store",

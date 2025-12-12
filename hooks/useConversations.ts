@@ -67,10 +67,20 @@ interface ConversationListResponse {
 
 type ConversationsAction =
   | { type: "FETCH_START" }
-  | { type: "FETCH_SUCCESS"; payload: { conversations: Conversation[]; pagination: Pagination; reset: boolean } }
+  | {
+      type: "FETCH_SUCCESS";
+      payload: {
+        conversations: Conversation[];
+        pagination: Pagination;
+        reset: boolean;
+      };
+    }
   | { type: "FETCH_ERROR"; payload: string }
   | { type: "LOAD_MORE_START" }
-  | { type: "UPDATE_CONVERSATION"; payload: { id: string; updates: Partial<Conversation> } }
+  | {
+      type: "UPDATE_CONVERSATION";
+      payload: { id: string; updates: Partial<Conversation> };
+    }
   | { type: "REMOVE_CONVERSATION"; payload: string }
   | { type: "ADD_CONVERSATION"; payload: Conversation };
 
@@ -100,7 +110,7 @@ const initialState: ConversationsState = {
 
 function conversationsReducer(
   state: ConversationsState,
-  action: ConversationsAction
+  action: ConversationsAction,
 ): ConversationsState {
   switch (action.type) {
     case "FETCH_START":
@@ -122,7 +132,9 @@ function conversationsReducer(
         error: null,
         hasMore: pagination.hasMore,
         total: pagination.total,
-        offset: reset ? conversations.length : state.offset + conversations.length,
+        offset: reset
+          ? conversations.length
+          : state.offset + conversations.length,
       };
     }
 
@@ -145,7 +157,7 @@ function conversationsReducer(
       return {
         ...state,
         conversations: state.conversations.map((conv) =>
-          conv.id === id ? { ...conv, ...updates } : conv
+          conv.id === id ? { ...conv, ...updates } : conv,
         ),
       };
     }
@@ -154,7 +166,7 @@ function conversationsReducer(
       return {
         ...state,
         conversations: state.conversations.filter(
-          (conv) => conv.id !== action.payload
+          (conv) => conv.id !== action.payload,
         ),
         total: Math.max(0, state.total - 1),
       };
@@ -187,7 +199,7 @@ const DEFAULT_POLLING_INTERVAL = 5000; // 5 seconds
  * Handles fetching, pagination, and filtering.
  */
 export function useConversations(
-  options: UseConversationsOptions = {}
+  options: UseConversationsOptions = {},
 ): UseConversationsReturn {
   const {
     filterStatus,
@@ -199,7 +211,10 @@ export function useConversations(
     pollingInterval = DEFAULT_POLLING_INTERVAL,
   } = options;
 
-  const [state, dispatch] = React.useReducer(conversationsReducer, initialState);
+  const [state, dispatch] = React.useReducer(
+    conversationsReducer,
+    initialState,
+  );
 
   // ==========================================================================
   // Data Fetching
@@ -236,7 +251,7 @@ export function useConversations(
 
         const response = await api.get<ConversationListResponse>(
           "/api/outreach/conversations",
-          { params }
+          { params },
         );
 
         dispatch({
@@ -256,7 +271,7 @@ export function useConversations(
         dispatch({ type: "FETCH_ERROR", payload: message });
       }
     },
-    [pageSize, state.offset, filterStatus, statusFilter, slaFilter]
+    [pageSize, state.offset, filterStatus, statusFilter, slaFilter],
   );
 
   // Initial fetch
@@ -302,14 +317,14 @@ export function useConversations(
     (id: string) => {
       return state.conversations.find((conv) => conv.id === id);
     },
-    [state.conversations]
+    [state.conversations],
   );
 
   const updateConversation = React.useCallback(
     (id: string, updates: Partial<Conversation>) => {
       dispatch({ type: "UPDATE_CONVERSATION", payload: { id, updates } });
     },
-    []
+    [],
   );
 
   const removeConversation = React.useCallback((id: string) => {
@@ -329,7 +344,7 @@ export function useConversations(
     return state.conversations.filter(
       (conv) =>
         conv.friendlyName.toLowerCase().includes(query) ||
-        conv.patientPhone.includes(query)
+        conv.patientPhone.includes(query),
     );
   }, [state.conversations, searchQuery]);
 

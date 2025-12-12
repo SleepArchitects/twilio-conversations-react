@@ -3,7 +3,8 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/datetime";
-import type { Conversation, SlaStatus } from "@/types/sms";
+import type { Conversation } from "@/types/sms";
+import { SlaIndicator } from "./SlaIndicator";
 
 // =============================================================================
 // Types & Interfaces
@@ -16,63 +17,6 @@ export interface ConversationListItemProps {
   isSelected?: boolean;
   /** Click handler for selecting conversation */
   onClick?: (conversation: Conversation) => void;
-}
-
-// =============================================================================
-// SLA Indicator Component
-// =============================================================================
-
-interface SlaIndicatorProps {
-  status: SlaStatus;
-  className?: string;
-}
-
-const SLA_CONFIG: Record<
-  SlaStatus,
-  { color: string; bgColor: string; label: string }
-> = {
-  ok: {
-    color: "text-green-400",
-    bgColor: "bg-green-500/20",
-    label: "On track",
-  },
-  warning: {
-    color: "text-yellow-400",
-    bgColor: "bg-yellow-500/20",
-    label: "Approaching SLA",
-  },
-  breached: {
-    color: "text-red-400",
-    bgColor: "bg-red-500/20",
-    label: "SLA breached",
-  },
-};
-
-function SlaIndicator({ status, className }: SlaIndicatorProps) {
-  const config = SLA_CONFIG[status] || SLA_CONFIG.ok; // Default to 'ok' if status is undefined
-
-  return (
-    <div
-      className={cn(
-        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
-        config.bgColor,
-        config.color,
-        className,
-      )}
-      role="status"
-      aria-label={config.label}
-    >
-      <span
-        className={cn("h-1.5 w-1.5 rounded-full", {
-          "bg-green-400": status === "ok",
-          "bg-yellow-400": status === "warning",
-          "bg-red-400 animate-pulse": status === "breached",
-        })}
-        aria-hidden="true"
-      />
-      <span className="sr-only">{config.label}</span>
-    </div>
-  );
 }
 
 // =============================================================================
@@ -180,6 +124,8 @@ export function ConversationListItem({
 
   const isArchived = conversation.status === "archived";
   const isOptedOut = conversation.optedOut === true;
+  const isSlaWarning = !isArchived && conversation.slaStatus === "warning";
+  const isSlaBreached = !isArchived && conversation.slaStatus === "breached";
 
   return (
     <div
@@ -194,6 +140,8 @@ export function ConversationListItem({
         isSelected
           ? "bg-purple-600/20 border border-purple-500/30"
           : "hover:bg-gray-700/50 border border-transparent",
+        !isSelected && isSlaWarning && "bg-yellow-500/5",
+        !isSelected && isSlaBreached && "bg-red-500/5",
         isArchived && "opacity-60",
       )}
       aria-pressed={isSelected}
@@ -252,16 +200,26 @@ export function ConversationListItem({
               />
             )}
           </div>
-          <span
-            className={cn(
-              "text-xs flex-shrink-0",
-              conversation.unreadCount > 0
-                ? "text-purple-400"
-                : "text-gray-500",
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* SLA indicator - show prominently in header for warning/breached */}
+            {!isArchived && conversation.slaStatus !== "ok" && (
+              <SlaIndicator
+                status={conversation.slaStatus}
+                lastMessageAt={conversation.lastMessageAt}
+                variant="badge"
+              />
             )}
-          >
-            {timeDisplay}
-          </span>
+            <span
+              className={cn(
+                "text-xs",
+                conversation.unreadCount > 0
+                  ? "text-purple-400"
+                  : "text-gray-500",
+              )}
+            >
+              {timeDisplay}
+            </span>
+          </div>
         </div>
 
         {/* Phone number */}
@@ -270,22 +228,15 @@ export function ConversationListItem({
         </p>
 
         {/* Preview row */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-start gap-2">
           <p
             className={cn(
-              "text-sm truncate",
+              "text-sm flex-1 line-clamp-2",
               conversation.unreadCount > 0 ? "text-gray-300" : "text-gray-500",
             )}
           >
             {preview}
           </p>
-          {/* SLA indicator - only show for active conversations with warning/breached */}
-          {!isArchived && conversation.slaStatus !== "ok" && (
-            <SlaIndicator
-              status={conversation.slaStatus}
-              className="flex-shrink-0"
-            />
-          )}
         </div>
       </div>
     </div>

@@ -30,7 +30,7 @@ Next.js multi-zones allow multiple Next.js applications to be served from the sa
 // twilio-conversations-react/next.config.js
 module.exports = {
   basePath: '/outreach',
-  assetPrefix: '/outreach-static/',
+  assetPrefix: '/outreach-static',
   // ... other config
 }
 

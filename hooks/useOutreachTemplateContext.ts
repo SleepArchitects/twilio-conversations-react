@@ -43,7 +43,9 @@ export function useOutreachTemplateContext() {
 
   const readContext = useCallback(() => {
     if (typeof window === "undefined") return null;
-    return parseContext(window.sessionStorage.getItem(OUTREACH_TEMPLATE_CONTEXT_KEY));
+    return parseContext(
+      window.sessionStorage.getItem(OUTREACH_TEMPLATE_CONTEXT_KEY),
+    );
   }, []);
 
   const refresh = useCallback(() => {
@@ -73,7 +75,9 @@ export function useOutreachTemplateContext() {
 
   const hasContext = useMemo(() => {
     if (!context) return false;
-    return Object.values(context).some((value) => value !== undefined && value !== null && value !== "");
+    return Object.values(context).some(
+      (value) => value !== undefined && value !== null && value !== "",
+    );
   }, [context]);
 
   return {

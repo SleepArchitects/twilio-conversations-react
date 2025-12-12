@@ -22,6 +22,10 @@ const MAX_MESSAGE_LENGTH = 1600;
  */
 const LAMBDA_API_BASE = "/outreach";
 
+const ENABLE_SLA_MONITORING =
+  process.env.ENABLE_SLA_MONITORING === "true" ||
+  process.env.NEXT_PUBLIC_ENABLE_SLA_MONITORING === "true";
+
 /**
  * Lambda response wrapper for single conversation
  */
@@ -419,6 +423,16 @@ export const POST = withUserContext(
         );
       }
 
+      // Check if SLA completion is needed (conversation has warning status)
+      const shouldCompleteSla =
+        ENABLE_SLA_MONITORING && conversation.slaStatus === "warning";
+
+      console.log("[SLA] Checking if SLA completion needed", {
+        enableSlaMonitoring: ENABLE_SLA_MONITORING,
+        conversationSlaStatus: conversation.slaStatus,
+        shouldCompleteSla,
+      });
+
       // Get Twilio client and send message via Messaging API
       const twilioClient = getTwilioClient();
 
@@ -464,6 +478,46 @@ export const POST = withUserContext(
         userContext.tenantId,
         userContext.practiceId,
       );
+
+      // Complete SLA response metric (non-blocking) when conversation has warning status
+      console.log("[SLA] Checking if should complete SLA tracking", {
+        shouldCompleteSla,
+        conversationTwilioSid: conversation.twilioSid,
+        outboundTwilioSid: twilioMessage.sid,
+      });
+
+      if (shouldCompleteSla) {
+        console.log("[SLA] Calling complete-tracking API");
+        api
+          .post(
+            buildPath(LAMBDA_API_BASE, "sla", "complete-tracking"),
+            {
+              conversationId: conversation.twilioSid,
+              outboundMessageId: twilioMessage.sid,
+              // inboundMessageId is now optional - Lambda will find the pending SLA metric
+            },
+            {
+              headers: {
+                "x-tenant-id": userContext.tenantId,
+                "x-practice-id": userContext.practiceId,
+                "x-coordinator-sax-id": String(userContext.saxId),
+              },
+            },
+          )
+          .then((result) => {
+            console.log("[SLA] Complete tracking succeeded", result);
+          })
+          .catch((slaError) => {
+            console.error("[SLA] Failed to complete response metric", {
+              conversationId,
+              conversationTwilioSid: conversation.twilioSid,
+              outboundTwilioSid: twilioMessage.sid,
+              errorType: slaError instanceof Error ? slaError.name : "Unknown",
+              errorMessage:
+                slaError instanceof Error ? slaError.message : "Unknown error",
+            });
+          });
+      }
 
       // Log audit event without PHI
       console.info("Message sent", {
