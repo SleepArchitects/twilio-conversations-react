@@ -343,6 +343,7 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
       user: typedUser,
       practiceId: typedUser?.practiceId,
       tenantId: typedUser?.tenantId,
+      saxId: typedUser?.saxId,
       isAuthenticated: !!typedUser,
       isLoading,
       error: error as Error | undefined,

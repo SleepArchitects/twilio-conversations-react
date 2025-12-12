@@ -34,12 +34,37 @@ const toStringHelper = (value: unknown): string => {
 /**
  * Extracts and transforms namespaced claims from Auth0 user object
  * Supports multiple namespaces and extracts app_metadata/user_metadata
+ * Also handles plain (non-namespaced) claims for JWT cookies from SleepConnect
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function transformNamespacedClaims(user: any): TransformedClaims {
   if (!user) return {};
 
   const result: TransformedClaims = {};
+
+  // First, check for plain (non-namespaced) claims from JWT cookie
+  if (user.sax_id) {
+    result.saxId = toStringHelper(user.sax_id);
+    console.debug("[Claims Transformer] Found plain saxId:", user.sax_id);
+  }
+  if (user.tenant_id) {
+    result.tenantId = toStringHelper(user.tenant_id);
+    console.debug("[Claims Transformer] Found plain tenantId:", user.tenant_id);
+  }
+  if (user.practice_id) {
+    result.practiceId = toStringHelper(user.practice_id);
+    console.debug(
+      "[Claims Transformer] Found plain practiceId:",
+      user.practice_id,
+    );
+  }
+  if (user.practice_name) {
+    result.practiceName = toStringHelper(user.practice_name);
+    console.debug(
+      "[Claims Transformer] Found plain practiceName:",
+      user.practice_name,
+    );
+  }
 
   // Look for namespaced claims patterns
   const namespacedKeys = Object.keys(user).filter(

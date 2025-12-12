@@ -9,6 +9,12 @@
 		"plugin:prettier/recommended",
 		"next/core-web-vitals"
 	],
-
-	"ignorePatterns": ["src/**", "node_modules/**", ".next/**"]
+	"rules": {
+		"@typescript-eslint/no-explicit-any": "warn"
+	},
+	"ignorePatterns": [
+		"src/**",
+		"node_modules/**",
+		".next/**"
+	]
 }

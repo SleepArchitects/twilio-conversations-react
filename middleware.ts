@@ -38,15 +38,18 @@ async function hasValidSession(request: NextRequest): Promise<boolean> {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // If the path contains /auth, redirect without /outreach prefix
-  if (pathname.includes('/auth')) {
-    console.log(`MIDDLEWARE]] [OUTREACH] Pathname contains auth`);
+  // Auth routes are handled internally by this app (via proxy to /api/auth/profile)
+  // Only redirect actual Auth0 login/logout/callback routes to sleepconnect
+  if (pathname.startsWith('/outreach/auth/login') || 
+      pathname.startsWith('/outreach/auth/logout') ||
+      pathname.startsWith('/outreach/auth/callback')) {
+    console.log(`MIDDLEWARE]] [OUTREACH] Redirecting Auth0 route`);
     const newPathname = pathname.replace('/outreach', '');
-    const url = request.nextUrl.clone();
-    url.pathname = newPathname;
+    const sleepconnectUrl = process.env.NEXT_PUBLIC_SLEEPCONNECT_URL || 'http://localhost:3000';
+    const redirectUrl = `${sleepconnectUrl}${newPathname}${request.nextUrl.search}`;
     
-    console.log(`[OUTREACH MIDDLEWARE] Redirecting auth route: ${pathname} -> ${newPathname}`);
-    return NextResponse.redirect(url);
+    console.log(`[OUTREACH MIDDLEWARE] Redirecting auth route: ${pathname} -> ${redirectUrl}`);
+    return NextResponse.redirect(redirectUrl);
   }
   
   // Skip auth check if disabled (development only)
