@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 import type {
   Message,
   PaginatedResponse,
@@ -43,6 +44,8 @@ export interface UseMessagesReturn {
   refresh: () => Promise<void>;
   /** Whether a send operation is in progress */
   isSending: boolean;
+  /** Whether WebSocket is connected for real-time updates */
+  wsConnected: boolean;
 }
 
 // =============================================================================
@@ -51,7 +54,9 @@ export interface UseMessagesReturn {
 
 const API_BASE_PATH = "/outreach/api/outreach";
 const DEFAULT_PAGE_SIZE = 50;
-const POLLING_INTERVAL = 3000; // 3 seconds
+const WS_URL =
+  process.env.NEXT_PUBLIC_WS_API_URL ||
+  "wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev";
 
 /**
  * Query key factory for messages
@@ -70,7 +75,9 @@ async function fetchMessagesFromApi(
   console.log(
     `[useMessages] Fetching messages for ${conversationId} (offset: ${offset})`,
   );
-  return api.get<PaginatedResponse<Message>>(
+
+  // Always fetch in ASC order (chronological) for consistent ordering
+  const response = await api.get<PaginatedResponse<Message>>(
     `${API_BASE_PATH}/conversations/${conversationId}/messages`,
     {
       params: {
@@ -80,6 +87,8 @@ async function fetchMessagesFromApi(
       },
     },
   );
+
+  return response;
 }
 
 // =============================================================================
@@ -136,8 +145,13 @@ function messageReducer(
     case "ADD_MESSAGE": {
       // Avoid duplicates
       if (state.messageIds.has(action.payload.id)) {
+        console.log(
+          "[messageReducer] Skipping duplicate message",
+          action.payload.id,
+        );
         return state;
       }
+      console.log("[messageReducer] Adding message", action.payload.id);
       return {
         messages: [...state.messages, action.payload],
         messageIds: new Set([...state.messageIds, action.payload.id]),
@@ -146,16 +160,52 @@ function messageReducer(
 
     case "UPDATE_MESSAGE": {
       const { id, updates } = action.payload;
-      // If the ID is being changed, we need to update the messageIds set
+
+      // Find the message to update
+      const messageIndex = state.messages.findIndex((m) => m.id === id);
+      if (messageIndex === -1) {
+        // Message not found, ignore update
+        console.log("[messageReducer] Message not found for update", id);
+        return state;
+      }
+
+      // If we're changing the ID, check if the new ID already exists (race condition with WebSocket)
+      if (updates.id && updates.id !== id && state.messageIds.has(updates.id)) {
+        console.log(
+          "[messageReducer] Target ID already exists, removing old message",
+          {
+            oldId: id,
+            newId: updates.id,
+          },
+        );
+        // The new ID already exists (WebSocket was faster), so just remove the old optimistic message
+        const newMessages = state.messages.filter((m) => m.id !== id);
+        const newMessageIds = new Set(state.messageIds);
+        newMessageIds.delete(id);
+        return {
+          messages: newMessages,
+          messageIds: newMessageIds,
+        };
+      }
+
+      const updatedMessage = { ...state.messages[messageIndex], ...updates };
+      const newMessages = [...state.messages];
+      newMessages[messageIndex] = updatedMessage;
+
+      // Update the messageIds set
       const newMessageIds = new Set(state.messageIds);
       if (updates.id && updates.id !== id) {
+        // ID is changing, remove old and add new
+        console.log("[messageReducer] Updating message ID", {
+          oldId: id,
+          newId: updates.id,
+        });
         newMessageIds.delete(id);
         newMessageIds.add(updates.id);
       }
+
       return {
-        messages: state.messages.map((m) =>
-          m.id === id ? { ...m, ...updates } : m,
-        ),
+        messages: newMessages,
         messageIds: newMessageIds,
       };
     }
@@ -229,14 +279,14 @@ function createOptimisticMessage(
 // =============================================================================
 
 /**
- * React hook for managing message state with polling-based updates.
+ * React hook for managing message state with WebSocket real-time updates.
  *
  * Features:
  * - Fetches messages from API on mount
- * - Uses TanStack Query polling for real-time updates (3 second interval)
+ * - Uses WebSocket connection for real-time message updates
  * - Handles optimistic updates when sending messages
  * - Supports pagination (load more older messages)
- * - Automatic cleanup on unmount
+ * - Automatic reconnection and cleanup on unmount
  *
  * @param options - Hook configuration options
  * @returns Message state and operations
@@ -258,6 +308,7 @@ function createOptimisticMessage(
 export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const { conversationId, initialMessages = [] } = options;
   const queryClient = useQueryClient();
+  const { saxId, tenantId, practiceId } = useAuth();
 
   // State
   const [state, dispatch] = useReducer(messageReducer, {
@@ -268,14 +319,23 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const [sendError, setSendError] = useState<Error | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
+  const [wsConnected, setWsConnected] = useState(false);
 
   // Refs for cleanup and race condition prevention
   const isMountedRef = useRef(true);
   const pendingOptimisticRef = useRef<Map<string, string>>(new Map());
-  // Track optimistic message IDs separately to avoid dependency cycle
   const optimisticIdsRef = useRef<Set<string>>(new Set());
+  const messageIdsRef = useRef<Set<string>>(state.messageIds);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const pingIntervalRef = useRef<NodeJS.Timeout>();
 
-  // TanStack Query for fetching messages with automatic polling
+  // Keep messageIdsRef in sync with state
+  useEffect(() => {
+    messageIdsRef.current = state.messageIds;
+  }, [state.messageIds]);
+
+  // Initial fetch with TanStack Query (no polling)
   const {
     data: queryData,
     isLoading,
@@ -283,14 +343,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   } = useQuery({
     queryKey: messagesQueryKey(conversationId),
     queryFn: () => fetchMessagesFromApi(conversationId, 0, DEFAULT_PAGE_SIZE),
-    // Poll every 3 seconds for real-time updates
-    refetchInterval: POLLING_INTERVAL,
-    // Always refetch on window focus
-    refetchOnWindowFocus: true,
-    // Keep previous data while refetching (prevents UI flicker)
-    placeholderData: (previousData) => previousData,
-    // Consider data stale after 2 seconds
-    staleTime: 2000,
+    // Disable polling - we'll use WebSocket for updates
+    refetchInterval: false,
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    staleTime: 30000, // Consider data stale after 30 seconds
   });
 
   // Sync query data to local state (merge with optimistic updates)
@@ -395,8 +451,9 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
         if (!isMountedRef.current) return;
 
-        // Track mapping for real-time updates
+        // Track mapping for WebSocket real-time updates to prevent duplicates
         pendingOptimisticRef.current.set(response.twilioSid, tempId);
+        pendingOptimisticRef.current.set(response.id, tempId);
 
         // Update optimistic message with real data (including new ID)
         // The UPDATE_MESSAGE action now properly updates the messageIds set
@@ -413,19 +470,17 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
               practiceId: response.practiceId,
               createdBy: response.createdBy,
               createdOn: response.createdOn,
+              body: response.body,
+              authorPhone: response.authorPhone,
             },
           },
         });
 
         // Remove from optimistic tracking - message is now confirmed
         optimisticIdsRef.current.delete(tempId);
-        // Track the new real ID for the next poll cycle
-        optimisticIdsRef.current.add(response.id);
 
-        // Invalidate query to sync with backend
-        await queryClient.invalidateQueries({
-          queryKey: messagesQueryKey(conversationId),
-        });
+        // Don't invalidate query immediately - let WebSocket handle updates
+        // This prevents duplicate messages from appearing briefly
       } catch (err) {
         if (!isMountedRef.current) return;
 
@@ -468,8 +523,231 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     return () => {
       isMountedRef.current = false;
       pendingOptimistic.clear();
+
+      // Cleanup WebSocket
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
     };
   }, [conversationId]);
+
+  /**
+   * WebSocket connection management
+   */
+  useEffect(() => {
+    // Don't connect if we don't have user context yet
+    if (!saxId || !tenantId || !practiceId) {
+      console.log(
+        "[useMessages] Waiting for user context before connecting WebSocket",
+      );
+      return;
+    }
+
+    const connectWebSocket = () => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+      console.log(
+        `[useMessages] Connecting WebSocket for conversation ${conversationId}`,
+      );
+
+      const ws = new WebSocket(
+        `${WS_URL}?coordinatorId=${saxId}&tenantId=${tenantId}&practiceId=${practiceId}`,
+      );
+
+      ws.onopen = () => {
+        console.log("[useMessages] WebSocket connected");
+        setWsConnected(true);
+
+        // Start ping interval to keep connection alive
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: "ping" }));
+          }
+        }, 30000); // Ping every 30 seconds
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          // Handle pong response from ping action
+          if (data.message === "pong") {
+            return;
+          }
+
+          // Handle new message broadcast
+          if (data.type === "newMessage" && data.message) {
+            // @eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rawMessage = data.message as Record<string, any>;
+
+            // Transform snake_case to camelCase for Message interface
+            const message: Message = {
+              id: rawMessage.id,
+              conversationId:
+                rawMessage.conversationId || rawMessage.conversation_id,
+              twilioSid: rawMessage.twilioSid || rawMessage.twilio_sid || "",
+              direction: rawMessage.direction,
+              authorSaxId:
+                rawMessage.authorSaxId ?? rawMessage.author_sax_id ?? null,
+              authorPhone:
+                rawMessage.authorPhone || rawMessage.author_phone || null,
+              body: rawMessage.body,
+              status: rawMessage.status,
+              segmentCount:
+                rawMessage.segmentCount ?? rawMessage.segment_count ?? 1,
+              sentiment: rawMessage.sentiment || null,
+              sentimentScore:
+                rawMessage.sentimentScore || rawMessage.sentiment_score || null,
+              errorCode: rawMessage.errorCode || rawMessage.error_code || null,
+              errorMessage:
+                rawMessage.errorMessage || rawMessage.error_message || null,
+              createdOn: rawMessage.createdOn || rawMessage.created_on,
+              createdBy: rawMessage.createdBy ?? rawMessage.created_by ?? null,
+              sentAt: rawMessage.sentAt || rawMessage.sent_at || null,
+              deliveredAt:
+                rawMessage.deliveredAt || rawMessage.delivered_at || null,
+              readAt: rawMessage.readAt || rawMessage.read_at || null,
+              active: rawMessage.active ?? true,
+              tenantId: rawMessage.tenantId || rawMessage.tenant_id || "",
+              practiceId: rawMessage.practiceId || rawMessage.practice_id || "",
+            };
+
+            const msgConvId = message.conversationId;
+
+            console.log("[useMessages] Received WebSocket message", {
+              messageId: message.id,
+              msgConvId,
+              currentConvId: conversationId,
+              authorPhone: message.authorPhone,
+              matches: msgConvId === conversationId,
+            });
+
+            // Only add if it's for this conversation
+            if (msgConvId === conversationId) {
+              console.log("[useMessages] Processing WebSocket message", {
+                id: message.id,
+                twilioSid: message.twilioSid,
+                direction: message.direction,
+                body: message.body?.substring(0, 50),
+                authorPhone: message.authorPhone,
+                currentMessageIds: Array.from(messageIdsRef.current),
+                pendingOptimistic: Array.from(
+                  pendingOptimisticRef.current.entries(),
+                ),
+              });
+
+              // Check if this message is already in our state by ID (use ref for current state)
+              if (messageIdsRef.current.has(message.id)) {
+                console.log(
+                  "[useMessages] Message already exists in state, skipping",
+                  message.id,
+                );
+                return;
+              }
+
+              // Check if this message was already handled via optimistic update
+              // by checking both the twilioSid and the message ID
+              const optimisticId = Array.from(
+                pendingOptimisticRef.current.entries(),
+              ).find(
+                ([key]) => key === message.twilioSid || key === message.id,
+              )?.[1];
+
+              if (optimisticId) {
+                console.log(
+                  "[useMessages] WebSocket message matches optimistic update, skipping",
+                  {
+                    optimisticId,
+                    realId: message.id,
+                  },
+                );
+                // This message was already added via optimistic update and API response
+                // Clean up the tracking
+                pendingOptimisticRef.current.delete(message.twilioSid);
+                pendingOptimisticRef.current.delete(message.id);
+                optimisticIdsRef.current.delete(optimisticId);
+              } else {
+                // This is a genuinely new message (likely from another device or inbound)
+                console.log(
+                  "[useMessages] Adding new message from WebSocket",
+                  message.id,
+                );
+                dispatch({ type: "ADD_MESSAGE", payload: message });
+              }
+            }
+          }
+
+          // Handle message status updates
+          if (
+            data.type === "messageStatusUpdate" &&
+            data.messageId &&
+            data.status
+          ) {
+            console.log(
+              "[useMessages] Message status update",
+              data.messageId,
+              data.status,
+            );
+            dispatch({
+              type: "UPDATE_MESSAGE",
+              payload: {
+                id: data.messageId,
+                updates: { status: data.status },
+              },
+            });
+          }
+        } catch (err) {
+          console.error("[useMessages] Error parsing WebSocket message:", err);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("[useMessages] WebSocket error:", error);
+        setWsConnected(false);
+      };
+
+      ws.onclose = () => {
+        console.log("[useMessages] WebSocket closed");
+        setWsConnected(false);
+
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+        }
+
+        // Attempt to reconnect after 3 seconds
+        if (isMountedRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            console.log("[useMessages] Attempting to reconnect WebSocket");
+            connectWebSocket();
+          }, 3000);
+        }
+      };
+
+      wsRef.current = ws;
+    };
+
+    connectWebSocket();
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
+    };
+  }, [conversationId, saxId, tenantId, practiceId]);
 
   // Combine query error with send error
   const error = queryError || sendError;
@@ -483,6 +761,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     hasMore,
     refresh,
     isSending,
+    wsConnected,
   };
 }
 

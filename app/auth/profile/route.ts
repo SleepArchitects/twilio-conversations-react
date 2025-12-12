@@ -1,25 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Proxy /outreach/auth/profile to http://localhost:3000/auth/profile
+ * Proxy /outreach/auth/profile to /outreach/api/auth/profile
  *
- * This is needed because Auth0's useUser() hook fetches from a relative path,
+ * This is needed because Auth0's useUser() hook fetches from /auth/profile,
  * which gets prefixed with /outreach due to basePath config.
- * This route proxies the request to the actual auth profile endpoint on SleepConnect.
+ * This route proxies the request to our actual API endpoint.
  */
 export async function GET(request: NextRequest) {
   try {
-    // console.debug(
-    //   `[AUTH PROFILE PROXY] Received request for /outreach/auth/profile`,
-    // );
-    // Get the base URL from env or construct it
+    // Get the base URL for this app
     const baseUrl =
-      process.env.NEXT_PUBLIC_APP_BASE_URL || "http://localhost:3000";
+      process.env.NEXT_PUBLIC_APP_BASE_URL || "http://localhost:3001";
 
-    // Forward the request to the actual auth profile endpoint
-    const profileUrl = `${baseUrl}/auth/profile`;
-
-    // console.log(`[Auth Profile Proxy] Forwarding request to: ${profileUrl}`);
+    // Forward to our own API endpoint
+    const profileUrl = `${baseUrl}/outreach/api/auth/profile`;
 
     const response = await fetch(profileUrl, {
       method: "GET",
@@ -30,15 +25,10 @@ export async function GET(request: NextRequest) {
       credentials: "include",
     });
 
-    // console.log(`[Auth Profile Proxy] Response status: ${response.status}`);
-
     // Get the response text first to check if it's valid JSON
     const text = await response.text();
 
     if (!text || text.trim() === "") {
-      console.error(
-        "[Auth Profile Proxy] Empty response from sleepconnect - user may not be authenticated",
-      );
       return NextResponse.json(
         { error: "Not authenticated", user: null },
         { status: 401 },

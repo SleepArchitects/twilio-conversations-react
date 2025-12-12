@@ -1,24 +1,40 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { verifyUserContextToken } from "@/lib/jwt-utils";
 
 /**
  * GET /api/auth/profile
  *
- * Mock profile endpoint for Auth0 useUser hook.
- * Returns null in dev mode since we don't use user UI in Outreach zone.
- *
- * Note: This prevents 404 errors from the useUser hook which the Auth0 SDK
- * calls automatically, even though we don't display user info in the UI.
+ * Returns user profile from the x-sax-user-context JWT cookie.
+ * This cookie is set by SleepConnect's middleware and contains user session data.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   // In dev mode with disabled auth, return null (no user)
   if (process.env.DISABLE_AUTH === "true") {
     return NextResponse.json(null, { status: 200 });
   }
 
-  // In production/multi-zone mode, this endpoint shouldn't be called
-  // since SleepConnect handles auth. Return 404 to indicate it's not available.
-  return NextResponse.json(
-    { error: "Profile endpoint not available in Outreach zone" },
-    { status: 404 },
-  );
+  // Get the user context JWT from the cookie
+  const userContextCookie = request.cookies.get("x-sax-user-context");
+
+  if (!userContextCookie?.value) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  // Verify and decode the JWT
+  const userContext = await verifyUserContextToken(userContextCookie.value);
+
+  if (!userContext) {
+    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+  }
+
+  // Return user profile in Auth0 format
+  return NextResponse.json({
+    email: userContext.email,
+    name: userContext.name,
+    sub: userContext.sax_id,
+    sax_id: userContext.sax_id,
+    tenant_id: userContext.tenant_id,
+    practice_id: userContext.practice_id,
+    practice_name: userContext.practice_name,
+  });
 }
