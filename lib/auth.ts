@@ -1,6 +1,7 @@
 import { auth0 } from "./auth0";
 import { NextRequest, NextResponse } from "next/server";
 import { headers, cookies } from "next/headers";
+import { verifyUserContextToken } from "./jwt-utils";
 
 // Re-export types
 export type Session = unknown;
@@ -56,35 +57,31 @@ function isMultiZoneMode(): boolean {
 }
 
 /**
- * Get user context from forwarded cookie or header (multi-zone mode)
- * SleepConnect forwards user context via x-sax-user-context cookie/header
+ * Get user context from forwarded JWT cookie or header (multi-zone mode)
+ * SleepConnect forwards user context via x-sax-user-context JWT cookie/header
  */
-function getUserFromForwardedCookie(): SaxClaims | null {
+async function getUserFromForwardedCookie(): Promise<SaxClaims | null> {
   // console.debug("[AUTH] getUserFromForwardedCookie called");
   try {
     const headersList = headers();
     const cookieStore = cookies();
 
     // First try the header (set by middleware for rewrites)
-    let userContextStr = headersList.get("x-sax-user-context");
+    let jwtToken = headersList.get("x-sax-user-context");
     // console.debug(
     //   // "[AUTH] x-sax-user-context header:",
-    //   userContextStr ? "FOUND" : "NOT FOUND",
+    //   jwtToken ? "FOUND" : "NOT FOUND",
     // );
-    if (userContextStr) {
-      // console.debug("[AUTH] Header value length:", userContextStr.length);
-    }
 
     // Fall back to cookie (for subsequent requests after initial cookie is set)
-    if (!userContextStr) {
+    if (!jwtToken) {
       // console.debug("[AUTH] Header not found, trying cookie store...");
       const userContextCookie = cookieStore.get("x-sax-user-context");
       if (userContextCookie) {
-        userContextStr = userContextCookie.value;
+        jwtToken = userContextCookie.value;
         // console.debug(
         // "[AUTH] Found x-sax-user-context in cookie (via cookies())",
         // );
-        // console.debug("[AUTH] Cookie value length:", userContextStr.length);
       } else {
         // console.debug("[AUTH] x-sax-user-context NOT in cookie store");
 
@@ -94,11 +91,10 @@ function getUserFromForwardedCookie(): SaxClaims | null {
         // console.debug("[AUTH] Cookie header length:", cookieHeader.length);
         const match = cookieHeader.match(/x-sax-user-context=([^;]+)/);
         if (match) {
-          userContextStr = decodeURIComponent(match[1]);
+          jwtToken = decodeURIComponent(match[1]);
           // console.debug(
           // "[AUTH] Found x-sax-user-context in cookie header (manual parse)",
           // );
-          // console.debug("[AUTH] Decoded value length:", userContextStr.length);
         } else {
           // console.debug(
           // "[AUTH] x-sax-user-context NOT in cookie header. Cookies present:",
@@ -111,33 +107,21 @@ function getUserFromForwardedCookie(): SaxClaims | null {
       }
     }
 
-    if (!userContextStr) {
+    if (!jwtToken) {
       // console.debug("[AUTH] No x-sax-user-context header or cookie found");
       return null;
     }
 
-    // console.debug("[AUTH] Parsing user context JSON...");
-    const userContext = JSON.parse(userContextStr);
-    // console.debug("[AUTH] Parsed user context:", {
-    // sax_id: userContext.sax_id,
-    //   tenant_id: userContext.tenant_id,
-    //   practice_id: userContext.practice_id,
-    // });
+    // console.debug("[AUTH] Verifying JWT token...");
+    const userContext = await verifyUserContextToken(jwtToken);
 
-    if (
-      !userContext.sax_id ||
-      !userContext.tenant_id ||
-      !userContext.practice_id
-    ) {
-      // console.debug(
-      // "[AUTH] Missing required fields in user context",
-      //   userContext,
-      // );
+    if (!userContext) {
+      console.debug("[AUTH] JWT verification failed");
       return null;
     }
 
     // console.debug(
-    //   // "[AUTH] User context from header/cookie:",
+    //   // "[AUTH] User context from JWT:",
     //   userContext.sax_id,
     // );
 
@@ -150,7 +134,7 @@ function getUserFromForwardedCookie(): SaxClaims | null {
       sub: String(userContext.sax_id),
     };
   } catch (error) {
-    console.error("[AUTH] Error parsing user context:", error);
+    console.error("[AUTH] Error verifying JWT token:", error);
     return null;
   }
 }
@@ -169,7 +153,7 @@ export async function getSession(): Promise<{ user: SaxClaims } | null> {
   // Multi-zone mode: read from forwarded cookie
   if (isMultiZoneMode()) {
     // console.debug("[AUTH] Multi-zone mode - looking for forwarded cookie");
-    const user = getUserFromForwardedCookie();
+    const user = await getUserFromForwardedCookie();
     if (user) {
       // console.debug("[AUTH] Found user from forwarded cookie:", user.sax_id);
       return { user };
