@@ -360,6 +360,8 @@ async function handleGet(
       return NextResponse.json({ data, pagination }, { status: 200 });
     }
 
+    console.log("[CONVERSATIONS API] context", userContext);
+
     // If phone is provided, check for existing active conversation (duplicate detection)
     if (phone) {
       // Validate phone format

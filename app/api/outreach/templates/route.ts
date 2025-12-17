@@ -75,6 +75,7 @@ function getLambdaHeaders(userContext: UserContext): Record<string, string> {
     "x-practice-id": userContext.practiceId,
     "x-coordinator-sax-id": String(userContext.saxId),
     "x-user-sax-id": String(userContext.saxId),
+    "x-sax-id": String(userContext.saxId),
   };
 }
 
@@ -124,6 +125,24 @@ export const GET = withUserContext(
         tenant_id: userContext.tenantId,
         practice_id: userContext.practiceId,
       };
+
+      if (!queryParams.tenant_id || !queryParams.practice_id) {
+        console.error(
+          "[TEMPLATES API] Missing tenant or practice",
+          queryParams,
+        );
+        return errorResponse(
+          "MISSING_TENANT",
+          "Missing tenant or practice id",
+          400,
+        );
+      }
+
+      console.log("[TEMPLATES API] Calling Lambda", {
+        tenant: queryParams.tenant_id,
+        practice: queryParams.practice_id,
+        saxId: userContext.saxId,
+      });
 
       // Note: Backend stored procedure accepts category_id (UUID), not category name
       // For now, we'll omit category filtering until we have category mapping
