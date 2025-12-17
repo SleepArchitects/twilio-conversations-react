@@ -1,10 +1,38 @@
+# Ignore everything by default
 *
 
+# Include essential files
 !.eslintrc.json
 !tsconfig.json
 !webpack.config.js
 !.env
 !public/
 !yarn.lock
+!pnpm-lock.yaml
 !package.json
 !src/
+!app/
+!components/
+!hooks/
+!lib/
+!types/
+!utils/
+!next.config.mjs
+!tailwind.config.ts
+!postcss.config.js
+!middleware.ts
+
+# Explicitly exclude development files even if included above
+node_modules/
+.next/
+.git/
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
+coverage/
+.env.local
+.env*.local
+AutomationTests/
+specs/

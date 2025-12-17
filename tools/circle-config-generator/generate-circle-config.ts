@@ -10,7 +10,7 @@ config.importOrb(browsersOrb);
 const workflow = new Workflow("workflow");
 
 workflow.addJob(runAutomationTests(config), {
-  context: ["rtd-react-demo-testing"],
+	context: ["rtd-react-demo-testing"],
 });
 
 config.addWorkflow(workflow);

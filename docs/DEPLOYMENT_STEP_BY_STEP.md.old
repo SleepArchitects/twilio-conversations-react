@@ -1,0 +1,1293 @@
+# Complete Deployment Guide - Step by Step Commands
+
+**Status:** Ready for Review  
+**Environment:** Development (dev.mydreamconnect.com)  
+**Critical:** Follow steps EXACTLY in order. Verify each step before proceeding.
+
+---
+
+## Pre-Flight Checklist
+
+Before starting, verify you have:
+
+- [ ] AWS CLI installed and configured (`aws --version`)
+- [ ] Valid AWS credentials with admin access
+- [ ] Node.js 20+ installed (`node --version`)
+- [ ] Access to Route 53 hosted zones
+- [ ] Both repositories cloned:
+  - `/home/vallenzuela/code/SAX/sleepconnect`
+  - `/home/vallenzuela/code/SAX/twilio-conversations-react`
+
+---
+
+## Part 1: Infrastructure Setup (ONE-TIME ONLY)
+
+Run these commands ONCE per environment. They use UPSERT/update operations so they're safe to re-run.
+
+### Step 1: Set Environment Variables
+
+```bash
+# Set environment (develop/staging/production)
+export ENV=develop
+export AWS_REGION=us-east-1
+export DOMAIN=mydreamconnect.com
+
+# Derive subdomain based on environment
+if [ "$ENV" = "develop" ]; then
+  export SUBDOMAIN=outreach.$DOMAIN
+  export MULTIZONE_DOMAIN=dev.$DOMAIN
+elif [ "$ENV" = "staging" ]; then
+  export SUBDOMAIN=outreach-staging.$DOMAIN
+  export MULTIZONE_DOMAIN=staging.$DOMAIN
+elif [ "$ENV" = "production" ]; then
+  export DOMAIN=dreamconnect.health
+  export SUBDOMAIN=outreach.$DOMAIN
+  export MULTIZONE_DOMAIN=$DOMAIN
+fi
+
+echo "Environment: $ENV"
+echo "Subdomain: $SUBDOMAIN"
+echo "Multi-zone domain: $MULTIZONE_DOMAIN"
+```
+
+**Verify Output:**
+```
+Environment: develop
+Subdomain: outreach.mydreamconnect.com
+Multi-zone domain: dev.mydreamconnect.com
+```
+
+### Step 2: Get Route 53 Hosted Zone ID
+
+```bash
+# List all hosted zones to find the right one
+aws route53 list-hosted-zones-by-name --output table
+
+# Get hosted zone ID for your domain
+export HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+  --query "HostedZones[?Name=='${DOMAIN}.'].Id" \
+  --output text | cut -d'/' -f3)
+
+echo "Hosted Zone ID: $HOSTED_ZONE_ID"
+
+# Verify it's not empty
+if [ -z "$HOSTED_ZONE_ID" ]; then
+  echo "❌ ERROR: Hosted zone not found for $DOMAIN"
+  exit 1
+fi
+```
+
+**Expected Output:**
+```
+Hosted Zone ID: Z0123456789ABC
+```
+
+### Step 3: Create IAM Role for Lambda (One-Time)
+
+```bash
+# Check if role already exists
+ROLE_EXISTS=$(aws iam get-role \
+  --role-name sax-lambda-outreach-execution-role \
+  2>/dev/null || echo "NOT_FOUND")
+
+if [[ "$ROLE_EXISTS" == "NOT_FOUND" ]]; then
+  echo "Creating IAM role..."
+  
+  # Create role
+  aws iam create-role \
+    --role-name sax-lambda-outreach-execution-role \
+    --assume-role-policy-document '{
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": {"Service": "lambda.amazonaws.com"},
+        "Action": "sts:AssumeRole"
+      }]
+    }'
+  
+  # Attach basic execution policy
+  aws iam attach-role-policy \
+    --role-name sax-lambda-outreach-execution-role \
+    --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  
+  echo "✅ IAM role created. Waiting 10 seconds for propagation..."
+  sleep 10
+else
+  echo "✅ IAM role already exists"
+fi
+
+# Get role ARN
+export LAMBDA_ROLE_ARN=$(aws iam get-role \
+  --role-name sax-lambda-outreach-execution-role \
+  --query 'Role.Arn' \
+  --output text)
+
+echo "Lambda Role ARN: $LAMBDA_ROLE_ARN"
+```
+
+**Expected Output:**
+```
+✅ IAM role already exists
+Lambda Role ARN: arn:aws:iam::123456789012:role/sax-lambda-outreach-execution-role
+```
+
+### Step 4: Create S3 Bucket for Static Assets
+
+```bash
+# Set bucket name based on environment
+if [ "$ENV" = "production" ]; then
+  export S3_BUCKET=sax-nextjs-us-east-1-production-outreach-assets
+else
+  export S3_BUCKET=sax-nextjs-us-east-1-${ENV}-outreach-assets
+fi
+
+echo "S3 Bucket: $S3_BUCKET"
+
+# Check if bucket exists
+BUCKET_EXISTS=$(aws s3 ls s3://$S3_BUCKET 2>/dev/null || echo "NOT_FOUND")
+
+if [[ "$BUCKET_EXISTS" == "NOT_FOUND" ]]; then
+  echo "Creating S3 bucket..."
+  
+  # Create bucket
+  aws s3 mb s3://$S3_BUCKET --region $AWS_REGION
+  
+  # Block public access
+  aws s3api put-public-access-block \
+    --bucket $S3_BUCKET \
+    --public-access-block-configuration \
+      "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+  
+  # Enable versioning
+  aws s3api put-bucket-versioning \
+    --bucket $S3_BUCKET \
+    --versioning-configuration Status=Enabled
+  
+  echo "✅ S3 bucket created with versioning"
+else
+  echo "✅ S3 bucket already exists"
+fi
+```
+
+**Expected Output:**
+```
+S3 Bucket: sax-nextjs-us-east-1-develop-outreach-assets
+✅ S3 bucket already exists
+```
+
+### Step 5: Request ACM Certificate (One-Time, Manual Validation Required)
+
+```bash
+# Check if certificate already exists
+CERT_ARN=$(aws acm list-certificates \
+  --region us-east-1 \
+  --query "CertificateSummaryList[?DomainName=='${SUBDOMAIN}'].CertificateArn" \
+  --output text)
+
+if [ -z "$CERT_ARN" ]; then
+  echo "Requesting new certificate for $SUBDOMAIN..."
+  
+  # Request certificate
+  CERT_ARN=$(aws acm request-certificate \
+    --domain-name $SUBDOMAIN \
+    --validation-method DNS \
+    --region us-east-1 \
+    --tags Key=Environment,Value=$ENV Key=Service,Value=outreach \
+    --query 'CertificateArn' \
+    --output text)
+  
+  echo "Certificate ARN: $CERT_ARN"
+  echo ""
+  echo "⏳ Waiting for DNS validation records..."
+  sleep 5
+  
+  # Get validation records
+  aws acm describe-certificate \
+    --certificate-arn $CERT_ARN \
+    --region us-east-1 \
+    --query 'Certificate.DomainValidationOptions[0].ResourceRecord' \
+    --output table
+  
+  echo ""
+  echo "📋 MANUAL STEP REQUIRED:"
+  echo "   1. Copy the CNAME Name and Value from above"
+  echo "   2. Add this CNAME record to Route 53:"
+  echo ""
+  
+  # Get validation details
+  VALIDATION_NAME=$(aws acm describe-certificate \
+    --certificate-arn $CERT_ARN \
+    --region us-east-1 \
+    --query 'Certificate.DomainValidationOptions[0].ResourceRecord.Name' \
+    --output text)
+  
+  VALIDATION_VALUE=$(aws acm describe-certificate \
+    --certificate-arn $CERT_ARN \
+    --region us-east-1 \
+    --query 'Certificate.DomainValidationOptions[0].ResourceRecord.Value' \
+    --output text)
+  
+  echo "   Name:  $VALIDATION_NAME"
+  echo "   Value: $VALIDATION_VALUE"
+  echo ""
+  echo "   Run this command to add the record:"
+  echo ""
+  echo "   aws route53 change-resource-record-sets \\"
+  echo "     --hosted-zone-id $HOSTED_ZONE_ID \\"
+  echo "     --change-batch '{"
+  echo "       \"Changes\": [{"
+  echo "         \"Action\": \"UPSERT\","
+  echo "         \"ResourceRecordSet\": {"
+  echo "           \"Name\": \"$VALIDATION_NAME\","
+  echo "           \"Type\": \"CNAME\","
+  echo "           \"TTL\": 300,"
+  echo "           \"ResourceRecords\": [{\"Value\": \"$VALIDATION_VALUE\"}]"
+  echo "         }"
+  echo "       }]"
+  echo "     }'"
+  echo ""
+  echo "   After adding the record, wait for validation:"
+  echo ""
+  echo "   aws acm wait certificate-validated \\"
+  echo "     --certificate-arn $CERT_ARN \\"
+  echo "     --region us-east-1"
+  echo ""
+  echo "⚠️  STOP HERE and complete certificate validation before continuing"
+  exit 1
+else
+  echo "✅ Certificate already exists: $CERT_ARN"
+  
+  # Check certificate status
+  CERT_STATUS=$(aws acm describe-certificate \
+    --certificate-arn $CERT_ARN \
+    --region us-east-1 \
+    --query 'Certificate.Status' \
+    --output text)
+  
+  echo "Certificate Status: $CERT_STATUS"
+  
+  if [ "$CERT_STATUS" != "ISSUED" ]; then
+    echo "⚠️  Certificate is not ISSUED. Current status: $CERT_STATUS"
+    echo "   Wait for certificate validation before continuing"
+    exit 1
+  fi
+fi
+
+export CERT_ARN
+```
+
+**Expected Output (if certificate exists):**
+```
+✅ Certificate already exists: arn:aws:acm:us-east-1:123456789012:certificate/abc-123
+Certificate Status: ISSUED
+```
+
+**Expected Output (if new certificate):**
+```
+Requesting new certificate for outreach.mydreamconnect.com...
+Certificate ARN: arn:aws:acm:us-east-1:123456789012:certificate/new-456
+[Validation instructions displayed]
+⚠️  STOP HERE and complete certificate validation before continuing
+```
+
+### Step 6: Create Lambda Function (Placeholder)
+
+```bash
+# Set function name based on environment
+if [ "$ENV" = "develop" ]; then
+  export LAMBDA_FUNCTION=sax-lambda-us-east-1-0x-d-outreach-server_develop
+  export LAMBDA_MEMORY=1024
+elif [ "$ENV" = "staging" ]; then
+  export LAMBDA_FUNCTION=sax-lambda-us-east-1-0x-s-outreach-server_staging
+  export LAMBDA_MEMORY=1024
+elif [ "$ENV" = "production" ]; then
+  export LAMBDA_FUNCTION=sax-lambda-us-east-1-0x-p-outreach-server_production
+  export LAMBDA_MEMORY=2048
+fi
+
+echo "Lambda Function: $LAMBDA_FUNCTION"
+
+# Check if function exists
+FUNCTION_EXISTS=$(aws lambda get-function \
+  --function-name $LAMBDA_FUNCTION \
+  --region $AWS_REGION \
+  2>/dev/null || echo "NOT_FOUND")
+
+if [[ "$FUNCTION_EXISTS" == "NOT_FOUND" ]]; then
+  echo "Creating Lambda function..."
+  
+  # Create placeholder code
+  mkdir -p /tmp/lambda-placeholder
+  cat > /tmp/lambda-placeholder/index.mjs << 'EOF'
+export const handler = async (event) => {
+  return {
+    statusCode: 200,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'Placeholder - awaiting first deployment' })
+  };
+};
+EOF
+  
+  # Zip it
+  cd /tmp/lambda-placeholder
+  zip -q placeholder.zip index.mjs
+  
+  # Create function
+  aws lambda create-function \
+    --function-name $LAMBDA_FUNCTION \
+    --runtime nodejs20.x \
+    --role $LAMBDA_ROLE_ARN \
+    --handler index.handler \
+    --zip-file fileb://placeholder.zip \
+    --timeout 30 \
+    --memory-size $LAMBDA_MEMORY \
+    --environment Variables="{NODE_ENV=production,NEXT_TELEMETRY_DISABLED=1}" \
+    --region $AWS_REGION
+  
+  echo "✅ Lambda function created"
+  
+  # Clean up
+  rm -rf /tmp/lambda-placeholder
+else
+  echo "✅ Lambda function already exists"
+fi
+```
+
+**Expected Output:**
+```
+Lambda Function: sax-lambda-us-east-1-0x-d-outreach-server_develop
+✅ Lambda function already exists
+```
+
+### Step 7: Create Lambda Function URL
+
+```bash
+# Check if function URL exists
+FUNCTION_URL=$(aws lambda get-function-url-config \
+  --function-name $LAMBDA_FUNCTION \
+  --region $AWS_REGION \
+  --query 'FunctionUrl' \
+  --output text \
+  2>/dev/null || echo "")
+
+if [ -z "$FUNCTION_URL" ]; then
+  echo "Creating function URL..."
+  
+  # Create function URL
+  FUNCTION_URL=$(aws lambda create-function-url-config \
+    --function-name $LAMBDA_FUNCTION \
+    --auth-type NONE \
+    --region $AWS_REGION \
+    --query 'FunctionUrl' \
+    --output text)
+  
+  # Add permission for public access
+  aws lambda add-permission \
+    --function-name $LAMBDA_FUNCTION \
+    --statement-id FunctionURLAllowPublicAccess \
+    --action lambda:InvokeFunctionUrl \
+    --principal "*" \
+    --function-url-auth-type NONE \
+    --region $AWS_REGION \
+    2>/dev/null || echo "(Permission may already exist)"
+  
+  echo "✅ Function URL created: $FUNCTION_URL"
+else
+  echo "✅ Function URL already exists: $FUNCTION_URL"
+fi
+
+export FUNCTION_URL
+```
+
+**Expected Output:**
+```
+✅ Function URL already exists: https://abc123xyz.lambda-url.us-east-1.on.aws/
+```
+
+### Step 8: Save Configuration Values
+
+```bash
+# Create configuration file for this environment
+CONFIG_FILE="/tmp/outreach-${ENV}-config.env"
+
+cat > $CONFIG_FILE << EOF
+# Outreach Infrastructure Configuration - $ENV
+# Generated: $(date)
+
+ENV=$ENV
+AWS_REGION=$AWS_REGION
+DOMAIN=$DOMAIN
+SUBDOMAIN=$SUBDOMAIN
+MULTIZONE_DOMAIN=$MULTIZONE_DOMAIN
+
+HOSTED_ZONE_ID=$HOSTED_ZONE_ID
+CERT_ARN=$CERT_ARN
+LAMBDA_FUNCTION=$LAMBDA_FUNCTION
+LAMBDA_ROLE_ARN=$LAMBDA_ROLE_ARN
+FUNCTION_URL=$FUNCTION_URL
+S3_BUCKET=$S3_BUCKET
+
+# To reload these values later, run:
+# source $CONFIG_FILE
+EOF
+
+echo "✅ Configuration saved to: $CONFIG_FILE"
+echo ""
+echo "📋 Summary:"
+cat $CONFIG_FILE | grep -v "^#" | grep -v "^$"
+```
+
+**Expected Output:**
+```
+✅ Configuration saved to: /tmp/outreach-develop-config.env
+
+📋 Summary:
+ENV=develop
+AWS_REGION=us-east-1
+DOMAIN=mydreamconnect.com
+SUBDOMAIN=outreach.mydreamconnect.com
+MULTIZONE_DOMAIN=dev.mydreamconnect.com
+HOSTED_ZONE_ID=Z0123456789ABC
+CERT_ARN=arn:aws:acm:us-east-1:123456789012:certificate/abc-123
+LAMBDA_FUNCTION=sax-lambda-us-east-1-0x-d-outreach-server_develop
+LAMBDA_ROLE_ARN=arn:aws:iam::123456789012:role/sax-lambda-outreach-execution-role
+FUNCTION_URL=https://abc123xyz.lambda-url.us-east-1.on.aws/
+S3_BUCKET=sax-nextjs-us-east-1-develop-outreach-assets
+```
+
+**⚠️ CHECKPOINT:** Review all values above. These will be used in CloudFront and deployment.
+
+---
+
+## Part 2: CloudFront Distribution Setup (ONE-TIME)
+
+### Step 9: Create CloudFront Origin Access Identity for S3
+
+```bash
+# Check if OAI exists (by checking bucket policy)
+OAI_ID=$(aws s3api get-bucket-policy \
+  --bucket $S3_BUCKET \
+  2>/dev/null | jq -r '.Policy' | jq -r '.Statement[0].Principal.AWS' | grep -o 'E[A-Z0-9]*' || echo "")
+
+if [ -z "$OAI_ID" ]; then
+  echo "Creating CloudFront Origin Access Identity..."
+  
+  # Create OAI
+  OAI_ID=$(aws cloudfront create-cloud-front-origin-access-identity \
+    --cloud-front-origin-access-identity-config \
+      "CallerReference=$(date +%s),Comment=OAI for Outreach $ENV static assets" \
+    --query 'CloudFrontOriginAccessIdentity.Id' \
+    --output text)
+  
+  echo "OAI ID: $OAI_ID"
+  
+  # Get full OAI ARN for bucket policy
+  OAI_ARN=$(aws cloudfront get-cloud-front-origin-access-identity \
+    --id $OAI_ID \
+    --query 'CloudFrontOriginAccessIdentity.S3CanonicalUserId' \
+    --output text)
+  
+  # Update S3 bucket policy to allow CloudFront access
+  aws s3api put-bucket-policy \
+    --bucket $S3_BUCKET \
+    --policy "{
+      \"Version\": \"2012-10-17\",
+      \"Statement\": [{
+        \"Sid\": \"CloudFrontAccess\",
+        \"Effect\": \"Allow\",
+        \"Principal\": {
+          \"AWS\": \"arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity $OAI_ID\"
+        },
+        \"Action\": \"s3:GetObject\",
+        \"Resource\": \"arn:aws:s3:::$S3_BUCKET/*\"
+      }]
+    }"
+  
+  echo "✅ OAI created and S3 bucket policy updated"
+else
+  echo "✅ OAI already exists: $OAI_ID"
+fi
+
+export OAI_ID
+```
+
+**Expected Output:**
+```
+✅ OAI already exists: E4DEF456UVW
+```
+
+### Step 10: Create CloudFront Distribution Configuration
+
+```bash
+# Extract Lambda domain from function URL
+LAMBDA_DOMAIN=$(echo $FUNCTION_URL | sed 's|https://||' | sed 's|/||')
+
+echo "Lambda Domain: $LAMBDA_DOMAIN"
+
+# Create CloudFront distribution config
+CLOUDFRONT_CONFIG="/tmp/cloudfront-${ENV}-config.json"
+
+cat > $CLOUDFRONT_CONFIG << EOF
+{
+  "CallerReference": "outreach-${ENV}-$(date +%s)",
+  "Comment": "Outreach SMS App - ${ENV}",
+  "Enabled": true,
+  "DefaultRootObject": "",
+  "Origins": [
+    {
+      "Id": "OutreachLambdaOrigin",
+      "DomainName": "${LAMBDA_DOMAIN}",
+      "CustomOriginConfig": {
+        "HTTPPort": 80,
+        "HTTPSPort": 443,
+        "OriginProtocolPolicy": "https-only",
+        "OriginSslProtocols": {
+          "Quantity": 1,
+          "Items": ["TLSv1.2"]
+        },
+        "OriginReadTimeout": 30,
+        "OriginKeepaliveTimeout": 5
+      }
+    },
+    {
+      "Id": "OutreachS3AssetsOrigin",
+      "DomainName": "${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com",
+      "S3OriginConfig": {
+        "OriginAccessIdentity": "origin-access-identity/cloudfront/${OAI_ID}"
+      }
+    }
+  ],
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "OutreachLambdaOrigin",
+    "ViewerProtocolPolicy": "redirect-to-https",
+    "AllowedMethods": {
+      "Quantity": 7,
+      "Items": ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "POST", "DELETE"],
+      "CachedMethods": {
+        "Quantity": 3,
+        "Items": ["GET", "HEAD", "OPTIONS"]
+      }
+    },
+    "Compress": true,
+    "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+    "OriginRequestPolicyId": "216adef6-5c7f-47e4-b989-5492eafa07d3"
+  },
+  "CacheBehaviors": {
+    "Quantity": 2,
+    "Items": [
+      {
+        "PathPattern": "/outreach/api/*",
+        "TargetOriginId": "OutreachLambdaOrigin",
+        "ViewerProtocolPolicy": "redirect-to-https",
+        "AllowedMethods": {
+          "Quantity": 7,
+          "Items": ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "POST", "DELETE"],
+          "CachedMethods": {
+            "Quantity": 3,
+            "Items": ["GET", "HEAD", "OPTIONS"]
+          }
+        },
+        "Compress": true,
+        "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+        "OriginRequestPolicyId": "216adef6-5c7f-47e4-b989-5492eafa07d3"
+      },
+      {
+        "PathPattern": "/outreach-static/*",
+        "TargetOriginId": "OutreachS3AssetsOrigin",
+        "ViewerProtocolPolicy": "redirect-to-https",
+        "AllowedMethods": {
+          "Quantity": 3,
+          "Items": ["GET", "HEAD", "OPTIONS"],
+          "CachedMethods": {
+            "Quantity": 3,
+            "Items": ["GET", "HEAD", "OPTIONS"]
+          }
+        },
+        "Compress": true,
+        "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f3"
+      }
+    ]
+  },
+  "Aliases": {
+    "Quantity": 1,
+    "Items": ["${SUBDOMAIN}"]
+  },
+  "ViewerCertificate": {
+    "ACMCertificateArn": "${CERT_ARN}",
+    "SSLSupportMethod": "sni-only",
+    "MinimumProtocolVersion": "TLSv1.2_2021"
+  },
+  "HttpVersion": "http2and3",
+  "IsIPV6Enabled": true,
+  "PriceClass": "PriceClass_100"
+}
+EOF
+
+echo "✅ CloudFront config created: $CLOUDFRONT_CONFIG"
+```
+
+**Expected Output:**
+```
+Lambda Domain: abc123xyz.lambda-url.us-east-1.on.aws
+✅ CloudFront config created: /tmp/cloudfront-develop-config.json
+```
+
+### Step 11: Create CloudFront Distribution
+
+```bash
+# Check if distribution already exists
+DISTRIBUTION_ID=$(aws cloudfront list-distributions \
+  --query "DistributionList.Items[?Aliases.Items[0]=='${SUBDOMAIN}'].Id" \
+  --output text)
+
+if [ -z "$DISTRIBUTION_ID" ]; then
+  echo "Creating CloudFront distribution (this takes 10-15 minutes)..."
+  
+  # Create distribution
+  DISTRIBUTION_ID=$(aws cloudfront create-distribution \
+    --distribution-config file://$CLOUDFRONT_CONFIG \
+    --query 'Distribution.Id' \
+    --output text)
+  
+  echo "Distribution ID: $DISTRIBUTION_ID"
+  echo ""
+  echo "⏳ Waiting for distribution to deploy..."
+  echo "   This will take 10-15 minutes. You can check status with:"
+  echo ""
+  echo "   aws cloudfront get-distribution --id $DISTRIBUTION_ID --query 'Distribution.Status'"
+  echo ""
+  echo "   Status should change from 'InProgress' to 'Deployed'"
+  echo ""
+  echo "⚠️  WAIT for deployment to complete before continuing to Step 12"
+  
+  # Optionally wait (can be skipped and checked manually)
+  # aws cloudfront wait distribution-deployed --id $DISTRIBUTION_ID
+  
+else
+  echo "✅ CloudFront distribution already exists: $DISTRIBUTION_ID"
+fi
+
+# Get CloudFront domain name
+CLOUDFRONT_DOMAIN=$(aws cloudfront get-distribution \
+  --id $DISTRIBUTION_ID \
+  --query 'Distribution.DomainName' \
+  --output text)
+
+echo "CloudFront Domain: $CLOUDFRONT_DOMAIN"
+
+export DISTRIBUTION_ID
+export CLOUDFRONT_DOMAIN
+```
+
+**Expected Output (if exists):**
+```
+✅ CloudFront distribution already exists: E3ABC123XYZ
+CloudFront Domain: d1234567890.cloudfront.net
+```
+
+**Expected Output (if new):**
+```
+Creating CloudFront distribution (this takes 10-15 minutes)...
+Distribution ID: E3ABC123XYZ
+⏳ Waiting for distribution to deploy...
+[Wait instructions displayed]
+```
+
+### Step 12: Update Route 53 DNS Record
+
+```bash
+# Create/update Route 53 A record pointing to CloudFront
+echo "Creating Route 53 DNS record: $SUBDOMAIN -> $CLOUDFRONT_DOMAIN"
+
+aws route53 change-resource-record-sets \
+  --hosted-zone-id $HOSTED_ZONE_ID \
+  --change-batch "{
+    \"Changes\": [{
+      \"Action\": \"UPSERT\",
+      \"ResourceRecordSet\": {
+        \"Name\": \"${SUBDOMAIN}\",
+        \"Type\": \"A\",
+        \"AliasTarget\": {
+          \"HostedZoneId\": \"Z2FDTNDATAQYW2\",
+          \"DNSName\": \"${CLOUDFRONT_DOMAIN}\",
+          \"EvaluateTargetHealth\": false
+        }
+      }
+    }]
+  }"
+
+echo "✅ DNS record created/updated"
+echo ""
+echo "⏳ DNS propagation may take 5-10 minutes"
+echo "   Test with: dig $SUBDOMAIN"
+```
+
+**Expected Output:**
+```
+Creating Route 53 DNS record: outreach.mydreamconnect.com -> d1234567890.cloudfront.net
+✅ DNS record created/updated
+⏳ DNS propagation may take 5-10 minutes
+```
+
+### Step 13: Update Configuration File with CloudFront Info
+
+```bash
+# Append CloudFront info to config file
+cat >> $CONFIG_FILE << EOF
+
+# CloudFront Configuration
+OAI_ID=$OAI_ID
+DISTRIBUTION_ID=$DISTRIBUTION_ID
+CLOUDFRONT_DOMAIN=$CLOUDFRONT_DOMAIN
+EOF
+
+echo "✅ Configuration updated with CloudFront details"
+echo ""
+echo "📋 Complete Infrastructure Configuration:"
+cat $CONFIG_FILE | grep -v "^#" | grep -v "^$"
+echo ""
+echo "💾 Save this configuration file for future deployments"
+```
+
+**Expected Output:**
+```
+✅ Configuration updated with CloudFront details
+
+📋 Complete Infrastructure Configuration:
+[All configuration values displayed]
+```
+
+**⚠️ CHECKPOINT:** Infrastructure setup complete! Save the configuration file.
+
+---
+
+## Part 3: Update Deployment Script
+
+### Step 14: Update deploy-outreach.cjs with Infrastructure IDs
+
+```bash
+cd /home/vallenzuela/code/SAX/twilio-conversations-react
+
+# Display current script to verify placeholders
+echo "Current deployment script configuration:"
+grep -A 10 "const ENVIRONMENTS = {" scripts/deploy-outreach.cjs | head -15
+
+echo ""
+echo "📋 Update scripts/deploy-outreach.cjs with these values:"
+echo ""
+echo "  $ENV: {"
+echo "    lambdaFunction: '$LAMBDA_FUNCTION',"
+echo "    lambdaFunctionUrl: '$FUNCTION_URL',"
+echo "    cloudfrontDistribution: '$DISTRIBUTION_ID',"
+echo "    s3AssetsBucket: '$S3_BUCKET',"
+echo "    region: '$AWS_REGION',"
+echo "    memory: $LAMBDA_MEMORY,"
+echo "    timeout: 30,"
+echo "  },"
+echo ""
+echo "⚠️  MANUAL STEP: Edit scripts/deploy-outreach.cjs and update the $ENV environment configuration"
+echo ""
+read -p "Press ENTER after updating the file..."
+```
+
+**Manual Action Required:**
+Open `scripts/deploy-outreach.cjs` and replace placeholders with real values.
+
+### Step 15: Verify Deployment Script Configuration
+
+```bash
+# Verify the configuration was updated
+echo "Verifying deployment script configuration..."
+
+if grep -q "\[UPDATE-AFTER-CREATION\]" scripts/deploy-outreach.cjs; then
+  echo "❌ ERROR: Deployment script still contains placeholders"
+  echo "   Please update scripts/deploy-outreach.cjs with real infrastructure values"
+  exit 1
+else
+  echo "✅ Deployment script configuration looks good"
+fi
+
+# Display the configuration
+echo ""
+echo "Current configuration for $ENV:"
+node -e "
+const config = require('./scripts/deploy-outreach.cjs');
+console.log(JSON.stringify(config.ENVIRONMENTS?.${ENV} || 'Not found', null, 2));
+" 2>/dev/null || echo "(Script validation skipped - will be verified during deployment)"
+```
+
+**Expected Output:**
+```
+✅ Deployment script configuration looks good
+```
+
+---
+
+## Part 4: Deploy Outreach App
+
+### Step 16: Install Dependencies
+
+```bash
+cd /home/vallenzuela/code/SAX/twilio-conversations-react
+
+echo "Installing dependencies..."
+npm install
+
+echo "✅ Dependencies installed"
+```
+
+### Step 17: Set Environment Variables for Build
+
+```bash
+# Load environment configuration if not already loaded
+if [ -z "$LAMBDA_FUNCTION" ]; then
+  source /tmp/outreach-${ENV}-config.env
+fi
+
+# Set build environment variables
+export NODE_ENV=production
+export NODE_OPTIONS="--max-old-space-size=4096"
+
+# Verify critical env vars are set
+if [ -z "$AUTH0_CLIENT_SECRET" ]; then
+  echo "⚠️  WARNING: AUTH0_CLIENT_SECRET not set"
+  echo "   Export it now:"
+  echo "   export AUTH0_CLIENT_SECRET=your-secret-here"
+  read -p "Press ENTER after setting AUTH0_CLIENT_SECRET..."
+fi
+
+echo "✅ Environment variables configured"
+```
+
+### Step 18: Run Deployment Script
+
+```bash
+cd /home/vallenzuela/code/SAX/twilio-conversations-react
+
+echo "Starting deployment to $ENV..."
+echo ""
+
+# Run deployment
+node scripts/deploy-outreach.cjs $ENV
+
+# Check exit code
+if [ $? -eq 0 ]; then
+  echo ""
+  echo "✅ Outreach app deployment complete!"
+else
+  echo ""
+  echo "❌ Deployment failed. Check errors above."
+  exit 1
+fi
+```
+
+**Expected Output:**
+```
+🚀 Outreach SMS App Deployment (No SST)
+📦 Environment:   develop
+λ  Lambda:        sax-lambda-us-east-1-0x-d-outreach-server_develop
+[Build and deployment steps...]
+✅ Deployment Complete!
+```
+
+### Step 19: Verify Lambda Deployment
+
+```bash
+# Get Lambda function info
+echo "Verifying Lambda deployment..."
+
+LAMBDA_INFO=$(aws lambda get-function \
+  --function-name $LAMBDA_FUNCTION \
+  --region $AWS_REGION)
+
+LAMBDA_SIZE=$(echo $LAMBDA_INFO | jq -r '.Configuration.CodeSize')
+LAMBDA_UPDATED=$(echo $LAMBDA_INFO | jq -r '.Configuration.LastModified')
+
+echo "Lambda Code Size: $((LAMBDA_SIZE / 1024 / 1024)) MB"
+echo "Last Updated: $LAMBDA_UPDATED"
+
+# Test Lambda directly
+echo ""
+echo "Testing Lambda function URL..."
+curl -s $FUNCTION_URL | jq '.' || curl -s $FUNCTION_URL
+
+echo ""
+echo "✅ Lambda deployment verified"
+```
+
+**Expected Output:**
+```
+Lambda Code Size: 45 MB
+Last Updated: 2025-12-16T...
+Testing Lambda function URL...
+[HTML output or placeholder response]
+✅ Lambda deployment verified
+```
+
+---
+
+## Part 5: Configure SleepConnect for Multi-Zone
+
+### Step 20: Update SleepConnect Environment Variables
+
+```bash
+cd /home/vallenzuela/code/SAX/sleepconnect
+
+echo "Updating SleepConnect environment configuration..."
+
+# Backup current .env.local
+if [ -f .env.local ]; then
+  cp .env.local .env.local.backup
+  echo "✅ Backed up .env.local to .env.local.backup"
+fi
+
+# Check if OUTREACH_APP_URL already set
+if grep -q "OUTREACH_APP_URL" .env.local 2>/dev/null; then
+  echo "Updating existing OUTREACH_APP_URL..."
+  # Use sed to update the value
+  sed -i.bak "s|OUTREACH_APP_URL=.*|OUTREACH_APP_URL=https://${SUBDOMAIN}|" .env.local
+else
+  echo "Adding OUTREACH_APP_URL to .env.local..."
+  echo "" >> .env.local
+  echo "# Multi-zone Outreach app configuration" >> .env.local
+  echo "OUTREACH_APP_URL=https://${SUBDOMAIN}" >> .env.local
+  echo "OUTREACH_API_URL=https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev" >> .env.local
+fi
+
+echo "✅ SleepConnect .env.local updated"
+echo ""
+echo "Current Outreach configuration:"
+grep "OUTREACH_" .env.local
+```
+
+**Expected Output:**
+```
+✅ Backed up .env.local to .env.local.backup
+Updating existing OUTREACH_APP_URL...
+✅ SleepConnect .env.local updated
+
+Current Outreach configuration:
+OUTREACH_APP_URL=https://outreach.mydreamconnect.com
+OUTREACH_API_URL=https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev
+```
+
+### Step 21: Verify SleepConnect next.config.js Rewrites
+
+```bash
+cd /home/vallenzuela/code/SAX/sleepconnect
+
+echo "Verifying SleepConnect rewrites configuration..."
+
+# Check if rewrites are correct
+if grep -q "destination: \`\${outreachUrl}/outreach/api/outreach" next.config.js; then
+  echo "✅ Rewrites configuration is correct (routes through Outreach app)"
+else
+  echo "❌ ERROR: Rewrites may be incorrect"
+  echo ""
+  echo "Expected configuration in next.config.js:"
+  echo ""
+  echo "  {
+    source: '/outreach/api/outreach/:path*',
+    destination: \`\${outreachUrl}/outreach/api/outreach/:path*\`,
+  },"
+  echo ""
+  echo "Current configuration:"
+  grep -A 5 "source: '/outreach/api/outreach" next.config.js
+  echo ""
+  read -p "Press ENTER if configuration is correct, or Ctrl+C to fix..."
+fi
+```
+
+**Expected Output:**
+```
+✅ Rewrites configuration is correct (routes through Outreach app)
+```
+
+### Step 22: Verify Shared JWT Secret
+
+```bash
+cd /home/vallenzuela/code/SAX/sleepconnect
+
+echo "Verifying AUTH0_CLIENT_SECRET is set..."
+
+if grep -q "AUTH0_CLIENT_SECRET" .env.local; then
+  SLEEPCONNECT_SECRET=$(grep "AUTH0_CLIENT_SECRET" .env.local | cut -d'=' -f2 | tr -d '"' | tr -d "'" | head -1)
+  
+  cd /home/vallenzuela/code/SAX/twilio-conversations-react
+  OUTREACH_SECRET=$(grep "AUTH0_CLIENT_SECRET" .env.local | cut -d'=' -f2 | tr -d '"' | tr -d "'" | head -1)
+  
+  if [ "$SLEEPCONNECT_SECRET" = "$OUTREACH_SECRET" ]; then
+    echo "✅ AUTH0_CLIENT_SECRET matches in both apps"
+  else
+    echo "❌ ERROR: AUTH0_CLIENT_SECRET mismatch!"
+    echo "   SleepConnect: ${SLEEPCONNECT_SECRET:0:10}..."
+    echo "   Outreach:     ${OUTREACH_SECRET:0:10}..."
+    echo ""
+    echo "   The secrets MUST be identical for JWT verification to work"
+    exit 1
+  fi
+else
+  echo "❌ ERROR: AUTH0_CLIENT_SECRET not found in SleepConnect .env.local"
+  exit 1
+fi
+```
+
+**Expected Output:**
+```
+✅ AUTH0_CLIENT_SECRET matches in both apps
+```
+
+### Step 23: Deploy SleepConnect
+
+```bash
+cd /home/vallenzuela/code/SAX/sleepconnect
+
+echo "Deploying SleepConnect with updated configuration..."
+echo ""
+echo "This will:"
+echo "  1. Update SleepConnect Lambda with new rewrites"
+echo "  2. Enable multi-zone routing to Outreach app"
+echo "  3. Forward API requests through Outreach (not direct to API Gateway)"
+echo ""
+read -p "Press ENTER to deploy SleepConnect..."
+
+# Deploy using SST
+npx sst deploy --stage $ENV
+
+if [ $? -eq 0 ]; then
+  echo ""
+  echo "✅ SleepConnect deployed successfully"
+else
+  echo ""
+  echo "❌ SleepConnect deployment failed"
+  exit 1
+fi
+```
+
+**Expected Output:**
+```
+[SST deployment output]
+✅ SleepConnect deployed successfully
+```
+
+---
+
+## Part 6: Verification and Testing
+
+### Step 24: Wait for DNS Propagation
+
+```bash
+echo "Checking DNS propagation..."
+echo ""
+
+# Check standalone domain
+echo "Testing standalone domain: $SUBDOMAIN"
+dig +short $SUBDOMAIN
+
+# Check multi-zone domain
+echo ""
+echo "Testing multi-zone domain: $MULTIZONE_DOMAIN"
+dig +short $MULTIZONE_DOMAIN
+
+echo ""
+echo "⏳ If DNS not resolved, wait 5-10 minutes for propagation"
+echo ""
+read -p "Press ENTER once DNS is resolving correctly..."
+```
+
+### Step 25: Test Outreach Standalone App
+
+```bash
+echo "Testing Outreach standalone access..."
+echo ""
+
+# Test the homepage
+echo "GET https://${SUBDOMAIN}/outreach"
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://${SUBDOMAIN}/outreach)
+
+if [ "$HTTP_CODE" = "200" ]; then
+  echo "✅ Standalone app accessible (HTTP $HTTP_CODE)"
+else
+  echo "⚠️  Unexpected status: HTTP $HTTP_CODE"
+  echo "   May still be deploying. Wait a few minutes."
+fi
+
+echo ""
+```
+
+**Expected Output:**
+```
+Testing Outreach standalone access...
+GET https://outreach.mydreamconnect.com/outreach
+✅ Standalone app accessible (HTTP 200)
+```
+
+### Step 26: Test Multi-Zone Routing (Critical Test)
+
+```bash
+echo "Testing multi-zone API routing (CRITICAL)..."
+echo ""
+
+# This is the most important test - API must execute through Outreach app
+echo "Testing: https://${MULTIZONE_DOMAIN}/outreach/api/outreach/templates"
+echo ""
+echo "Expected: Request should hit Outreach Lambda, not go direct to API Gateway"
+echo ""
+
+# Make request (will fail with 401 if not logged in, but that's OK)
+RESPONSE=$(curl -s https://${MULTIZONE_DOMAIN}/outreach/api/outreach/templates)
+
+echo "Response:"
+echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
+
+echo ""
+
+if echo "$RESPONSE" | grep -q "UNAUTHORIZED"; then
+  echo "✅ API route is executing (got expected 401 UNAUTHORIZED)"
+  echo "   This means the Outreach API route handler is running"
+elif echo "$RESPONSE" | grep -q "Invalid or missing tenant_id"; then
+  echo "❌ FAILURE: Request went direct to Lambda API Gateway"
+  echo "   The API route was bypassed - SleepConnect rewrites are incorrect"
+  exit 1
+else
+  echo "⚠️  Unexpected response - check logs"
+fi
+```
+
+**Expected Output:**
+```
+Testing multi-zone API routing (CRITICAL)...
+Testing: https://dev.mydreamconnect.com/outreach/api/outreach/templates
+
+Response:
+{
+  "code": "UNAUTHORIZED",
+  "message": "Missing user context"
+}
+
+✅ API route is executing (got expected 401 UNAUTHORIZED)
+```
+
+### Step 27: Check Lambda Logs for API Route Execution
+
+```bash
+echo "Checking Lambda logs for API route execution..."
+echo ""
+
+# Get recent logs
+aws logs tail /aws/lambda/$LAMBDA_FUNCTION \
+  --follow \
+  --since 5m \
+  --region $AWS_REGION | grep -i "TEMPLATES API" || echo "(No logs yet - may take a minute)"
+
+echo ""
+echo "Expected to see: [TEMPLATES API] START"
+echo ""
+echo "If logs appear, it confirms the API route is executing in Lambda"
+```
+
+### Step 28: Test with Authentication (Full Integration Test)
+
+```bash
+echo "For full integration test with authentication:"
+echo ""
+echo "1. Open browser to: https://${MULTIZONE_DOMAIN}/outreach/templates"
+echo "2. Log in with Auth0"
+echo "3. Verify templates page loads"
+echo "4. Check browser DevTools > Network tab:"
+echo "   - Request to /outreach/api/outreach/templates should return 200"
+echo "   - Response should contain template data"
+echo ""
+echo "5. Check Lambda logs for:"
+echo "   [TEMPLATES API] START"
+echo "   [TEMPLATES API] Calling Lambda { tenant: '...', practice: '...', saxId: ... }"
+echo ""
+echo "If all above checks pass, deployment is successful!"
+echo ""
+read -p "Press ENTER after completing manual browser test..."
+```
+
+### Step 29: Final Configuration Summary
+
+```bash
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ DEPLOYMENT COMPLETE"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "Environment: $ENV"
+echo ""
+echo "🌐 URLs:"
+echo "   Standalone:  https://${SUBDOMAIN}/outreach"
+echo "   Multi-zone:  https://${MULTIZONE_DOMAIN}/outreach"
+echo ""
+echo "☁️  AWS Resources:"
+echo "   Lambda:      $LAMBDA_FUNCTION"
+echo "   CloudFront:  $DISTRIBUTION_ID"
+echo "   S3 Bucket:   $S3_BUCKET"
+echo ""
+echo "📋 Configuration saved to: $CONFIG_FILE"
+echo ""
+echo "📊 Monitor logs:"
+echo "   aws logs tail /aws/lambda/$LAMBDA_FUNCTION --follow"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+```
+
+---
+
+## Troubleshooting Commands
+
+```bash
+# Check Lambda function status
+aws lambda get-function --function-name $LAMBDA_FUNCTION
+
+# Check CloudFront distribution status
+aws cloudfront get-distribution --id $DISTRIBUTION_ID --query 'Distribution.Status'
+
+# Check DNS resolution
+dig $SUBDOMAIN
+dig $MULTIZONE_DOMAIN
+
+# Test Lambda directly
+curl $FUNCTION_URL
+
+# Check S3 assets
+aws s3 ls s3://$S3_BUCKET/outreach-static/
+
+# View Lambda logs (last 10 minutes)
+aws logs tail /aws/lambda/$LAMBDA_FUNCTION --since 10m
+
+# Check SleepConnect rewrites
+grep -A 10 "async rewrites" /home/vallenzuela/code/SAX/sleepconnect/next.config.js
+
+# Verify JWT secrets match
+diff <(grep AUTH0_CLIENT_SECRET ~/code/SAX/sleepconnect/.env.local) \
+     <(grep AUTH0_CLIENT_SECRET ~/code/SAX/twilio-conversations-react/.env.local)
+```
+
+---
+
+## Summary
+
+**Total Steps:** 29  
+**Estimated Time:** 
+- First-time setup: 45-60 minutes (includes CloudFront deployment wait)
+- Subsequent deployments: 5-10 minutes
+
+**Critical Success Indicators:**
+1. ✅ API route logs show `[TEMPLATES API] START`
+2. ✅ Multi-zone URL returns 401 (not 400 "missing tenant_id")
+3. ✅ Browser DevTools shows 200 response with template data
+4. ✅ No direct API Gateway errors
+
+**Configuration Files to Preserve:**
+- `/tmp/outreach-${ENV}-config.env` - All infrastructure IDs
+- `scripts/deploy-outreach.cjs` - Updated with real values
+- Both `.env.local` files with matching AUTH0_CLIENT_SECRET
+
+---
+
+**Document Version:** 1.0  
+**Last Updated:** December 16, 2025  
+**Status:** Ready for review and execution
