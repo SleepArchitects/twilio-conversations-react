@@ -159,6 +159,19 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[2]) : null;
 }
 
+// Decode JWT payload safely (no signature verification, just base64 decode)
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(decoded);
+  } catch (err) {
+    console.warn("[API] Failed to decode user context token", err);
+    return null;
+  }
+}
+
 /**
  * Core fetch wrapper with error handling
  */
@@ -180,13 +193,28 @@ async function request<T>(
     ...customHeaders,
   };
 
-  // Add x-sax-user-context header from cookie if present (multi-zone mode)
-  // This forwards the user context from SleepConnect to Outreach API routes
+  // Add user context headers from the SleepConnect-issued JWT cookie
+  // Lambdas expect tenant/practice/coordinator identifiers either as headers or query params
   if (typeof window !== "undefined") {
     const userContext = getCookie("x-sax-user-context");
     if (userContext) {
       (headers as Record<string, string>)["x-sax-user-context"] = userContext;
-      console.log("[API] Added x-sax-user-context header from cookie");
+      const claims = decodeJwtPayload(userContext);
+      if (claims) {
+        const saxId = (claims as any).sax_id || (claims as any).saxId;
+        const tenantId = (claims as any).tenant_id || (claims as any).tenantId;
+        const practiceId =
+          (claims as any).practice_id || (claims as any).practiceId;
+        if (saxId)
+          (headers as Record<string, string>)["x-coordinator-sax-id"] =
+            String(saxId);
+        if (tenantId)
+          (headers as Record<string, string>)["x-tenant-id"] = String(tenantId);
+        if (practiceId)
+          (headers as Record<string, string>)["x-practice-id"] =
+            String(practiceId);
+      }
+      console.log("[API] Added user context headers from cookie");
     }
   }
 

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 import { ConversationListItem } from "./ConversationListItem";
 import type { ConversationFilterValue } from "./ConversationFilter";
 import type {
@@ -147,6 +148,7 @@ export function ConversationList({
   className,
 }: ConversationListProps) {
   // State
+  const { user } = useAuth();
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -180,6 +182,10 @@ export function ConversationList({
           limit: DEFAULT_LIMIT,
           offset: currentOffset,
         };
+
+        if (user?.saxId) {
+          params.coordinator_sax_id = user.saxId;
+        }
 
         // Use new filterStatus parameter (FR-014c) if provided
         if (filterStatus) {
@@ -227,13 +233,15 @@ export function ConversationList({
         setIsLoadingMore(false);
       }
     },
-    [offset, filterStatus, statusFilter, slaFilter],
+    [offset, filterStatus, statusFilter, slaFilter, user],
   );
 
   // Initial load and filter changes
   React.useEffect(() => {
-    fetchConversations(true);
-  }, [filterStatus, statusFilter, slaFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (user?.saxId) {
+      fetchConversations(true);
+    }
+  }, [filterStatus, statusFilter, slaFilter, user?.saxId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ==========================================================================
   // Infinite Scroll
