@@ -20,8 +20,10 @@ const path = require('path');
 const ENVIRONMENTS = {
   develop: {
     lambdaFunction: 'sax-lambda-us-east-1-0x-d-outreach-server_develop',
-    lambdaFunctionUrl: 'https://[UPDATE-AFTER-CREATION].lambda-url.us-east-1.on.aws/',
-    cloudfrontDistribution: '[UPDATE-AFTER-CREATION]', // e.g., E3ABC123XYZ
+    // Provided by operator (optional): exported by the deployment guide
+    lambdaFunctionUrl: process.env.FUNCTION_URL || '',
+    // SleepConnect CloudFront distribution ID (optional, used only for cache invalidation)
+    cloudfrontDistribution: process.env.SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID || '',
     s3AssetsBucket: 'sax-nextjs-us-east-1-develop-outreach-assets',
     region: 'us-east-1',
     memory: 1024,
@@ -29,8 +31,8 @@ const ENVIRONMENTS = {
   },
   staging: {
     lambdaFunction: 'sax-lambda-us-east-1-0x-s-outreach-server_staging',
-    lambdaFunctionUrl: 'https://[UPDATE-AFTER-CREATION].lambda-url.us-east-1.on.aws/',
-    cloudfrontDistribution: '[UPDATE-AFTER-CREATION]',
+    lambdaFunctionUrl: process.env.FUNCTION_URL || '',
+    cloudfrontDistribution: process.env.SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID || '',
     s3AssetsBucket: 'sax-nextjs-us-east-1-staging-outreach-assets',
     region: 'us-east-1',
     memory: 1024,
@@ -38,9 +40,9 @@ const ENVIRONMENTS = {
   },
   production: {
     lambdaFunction: 'sax-lambda-us-east-1-0x-p-outreach-server_production',
-    lambdaFunctionUrl: 'https://[UPDATE-AFTER-CREATION].lambda-url.us-east-1.on.aws/',
-    cloudfrontDistribution: '[UPDATE-AFTER-CREATION]',
-    s3AssetsBucket: 'sax-nextjs-us-east-production-outreach-assets',
+    lambdaFunctionUrl: process.env.FUNCTION_URL || '',
+    cloudfrontDistribution: process.env.SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID || '',
+    s3AssetsBucket: 'sax-nextjs-us-east-1-production-outreach-assets',
     region: 'us-east-1',
     memory: 2048,
     timeout: 30,
@@ -244,28 +246,38 @@ try {
     console.log('');
   }
 
-  // Step 7: Invalidate CloudFront cache
-  console.log('🔄 Step 7: Invalidating CloudFront cache...');
-  console.log(`   Distribution: ${config.cloudfrontDistribution}`);
-  console.log('');
+  // Step 7: Invalidate CloudFront cache (optional)
+  const hasCloudFrontDistribution =
+    Boolean(config.cloudfrontDistribution) &&
+    !String(config.cloudfrontDistribution).includes('[UPDATE-AFTER-CREATION]');
 
-  try {
-    const invalidationResult = execSync(
-      `aws cloudfront create-invalidation \
-        --distribution-id ${config.cloudfrontDistribution} \
-        --paths "/outreach/*" "/outreach-static/*" \
-        --region ${config.region} \
-        --output json`,
-      { encoding: 'utf8' }
-    );
-
-    const invalidation = JSON.parse(invalidationResult);
-    console.log(`   Invalidation ID: ${invalidation.Invalidation.Id}`);
-    console.log('✅ CloudFront cache invalidation started');
+  if (hasCloudFrontDistribution) {
+    console.log('🔄 Step 7: Invalidating CloudFront cache...');
+    console.log(`   Distribution: ${config.cloudfrontDistribution}`);
     console.log('');
-  } catch (error) {
-    console.log('⚠️  Warning: Could not invalidate CloudFront cache');
-    console.log('   Users may see cached content for up to 24 hours');
+
+    try {
+      const invalidationResult = execSync(
+        `aws cloudfront create-invalidation \
+          --distribution-id ${config.cloudfrontDistribution} \
+          --paths "/outreach/*" "/outreach-static/*" \
+          --region ${config.region} \
+          --output json`,
+        { encoding: 'utf8' }
+      );
+
+      const invalidation = JSON.parse(invalidationResult);
+      console.log(`   Invalidation ID: ${invalidation.Invalidation.Id}`);
+      console.log('✅ CloudFront cache invalidation started');
+      console.log('');
+    } catch (error) {
+      console.log('⚠️  Warning: Could not invalidate CloudFront cache');
+      console.log('   Users may see cached content until TTL expires');
+      console.log('');
+    }
+  } else {
+    console.log('ℹ️  Step 7: Skipping CloudFront invalidation');
+    console.log('   Reason: cloudfrontDistribution is not configured');
     console.log('');
   }
 
@@ -279,16 +291,13 @@ try {
   console.log(`🔗 Function URL:    ${config.lambdaFunctionUrl}`);
   console.log(`☁️  CloudFront:      ${config.cloudfrontDistribution}`);
   console.log('');
-  console.log('🌐 URLs:');
+  console.log('🌐 Multi-zone URL:');
   if (environment === 'develop') {
-    console.log('   Standalone:   https://outreach.mydreamconnect.com/outreach');
-    console.log('   Multi-zone:   https://dev.mydreamconnect.com/outreach');
+    console.log('   https://dev.mydreamconnect.com/outreach');
   } else if (environment === 'staging') {
-    console.log('   Standalone:   https://outreach-staging.mydreamconnect.com/outreach');
-    console.log('   Multi-zone:   https://staging.mydreamconnect.com/outreach');
+    console.log('   https://staging.mydreamconnect.com/outreach');
   } else {
-    console.log('   Standalone:   https://outreach.mydreamconnect.com/outreach');
-    console.log('   Multi-zone:   https://mydreamconnect.com/outreach');
+    console.log('   https://dreamconnect.health/outreach');
   }
   console.log('');
   console.log('📊 View logs:');
