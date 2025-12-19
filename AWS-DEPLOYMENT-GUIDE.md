@@ -66,7 +66,7 @@ aws <command> --no-cli-pager
 ### 1. Install Dependencies
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 npm install
 ```
 
