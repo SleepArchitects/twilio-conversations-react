@@ -469,9 +469,9 @@ NODE_ENV=production
 # Authentication
 DISABLE_AUTH=false
 MULTI_ZONE_MODE=true
-AUTH0_DOMAIN=sleeparchitects.us.auth0.com
-AUTH0_CLIENT_ID=iqRhDVq86hZsgVfzTuZ6rXZV0SlvaNj6
-AUTH0_CLIENT_SECRET=cGNipVA1VKNz-1zK3uQVOpj8KKoWIpRWBfeQ4x40EsQqkHToEh-kmIIT9AlBVl_f
+AUTH0_DOMAIN=your-tenant.auth0.com
+AUTH0_CLIENT_ID=your-auth0-client-id
+AUTH0_CLIENT_SECRET=your-auth0-client-secret
 AUTH0_BASE_URL=https://dev.mydreamconnect.com
 
 # Application URLs
