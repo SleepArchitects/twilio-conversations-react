@@ -5,9 +5,9 @@ const isDebugMode = process.env.OPEN_NEXT_DEBUG === 'true';
 
 const config = {
   default: {
-    // Minify handlers in production for smaller bundles and faster cold starts
-    // Disabled in debug mode (OPEN_NEXT_DEBUG=true) to preserve source maps
-    minify: !isDebugMode,
+    // Disable minification to avoid pnpm module resolution issues in Lambda
+    // When minified, OpenNext doesn't properly flatten pnpm's nested structure
+    minify: false,
     
     // Override configuration for multi-zone deployment
     override: {
@@ -26,6 +26,7 @@ const config = {
   
   // Image optimization configuration
   imageOptimization: {
+    // @ts-ignore
     arch: "x64",
     memory: 1536,
   },

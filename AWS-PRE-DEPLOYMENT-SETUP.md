@@ -249,7 +249,7 @@ aws lambda update-function-configuration \
     AUTH0_DOMAIN=your-tenant.auth0.com,
     AUTH0_ISSUER_BASE_URL=https://your-tenant.auth0.com,
     AUTH0_BASE_URL=https://dev.mydreamconnect.com/outreach,
-    API_BASE_URL=https://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev,
+    API_BASE_URL=https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev,
     TWILIO_ACCOUNT_SID=YOUR_TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN=YOUR_TWILIO_AUTH_TOKEN,
     TWILIO_MESSAGING_SERVICE_SID=YOUR_TWILIO_MESSAGING_SERVICE_SID,
@@ -257,7 +257,7 @@ aws lambda update-function-configuration \
     NEXT_PUBLIC_APP_BASE_URL=https://dev.mydreamconnect.com,
     NEXT_PUBLIC_SLEEPCONNECT_URL=https://dev.mydreamconnect.com,
     NEXT_PUBLIC_BASE_PATH=/outreach,
-    NEXT_PUBLIC_API_BASE_URL=https://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
+    NEXT_PUBLIC_API_BASE_URL=https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev
   }"
 
 echo "✅ Lambda environment variables updated"
@@ -294,7 +294,7 @@ Required Secrets:
   - AUTH0_CLIENT_ID
   - AUTH0_DOMAIN
   - AUTH0_BASE_URL (https://dev.mydreamconnect.com/outreach)
-  - API_BASE_URL (https://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev)
+  - API_BASE_URL (https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev)
   - WS_API_URL (wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev)
   - TWILIO_ACCOUNT_SID
   - TWILIO_AUTH_TOKEN
@@ -419,7 +419,7 @@ pnpm deploy:dev
 Before deploying Outreach, verify the backend API is working:
 
 ```bash
-API_URL="https://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev"
+API_URL="https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev"
 
 # Test health endpoint (if exists)
 curl "${API_URL}/health"

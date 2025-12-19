@@ -128,7 +128,8 @@ It integrates with SleepConnect's CloudFront distribution.
 
 ### Backend API Required
 The frontend depends on a backend API Gateway being deployed at:
-- `https://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev`
+- REST API: `https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev`
+- WebSocket: `wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev`
 
 Verify it's accessible before deploying frontend.
 
@@ -141,7 +142,7 @@ Before deploying, ensure you have:
 ### Build-Time (in `.env.local`)
 ```bash
 NEXT_PUBLIC_APP_BASE_URL=https://dev.mydreamconnect.com
-NEXT_PUBLIC_API_BASE_URL=https://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
+NEXT_PUBLIC_API_BASE_URL=https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev
 NEXT_PUBLIC_WS_API_URL=wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
 NEXT_PUBLIC_BASE_PATH=/outreach
 ```

@@ -29,6 +29,19 @@ npm --version      # v9.0.0 or higher
 aws --version      # AWS CLI v2.x
 ```
 
+**Important**: AWS CLI v2 uses a pager by default. To disable it:
+
+```bash
+# Option 1: Set environment variable (recommended)
+export AWS_PAGER=""
+
+# Option 2: Add to your ~/.bashrc or ~/.zshrc
+echo 'export AWS_PAGER=""' >> ~/.zshrc
+
+# Option 3: Use --no-cli-pager flag on each command
+aws <command> --no-cli-pager
+```
+
 ### AWS Account Setup
 
 1. **AWS Account** with appropriate permissions
@@ -82,7 +95,8 @@ CERT_ARN=$(cat .aws-cert-arn-production.txt)
 aws acm describe-certificate \
   --certificate-arn $CERT_ARN \
   --region us-east-1 \
-  --query 'Certificate.DomainValidationOptions[0].ResourceRecord'
+  --query 'Certificate.DomainValidationOptions[0].ResourceRecord' \
+  --no-cli-pager
 ```
 
 Add the CNAME record to your DNS provider (Route53 or external).
@@ -92,7 +106,8 @@ Wait for validation (can take 5-30 minutes):
 aws acm describe-certificate \
   --certificate-arn $CERT_ARN \
   --region us-east-1 \
-  --query 'Certificate.Status'
+  --query 'Certificate.Status' \
+  --no-cli-pager
 # Should return "ISSUED"
 ```
 
@@ -147,7 +162,8 @@ Point your domain to the CloudFront distribution:
 # If using Route53
 aws route53 change-resource-record-sets \
   --hosted-zone-id YOUR_ZONE_ID \
-  --change-batch file://route53-change.json
+  --change-batch file://route53-change.json \
+  --no-cli-pager
 ```
 
 ---
@@ -281,19 +297,22 @@ If you need to rollback:
 # S3 versioning is enabled, so you can restore previous version
 aws s3api list-object-versions \
   --bucket outreach-mydreamconnect-production \
-  --prefix outreach-static/
+  --prefix outreach-static/ \
+  --no-cli-pager
 
 # Restore specific version
 aws s3api copy-object \
   --bucket outreach-mydreamconnect-production \
   --copy-source "outreach-mydreamconnect-production/path/to/file?versionId=VERSION_ID" \
-  --key path/to/file
+  --key path/to/file \
+  --no-cli-pager
 
 # For Lambda, use previous version
 aws lambda update-alias \
   --function-name outreach-mydreamconnect-server-production \
   --name production \
-  --function-version PREVIOUS_VERSION
+  --function-version PREVIOUS_VERSION \
+  --no-cli-pager
 ```
 
 ---
@@ -342,7 +361,8 @@ aws lambda update-function-configuration \
     AUTH0_CLIENT_SECRET=${AUTH0_CLIENT_SECRET},
     AUTH0_DOMAIN=your-tenant.auth0.com,
     MULTI_ZONE_MODE=true
-  }"
+  }" \
+  --no-cli-pager
 ```
 
 Or create a `.env.lambda.json` file:
@@ -364,7 +384,8 @@ Or create a `.env.lambda.json` file:
 ```bash
 aws lambda update-function-configuration \
   --function-name outreach-mydreamconnect-server-production \
-  --environment file://.env.lambda.json
+  --environment file://.env.lambda.json \
+  --no-cli-pager
 ```
 
 ---
@@ -493,7 +514,7 @@ npm install
 ```bash
 # Check certificate status
 CERT_ARN=$(cat .aws-cert-arn-production.txt)
-aws acm describe-certificate --certificate-arn $CERT_ARN --region us-east-1
+aws acm describe-certificate --certificate-arn $CERT_ARN --region us-east-1 --no-cli-pager
 
 # Add DNS validation records if pending
 ```
@@ -515,13 +536,14 @@ aws logs tail /aws/lambda/outreach-mydreamconnect-server-production --follow
 
 # Check environment variables
 aws lambda get-function-configuration \
-  --function-name outreach-mydreamconnect-server-production
+  --function-name outreach-mydreamconnect-server-production \
+  --no-cli-pager
 ```
 
 **404 for static assets**
 ```bash
 # Verify S3 upload
-aws s3 ls s3://outreach-mydreamconnect-production/outreach-static/ --recursive
+aws s3 ls s3://outreach-mydreamconnect-production/outreach-static/ --recursive --no-cli-pager
 
 # Check CloudFront cache behavior for /outreach-static/*
 ```

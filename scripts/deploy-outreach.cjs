@@ -85,38 +85,95 @@ if (environment === 'production') {
 const workspaceRoot = path.join(__dirname, '..');
 
 try {
-  // Step 1: Build Next.js
-  console.log('📦 Step 1: Building Next.js...');
+  // Step 1: Build with OpenNext (includes Next.js build internally)
+  console.log('📦 Step 1: Building Next.js with OpenNext...');
   console.log('');
 
-  execSync('npm run build', {
+  // Filter out expected "Dynamic server usage" warnings from Next.js build
+  // These are normal for API routes that use headers/cookies/searchParams
+  const { spawnSync } = require('child_process');
+  const buildResult = spawnSync('npx', ['@opennextjs/aws@3.6.6', 'build'], {
     cwd: workspaceRoot,
-    stdio: 'inherit',
     env: {
       ...process.env,
       NODE_ENV: 'production',
       NODE_OPTIONS: '--max-old-space-size=4096'
-    }
+    },
+    stdio: ['inherit', 'pipe', 'pipe'],
+    encoding: 'utf8',
+    maxBuffer: 50 * 1024 * 1024 // 50MB buffer
   });
+
+  // Filter stdout - show everything
+  if (buildResult.stdout) {
+    process.stdout.write(buildResult.stdout);
+  }
+
+  // Filter stderr - remove noisy "Dynamic server usage" errors
+  if (buildResult.stderr) {
+    const filteredStderr = buildResult.stderr
+      .split('\n')
+      .filter(line => {
+        // Skip dynamic server usage errors (these are expected for API routes)
+        if (line.includes('DYNAMIC_SERVER_USAGE')) return false;
+        if (line.includes("couldn't be rendered statically")) return false;
+        if (line.includes('Dynamic server usage')) return false;
+        if (line.match(/^\s+at\s+/)) return false; // Skip stack trace lines
+        if (line.includes('[Proxy ')) return false;
+        if (line.includes('[Set Cookie API]')) return false;
+        if (line.includes('[Auth Profile Proxy]')) return false;
+        if (line.includes('[AUTH] Error verifying JWT')) return false;
+        if (line.includes('Forwarding to:')) return false;
+        if (line.trim().startsWith('description:')) return false;
+        if (line.trim().startsWith('digest:')) return false;
+        if (line.trim() === '}') return false;
+        return true;
+      })
+      .join('\n');
+    if (filteredStderr.trim()) {
+      process.stderr.write(filteredStderr);
+    }
+  }
+
+  if (buildResult.status !== 0) {
+    throw new Error(`OpenNext build failed with exit code ${buildResult.status}`);
+  }
   console.log('');
   console.log('✅ Next.js build complete');
   console.log('');
 
-  // Step 2: Build with OpenNext
-  console.log('📦 Step 2: Building Lambda package with OpenNext...');
+  // Step 2: Fix pnpm symlinks for Next.js 14 (styled-jsx, @swc/helpers)
+  console.log('🔧 Step 2: Fixing pnpm symlinks for Next.js 14...');
   console.log('');
-
-  execSync('npx @opennextjs/aws@3.6.6 build', {
-    cwd: workspaceRoot,
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      NODE_OPTIONS: '--max-old-space-size=4096'
+  
+  const nodeModulesPath = path.join(workspaceRoot, '.open-next/server-functions/default/node_modules');
+  const pnpmPath = path.join(nodeModulesPath, '.pnpm');
+  
+  if (fs.existsSync(pnpmPath)) {
+    // Fix styled-jsx symlink
+    const pnpmDirs = fs.readdirSync(pnpmPath);
+    const styledJsxDir = pnpmDirs.find(dir => dir.startsWith('styled-jsx@'));
+    if (styledJsxDir && !fs.existsSync(path.join(nodeModulesPath, 'styled-jsx'))) {
+      const source = path.join('.pnpm', styledJsxDir, 'node_modules', 'styled-jsx');
+      fs.symlinkSync(source, path.join(nodeModulesPath, 'styled-jsx'), 'dir');
+      console.log('   ✅ Created symlink: styled-jsx');
     }
-  });
-  console.log('');
-  console.log('✅ OpenNext build complete');
-  console.log('');
+    
+    // Fix @swc/helpers symlink
+    const swcHelpersDir = pnpmDirs.find(dir => dir.startsWith('@swc+helpers@'));
+    if (swcHelpersDir) {
+      const swcDir = path.join(nodeModulesPath, '@swc');
+      if (!fs.existsSync(swcDir)) {
+        fs.mkdirSync(swcDir, { recursive: true });
+      }
+      if (!fs.existsSync(path.join(swcDir, 'helpers'))) {
+        const source = path.join('..', '.pnpm', swcHelpersDir, 'node_modules', '@swc', 'helpers');
+        fs.symlinkSync(source, path.join(swcDir, 'helpers'), 'dir');
+        console.log('   ✅ Created symlink: @swc/helpers');
+      }
+    }
+    console.log('');
+  }
 
   // Step 3: Zip the server function
   console.log('🗜️  Step 3: Creating deployment package...');
@@ -140,7 +197,8 @@ try {
   }
 
   console.log(`   Zipping from: ${serverDir}`);
-  execSync(`cd "${serverDir}" && zip -r "${zipFile}" . -q`, { stdio: 'inherit' });
+  // Use -ry to preserve symlinks (required for styled-jsx and @swc/helpers)
+  execSync(`cd "${serverDir}" && zip -ry "${zipFile}" . -q`, { stdio: 'inherit' });
 
   if (!fs.existsSync(zipFile)) {
     throw new Error(`Zip file was not created at: ${zipFile}`);
@@ -157,11 +215,13 @@ try {
   console.log(`   Function: ${config.lambdaFunction}`);
   console.log('');
 
+  // Use --no-cli-pager to prevent AWS CLI from opening vi/less with JSON output
   execSync(
     `aws lambda update-function-code \
       --function-name "${config.lambdaFunction}" \
       --zip-file fileb://"${zipFile}" \
-      --region ${config.region}`,
+      --region ${config.region} \
+      --no-cli-pager`,
     { stdio: 'inherit' }
   );
 
