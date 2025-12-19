@@ -50,7 +50,7 @@ aws sts get-caller-identity &>/dev/null && echo "✅ AWS credentials" || { echo 
 [ -n "$NEXT_PUBLIC_OUTREACH_WS_URL" ] && echo "✅ WS_URL" || echo "⚠️ NEXT_PUBLIC_OUTREACH_WS_URL not set"
 
 # SleepConnect .env.local
-SC_ENV="/home/vallenzuela/code/SAX/sleepconnect/.env.local"
+SC_ENV="~/code/SAX/sleepconnect/.env.local"
 [ -f "$SC_ENV" ] && echo "✅ SleepConnect .env.local found" || { echo "❌ SleepConnect .env.local missing"; ERRORS=$((ERRORS+1)); }
 
 echo ""
@@ -228,8 +228,8 @@ else
 fi
 
 # Check repositories
-SLEEPCONNECT_DIR="/home/vallenzuela/code/SAX/sleepconnect"
-OUTREACH_DIR="/home/vallenzuela/code/SAX/twilio-conversations-react"
+SLEEPCONNECT_DIR="~/code/SAX/sleepconnect"
+OUTREACH_DIR="~/code/SAX/twilio-conversations-react"
 
 if [ ! -d "$SLEEPCONNECT_DIR" ]; then
   echo "❌ SleepConnect repository not found at $SLEEPCONNECT_DIR"
@@ -384,7 +384,7 @@ echo "⚠️  REQUIRED: Set Auth0 credentials (must match SleepConnect)"
 echo ""
 
 # Check if SleepConnect .env.local exists
-SLEEPCONNECT_ENV="/home/vallenzuela/code/SAX/sleepconnect/.env.local"
+SLEEPCONNECT_ENV="~/code/SAX/sleepconnect/.env.local"
 
 if [ -f "$SLEEPCONNECT_ENV" ]; then
   echo "Loading Auth0 credentials from SleepConnect..."
@@ -804,7 +804,7 @@ Function URL: https://abc123xyz.lambda-url.us-east-1.on.aws/
 ### Step 12: Install Outreach Dependencies
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 echo "Installing Outreach dependencies..."
 npm install
@@ -820,7 +820,7 @@ fi
 ### Step 13: Update Deployment Script Configuration
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 echo "Verifying deployment script configuration..."
 
@@ -887,7 +887,7 @@ echo "✅ Deployment script verified"
 ### Step 14: Set Build Environment
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 # Load configuration if not already loaded
 if [ -z "$LAMBDA_FUNCTION" ]; then
@@ -940,7 +940,7 @@ NEXT_PUBLIC_API_BASE_URL=https://dev.mydreamconnect.com/outreach
 ### Step 15: Deploy Outreach to Lambda
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🚀 Deploying Outreach to Lambda"
@@ -1057,7 +1057,7 @@ Testing Lambda Function URL...
 ### Step 17: Verify SleepConnect Configuration
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 echo "Verifying SleepConnect configuration for multi-zone..."
 echo ""
@@ -1082,7 +1082,7 @@ fi
 ### Step 18: Update SleepConnect Environment Variables
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 echo "Updating SleepConnect .env.local for Outreach integration..."
 
@@ -1135,7 +1135,7 @@ OUTREACH_API_URL=https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev
 ### Step 19: Verify SleepConnect Rewrites Configuration
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 echo "Verifying SleepConnect next.config.js rewrites..."
 echo ""
@@ -1184,7 +1184,7 @@ Current configuration:
 ### Step 20: Verify Shared JWT Secret
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 echo "Verifying AUTH0_CLIENT_SECRET consistency..."
 echo ""
@@ -1219,7 +1219,7 @@ fi
 ### Step 21: Deploy SleepConnect with Updated Configuration
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🚀 Deploying SleepConnect with Outreach Integration"
@@ -1614,7 +1614,7 @@ else
 fi
 
 # Check 4: SleepConnect configuration
-if grep -q "OUTREACH_APP_URL=$FUNCTION_URL" /home/vallenzuela/code/SAX/sleepconnect/.env.local 2>/dev/null; then
+if grep -q "OUTREACH_APP_URL=$FUNCTION_URL" ~/code/SAX/sleepconnect/.env.local 2>/dev/null; then
   echo "✅ SleepConnect configured with Outreach Lambda URL"
   CHECKS_PASSED=$((CHECKS_PASSED+1))
 else
@@ -1705,7 +1705,7 @@ echo "  --region $AWS_REGION"
 echo "To rollback SleepConnect configuration:"
 echo ""
 echo "1. List available backups:"
-echo "   cd /home/vallenzuela/code/SAX/sleepconnect"
+echo "   cd ~/code/SAX/sleepconnect"
 echo "   ls -la .env.local.backup.*"
 echo ""
 echo "2. Restore backup:"
@@ -1765,7 +1765,7 @@ curl -v $FUNCTION_URL
 ### Check SleepConnect Rewrites
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 grep -A 10 "async rewrites" next.config.js
 ```
 
@@ -1774,7 +1774,7 @@ grep -A 10 "async rewrites" next.config.js
 ```bash
 # Compare secrets
 echo "SleepConnect AUTH0_CLIENT_SECRET:"
-grep "AUTH0_CLIENT_SECRET" /home/vallenzuela/code/SAX/sleepconnect/.env.local
+grep "AUTH0_CLIENT_SECRET" ~/code/SAX/sleepconnect/.env.local
 
 echo ""
 echo "Outreach Lambda AUTH0_CLIENT_SECRET:"
@@ -1831,8 +1831,8 @@ User → CloudFront (dev.mydreamconnect.com)
 **Key Files:**
 - Configuration: `/tmp/outreach-${ENV}-config.env`
 - Lambda env vars: `/tmp/lambda-env-vars-${ENV}.json`
-- SleepConnect: `/home/vallenzuela/code/SAX/sleepconnect/.env.local`
-- Outreach: `/home/vallenzuela/code/SAX/twilio-conversations-react/.env.local`
+- SleepConnect: `~/code/SAX/sleepconnect/.env.local`
+- Outreach: `~/code/SAX/twilio-conversations-react/.env.local`
 
 ---
 

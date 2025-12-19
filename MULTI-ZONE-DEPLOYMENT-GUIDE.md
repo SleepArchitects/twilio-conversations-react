@@ -11,7 +11,7 @@
 ### ✅ What's Already Configured
 
 #### 1. **SleepConnect Multi-Zone Rewrites** (Already Implemented)
-- **Location**: `/home/vallenzuela/code/SAX/sleepconnect/next.config.js`
+- **Location**: `~/code/SAX/sleepconnect/next.config.js`
 - **Configuration**:
   ```javascript
   async rewrites() {
@@ -28,7 +28,7 @@
   ```
 
 #### 2. **Outreach App Configuration** (Already Set)
-- **Location**: `/home/vallenzuela/code/SAX/twilio-conversations-react/next.config.mjs`
+- **Location**: `~/code/SAX/twilio-conversations-react/next.config.mjs`
 - **Settings**:
   - `basePath: "/outreach"`
   - `assetPrefix: "/outreach-static"` (production) or `"/outreach"` (dev)
@@ -41,7 +41,7 @@
 - **Database**: RDS PostgreSQL `SAXDBDEV` at `saxdb-dev.cyz24s0mmh72.us-east-1.rds.amazonaws.com`
 
 #### 4. **Environment File** (Just Created)
-- **Location**: `/home/vallenzuela/code/SAX/twilio-conversations-react/.env.local`
+- **Location**: `~/code/SAX/twilio-conversations-react/.env.local`
 - **Configured for**: Local development with localhost:3001 (outreach) and localhost:3000 (sleepconnect)
 
 ---
@@ -111,7 +111,7 @@ User: https://dev.mydreamconnect.com/outreach/conversations
 
 #### Step 1.1: Verify Environment Variables
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 # Check .env.local exists and has correct values
 cat .env.local | grep -E "APP_BASE_URL|SLEEPCONNECT_URL|API_BASE_URL"
@@ -126,14 +126,14 @@ API_BASE_URL=https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev
 
 #### Step 1.2: Start SleepConnect (Terminal 1)
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 npm run dev
 # Should start on port 3000
 ```
 
 #### Step 1.3: Start Outreach App (Terminal 2)
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 npm run dev -- -p 3001
 # Should start on port 3001
 ```
@@ -259,7 +259,7 @@ wscat -c wss://outreach-api.mydreamconnect.com
 Create `.env.production` with production values:
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 cat > .env.production <<'EOF'
 # Production Environment Variables
@@ -519,13 +519,13 @@ aws lambda get-function-configuration \
 
 ### Documentation
 - **Deployment Handover**: `DEPLOYMENT-HANDOVER.md`
-- **SLA Implementation**: `/home/vallenzuela/code/SAX/sleepconnect/lambdas/lambda-sms-outreach/SLA-IMPLEMENTATION-COMPLETE.md`
-- **Lambda Deploy Scripts**: `/home/vallenzuela/code/SAX/sleepconnect/lambdas/lambda-sms-outreach/`
+- **SLA Implementation**: `~/code/SAX/sleepconnect/lambdas/lambda-sms-outreach/SLA-IMPLEMENTATION-COMPLETE.md`
+- **Lambda Deploy Scripts**: `~/code/SAX/sleepconnect/lambdas/lambda-sms-outreach/`
 
 ### Key Files
-- **Outreach Config**: `/home/vallenzuela/code/SAX/twilio-conversations-react/next.config.mjs`
-- **SleepConnect Config**: `/home/vallenzuela/code/SAX/sleepconnect/next.config.js`
-- **Middleware**: `/home/vallenzuela/code/SAX/twilio-conversations-react/middleware.ts`
+- **Outreach Config**: `~/code/SAX/twilio-conversations-react/next.config.mjs`
+- **SleepConnect Config**: `~/code/SAX/sleepconnect/next.config.js`
+- **Middleware**: `~/code/SAX/twilio-conversations-react/middleware.ts`
 
 ---
 

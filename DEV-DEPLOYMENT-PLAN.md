@@ -506,7 +506,7 @@ NEXT_PUBLIC_SHOW_BANNER=false
 #### Step 5.1: Test Build Locally
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 # Install dependencies
 npm install
@@ -537,7 +537,7 @@ node scripts/deploy-outreach.cjs develop
 #### Step 5.3: Update SleepConnect CloudFront
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 # Run the add-outreach-origin script
 bash scripts/add-outreach-origin.sh

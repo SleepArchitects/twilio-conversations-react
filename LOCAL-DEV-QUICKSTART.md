@@ -21,8 +21,8 @@ This guide helps you run **SleepConnect** (port 3000) and **SMS Outreach** (port
 
 ### Environment Files Created
 
-- ✅ `/home/vallenzuela/code/SAX/sleepconnect/.env.local` (port 3000)
-- ✅ `/home/vallenzuela/code/SAX/twilio-conversations-react/.env.local` (port 3001)
+- ✅ `~/code/SAX/sleepconnect/.env.local` (port 3000)
+- ✅ `~/code/SAX/twilio-conversations-react/.env.local` (port 3001)
 
 ---
 
@@ -31,7 +31,7 @@ This guide helps you run **SleepConnect** (port 3000) and **SMS Outreach** (port
 ### Terminal 1: Start SleepConnect
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 # Install dependencies (if needed)
 npm install
@@ -46,7 +46,7 @@ npm run dev
 ### Terminal 2: Start SMS Outreach
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 # Install dependencies (if needed)
 npm install
@@ -230,7 +230,7 @@ assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outr
 curl https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev/outreach/conversations
 
 # Check environment variables
-grep API_BASE_URL /home/vallenzuela/code/SAX/twilio-conversations-react/.env.local
+grep API_BASE_URL ~/code/SAX/twilio-conversations-react/.env.local
 
 # Verify AWS credentials
 aws sts get-caller-identity
@@ -274,12 +274,12 @@ wscat -c wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
 
 ```bash
 # SleepConnect
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 rm -rf node_modules .next
 npm install
 
 # Outreach
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 rm -rf node_modules .next
 npm install
 ```
@@ -294,8 +294,8 @@ npm install
 
 ```bash
 # Backup current .env.local files
-cp /home/vallenzuela/code/SAX/sleepconnect/.env.local /home/vallenzuela/code/SAX/sleepconnect/.env.local.backup
-cp /home/vallenzuela/code/SAX/twilio-conversations-react/.env.local /home/vallenzuela/code/SAX/twilio-conversations-react/.env.local.backup
+cp ~/code/SAX/sleepconnect/.env.local ~/code/SAX/sleepconnect/.env.local.backup
+cp ~/code/SAX/twilio-conversations-react/.env.local ~/code/SAX/twilio-conversations-react/.env.local.backup
 
 # Restore from this guide if needed
 ```
@@ -334,11 +334,11 @@ kill -9 $(lsof -ti:3001)
 
 ```bash
 # SleepConnect (Terminal 1)
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 npm run dev 2>&1 | ts '[%Y-%m-%d %H:%M:%S]'
 
 # Outreach (Terminal 2)
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 npm run dev -- -p 3001 2>&1 | ts '[%Y-%m-%d %H:%M:%S]'
 ```
 
@@ -348,7 +348,7 @@ npm run dev -- -p 3001 2>&1 | ts '[%Y-%m-%d %H:%M:%S]'
 
 - **Multi-Zone Deployment Guide**: `MULTI-ZONE-DEPLOYMENT-GUIDE.md`
 - **Deployment Handover**: `DEPLOYMENT-HANDOVER.md`
-- **SLA Implementation**: `/home/vallenzuela/code/SAX/sleepconnect/lambdas/lambda-sms-outreach/SLA-IMPLEMENTATION-COMPLETE.md`
+- **SLA Implementation**: `~/code/SAX/sleepconnect/lambdas/lambda-sms-outreach/SLA-IMPLEMENTATION-COMPLETE.md`
 
 ---
 
@@ -359,13 +359,13 @@ npm run dev -- -p 3001 2>&1 | ts '[%Y-%m-%d %H:%M:%S]'
 1. **Start SleepConnect** (Terminal 1)
 
    ```bash
-   cd /home/vallenzuela/code/SAX/sleepconnect && npm run dev
+   cd ~/code/SAX/sleepconnect && npm run dev
    ```
 
 2. **Start Outreach** (Terminal 2)
 
    ```bash
-   cd /home/vallenzuela/code/SAX/twilio-conversations-react && npm run dev -- -p 3001
+   cd ~/code/SAX/twilio-conversations-react && npm run dev -- -p 3001
    ```
 
 3. **Open Browser** (Multi-zone access)
