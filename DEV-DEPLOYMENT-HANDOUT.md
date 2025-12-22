@@ -140,7 +140,7 @@ Verify these secrets exist (or add them):
 
 Check `.github/workflows/deploy-develop.yml` for required secrets list.
 
-### 2.3 Update SleepConnect Workflow with OUTREACH_APP_URL
+### 2.3 Verify SleepConnect Workflow has OUTREACH_APP_URL
 
 ```bash
 cd ~/code/SAX/sleepconnect
@@ -149,16 +149,9 @@ cd ~/code/SAX/sleepconnect
 grep -n "OUTREACH_APP_URL" .github/workflows/deploy-develop.yml
 ```
 
-**Expected**: Line with `OUTREACH_APP_URL: https://outreach-dev.mydreamconnect.com`
+**Expected**: Line 105 with `OUTREACH_APP_URL: https://outreach-dev.mydreamconnect.com`
 
-**If missing**, edit `.github/workflows/deploy-develop.yml`:
-
-Find the env vars section (around line 80-120) and add:
-```yaml
-env:
-  # ... other vars ...
-  OUTREACH_APP_URL: https://outreach-dev.mydreamconnect.com
-```
+**Status**: ✅ Already configured (added Dec 19, 2025). The deployment script (`scripts/deploy-nextjs.cjs`) automatically reads this env var and updates the Lambda function configuration at Step 5.5.
 
 ### 2.4 Configure CloudFront for Outreach
 
@@ -277,7 +270,7 @@ curl -I https://dev.mydreamconnect.com/outreach
 ### 2.6 Verify SleepConnect Lambda Environment
 
 ```bash
-# Check OUTREACH_APP_URL is set
+# Check OUTREACH_APP_URL is set (after deployment)
 aws lambda get-function-configuration \
   --function-name sax-lambda-us-east-1-0x-d-sleep-connect-server_develop \
   --region us-east-1 \
@@ -286,11 +279,7 @@ aws lambda get-function-configuration \
 # Expected: "https://outreach-dev.mydreamconnect.com"
 ```
 
-**If missing**: Redeploy or update manually:
-```bash
-cd ~/code/SAX/sleepconnect
-OUTREACH_APP_URL="https://outreach-dev.mydreamconnect.com" node scripts/deploy-nextjs.cjs develop
-```
+**Note**: The deployment script automatically updates this from the GitHub Actions workflow env var (Step 5.5 in `scripts/deploy-nextjs.cjs`). No manual configuration needed.
 
 ---
 

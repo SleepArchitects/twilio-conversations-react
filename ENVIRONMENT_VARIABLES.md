@@ -41,7 +41,7 @@ Scope: Outreach Next.js app and its AWS/OpenNext deployment. SleepConnect backen
 | Variable | Required | Purpose | Example (develop) |
 |----------|:--------:|---------|-------------------|
 | `NODE_ENV` | Yes | Execution environment | `production` |
-| `MULTI_ZONE_MODE` | Yes | Accept JWT context from SleepConnect proxy | `true` |
+| `MULTI_ZONE_MODE` | Yes | Enable multi-zone auth (read JWT from SleepConnect) | `true` |
 | `DISABLE_AUTH` | No (dev only) | Bypass middleware auth | `false` |
 | `AUTH0_SECRET` | Yes | Shared secret for JWT verification | `***` |
 | `AUTH0_CLIENT_SECRET` | Yes | Same as `AUTH0_SECRET` (alias) | `***` |
