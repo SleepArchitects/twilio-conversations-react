@@ -240,6 +240,71 @@ try {
   console.log('✅ Lambda function is ready');
   console.log('');
 
+  // Step 5.5: Update environment variables
+  console.log('🔧 Step 5.5: Updating environment variables...');
+  
+  const envVars = {
+    NODE_ENV: 'production',
+    ENVIRONMENT: environment,
+    MULTI_ZONE_MODE: 'true',
+    NEXT_PUBLIC_BASE_PATH: '/outreach',
+    NEXT_PUBLIC_APP_BASE_URL: environment === 'production' 
+      ? 'https://dreamconnect.health' 
+      : `https://${environment === 'develop' ? 'dev' : 'staging'}.mydreamconnect.com`,
+    // Add other necessary runtime variables from process.env if available
+    AUTH0_SECRET: process.env.AUTH0_CLIENT_SECRET,
+    AUTH0_CLIENT_SECRET: process.env.AUTH0_CLIENT_SECRET,
+    AUTH0_DOMAIN: process.env.AUTH0_DOMAIN,
+    AUTH0_CLIENT_ID: process.env.AUTH0_CLIENT_ID,
+    AUTH0_ISSUER_BASE_URL: process.env.AUTH0_DOMAIN ? `https://${process.env.AUTH0_DOMAIN}` : undefined,
+    AUTH0_BASE_URL: process.env.AUTH0_BASE_URL,
+    API_BASE_URL: process.env.API_BASE_URL,
+    TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+    TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+    TWILIO_MESSAGING_SERVICE_SID: process.env.TWILIO_MESSAGING_SERVICE_SID,
+    NEXT_PUBLIC_WS_API_URL: process.env.WS_API_URL,
+  };
+
+  // Filter out undefined values
+  Object.keys(envVars).forEach(key => envVars[key] === undefined && delete envVars[key]);
+
+  try {
+    // Get current environment variables first to avoid overwriting others
+    const currentConfig = JSON.parse(execSync(
+      `aws lambda get-function-configuration \
+        --function-name "${config.lambdaFunction}" \
+        --region ${config.region} \
+        --output json`,
+      { encoding: 'utf8' }
+    ));
+
+    const variables = {
+      ...(currentConfig.Environment?.Variables || {}),
+      ...envVars
+    };
+
+    execSync(
+      `aws lambda update-function-configuration \
+        --function-name "${config.lambdaFunction}" \
+        --environment "Variables=${JSON.stringify(variables).replace(/"/g, '\\"')}" \
+        --region ${config.region}`,
+      { stdio: 'inherit' }
+    );
+    
+    console.log('✅ Environment variables updated');
+    console.log('');
+    
+    // Wait for update to complete
+    execSync(
+      `aws lambda wait function-updated \
+        --function-name "${config.lambdaFunction}" \
+        --region ${config.region}`,
+      { stdio: 'inherit' }
+    );
+  } catch (error) {
+    console.log(`⚠️  Warning: Could not update environment variables: ${error.message}`);
+  }
+
   // Step 6: Deploy static assets to S3
   const assetsDir = path.join(openNextDir, 'assets');
   if (fs.existsSync(assetsDir)) {

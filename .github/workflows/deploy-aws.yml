@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Deployment environment'
+        description: "Deployment environment"
         required: true
-        default: 'production'
+        default: "production"
         type: choice
         options:
           - production
@@ -18,37 +18,42 @@ on:
           - dev
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: "20"
 
 jobs:
   deploy:
     name: Build and Deploy to AWS
     runs-on: ubuntu-latest
-    
+
     # Set environment based on branch or manual input
     environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'dev') }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          
+          cache: "pnpm"
+
       - name: Install dependencies
-        run: npm ci
-        
+        run: pnpm install --no-frozen-lockfile
+
       - name: Run tests
         run: |
-          npm run lint
-          npm run test
+          pnpm run lint
+          pnpm run test
         continue-on-error: false
-        
+
       - name: Build with OpenNext
-        run: npm run build:open-next
+        run: pnpm run build:open-next
         env:
           # Build-time environment variables
           NEXT_PUBLIC_APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
@@ -57,50 +62,39 @@ jobs:
           NEXT_PUBLIC_API_BASE_URL: ${{ secrets.API_BASE_URL }}
           NEXT_PUBLIC_WS_API_URL: ${{ secrets.WS_API_URL }}
           NODE_ENV: production
-          
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-          
+
       - name: Verify AWS credentials
         run: |
           aws sts get-caller-identity
           echo "Deploying to environment: ${{ github.event.inputs.environment || 'production' }}"
-          
+
       - name: Deploy to AWS
         run: |
-          chmod +x ./scripts/deploy-to-aws.sh
-          ./scripts/deploy-to-aws.sh ${{ github.event.inputs.environment || 'production' }}
+          # Map 'dev' environment to 'develop' for the script
+          DEPLOY_ENV="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'develop') }}"
+          if [ "$DEPLOY_ENV" == "dev" ]; then DEPLOY_ENV="develop"; fi
+
+          node scripts/deploy-outreach.cjs $DEPLOY_ENV
         env:
           ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
-          
-      - name: Update Lambda environment variables
-        run: |
-          FUNCTION_NAME="outreach-mydreamconnect-server-${{ github.event.inputs.environment || 'production' }}"
-          
-          aws lambda update-function-configuration \
-            --function-name $FUNCTION_NAME \
-            --environment "Variables={
-              NODE_ENV=production,
-              ENVIRONMENT=${{ github.event.inputs.environment || 'production' }},
-              AUTH0_SECRET=${{ secrets.AUTH0_CLIENT_SECRET }},
-              AUTH0_CLIENT_SECRET=${{ secrets.AUTH0_CLIENT_SECRET }},
-              AUTH0_DOMAIN=${{ secrets.AUTH0_DOMAIN }},
-              AUTH0_CLIENT_ID=${{ secrets.AUTH0_CLIENT_ID }},
-              AUTH0_ISSUER_BASE_URL=https://${{ secrets.AUTH0_DOMAIN }},
-              AUTH0_BASE_URL=${{ secrets.AUTH0_BASE_URL }},
-              MULTI_ZONE_MODE=true,
-              DISABLE_AUTH=false,
-              API_BASE_URL=${{ secrets.API_BASE_URL }},
-              TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }},
-              TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }},
-              TWILIO_MESSAGING_SERVICE_SID=${{ secrets.TWILIO_MESSAGING_SERVICE_SID }},
-              NEXT_PUBLIC_WS_API_URL=${{ secrets.WS_API_URL }}
-            }" || echo "Lambda environment update failed, may need manual update"
-            
+          # Pass secrets that the script might need for environment update
+          AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AUTH0_BASE_URL: ${{ secrets.AUTH0_BASE_URL }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_MESSAGING_SERVICE_SID: ${{ secrets.TWILIO_MESSAGING_SERVICE_SID }}
+          WS_API_URL: ${{ secrets.WS_API_URL }}
+
       - name: Create deployment summary
         run: |
           echo "### Deployment Summary 🚀" >> $GITHUB_STEP_SUMMARY
@@ -115,7 +109,7 @@ jobs:
           echo "1. Verify deployment at: https://outreach.mydreamconnect.com/outreach" >> $GITHUB_STEP_SUMMARY
           echo "2. Check CloudWatch logs if needed" >> $GITHUB_STEP_SUMMARY
           echo "3. Monitor CloudFront metrics" >> $GITHUB_STEP_SUMMARY
-          
+
       - name: Notify on failure
         if: failure()
         run: |
@@ -133,27 +127,33 @@ jobs:
     needs: deploy
     runs-on: ubuntu-latest
     if: github.event.inputs.environment != 'production'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          
+          cache: "pnpm"
+
       - name: Install dependencies
-        run: npm ci
-        
+        run: pnpm install --no-frozen-lockfile
+
       - name: Install Playwright
-        run: npx playwright install --with-deps
-        
+        run: pnpm exec playwright install --with-deps
+
       - name: Run E2E tests
-        run: npm run test:e2e
+        run: pnpm run test:e2e
         env:
           BASE_URL: ${{ secrets.APP_BASE_URL }}
-          
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

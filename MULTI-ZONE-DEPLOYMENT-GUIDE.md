@@ -1,8 +1,43 @@
 # Multi-Zone Deployment Guide: SMS Outreach Integration
 
-**Date**: December 16, 2025  
-**Status**: Ready for Implementation  
-**Environment**: Development → Production
+**Date**: December 22, 2025  
+**Status**: Develop Deployed with Custom Domains; Staging/Production Ready for Implementation  
+**Environment**: Development → Staging → Production
+
+---
+
+## 🎯 Custom Domain Architecture (IMPLEMENTED)
+
+**Status**: ✅ Custom domains are the standard deployment method for all environments.
+
+### Why Custom Domains?
+- Lambda Function URLs can change if the function is recreated
+- Custom domains (e.g., `outreach-dev.mydreamconnect.com`) remain stable
+- `OUTREACH_APP_URL` becomes a constant per environment
+- Deployment scripts don't need to query/update URLs
+- Professional, consistent domain structure
+
+### Implemented Domains (Develop - Dec 19, 2025)
+
+**UI (CloudFront → Lambda)**:
+- `https://outreach-dev.mydreamconnect.com` → CloudFront E8BMOBRWCCCO2
+
+**REST API (API Gateway)**:
+- `https://outreach-api-dev.mydreamconnect.com`
+
+**WebSocket (API Gateway)**:
+- `wss://outreach-ws-dev.mydreamconnect.com`
+
+**Certificate**: Single ACM cert with SANs covering all 3 subdomains  
+**ARN**: `arn:aws:acm:us-east-1:597088017323:certificate/78d03efe-1b91-4f88-ac6c-a0a3398c061d`
+
+### Setup Guide for Staging/Production
+
+See the sleepconnect repository: [`OUTREACH-CUSTOM-DOMAIN-SETUP.md`](../sleepconnect/OUTREACH-CUSTOM-DOMAIN-SETUP.md)
+
+This creates CloudFront + ACM + API Gateway custom domains + Route53 for:
+- **Staging**: `outreach-staging.mydreamconnect.com`, `outreach-api-staging.mydreamconnect.com`, `outreach-ws-staging.mydreamconnect.com`
+- **Production**: `outreach.mydreamconnect.com`, `outreach-api.mydreamconnect.com`, `outreach-ws.mydreamconnect.com`
 
 ---
 
@@ -34,11 +69,24 @@
   - `assetPrefix: "/outreach-static"` (production) or `"/outreach"` (dev)
   - `output: "standalone"`
 
-#### 3. **AWS Infrastructure** (Already Deployed)
-- **REST API**: `0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev`
-- **WebSocket API**: `vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev`
-- **Lambda Functions**: 18 functions deployed (see `deploy-all.sh`)
-- **Database**: RDS PostgreSQL `SAXDBDEV` at `saxdb-dev.cyz24s0mmh72.us-east-1.rds.amazonaws.com`
+#### 3. **AWS Infrastructure** (Custom Domains Configured for Develop)
+
+**Develop Environment (✅ Deployed):**
+- **UI**: `https://outreach-dev.mydreamconnect.com` (CloudFront E8BMOBRWCCCO2)
+- **REST API**: `https://outreach-api-dev.mydreamconnect.com`
+- **WebSocket**: `wss://outreach-ws-dev.mydreamconnect.com`
+- **Lambda**: `sax-lambda-us-east-1-0x-d-outreach-server_develop`
+- **Assets S3**: `sax-nextjs-us-east-1-develop-outreach-assets`
+
+**Staging Environment (⚠️ Pending Setup):**
+- **Target UI**: `https://outreach-staging.mydreamconnect.com`
+- **Target REST API**: `https://outreach-api-staging.mydreamconnect.com`
+- **Target WebSocket**: `wss://outreach-ws-staging.mydreamconnect.com`
+
+**Production Environment (⚠️ Pending Setup):**
+- **Target UI**: `https://outreach.mydreamconnect.com`
+- **Target REST API**: `https://outreach-api.mydreamconnect.com`
+- **Target WebSocket**: `wss://outreach-ws.mydreamconnect.com`
 
 #### 4. **Environment File** (Just Created)
 - **Location**: `~/code/SAX/twilio-conversations-react/.env.local`
@@ -76,7 +124,36 @@
 ### Production Multi-Zone Setup
 ```
 User: https://dev.mydreamconnect.com/outreach/conversations
-                 │
+                 ↓
+┌────────────────────────────────────────────────────────────┐
+│ SleepConnect (CloudFront E2CJ0SW11QUMP8)                         │
+│ - Receives request at /outreach/conversations                    │
+│ - Rewrites to https://outreach-dev.mydreamconnect.com/outreach   │
+│ - Forwards x-sax-user-context cookie with JWT                   │
+└──────────────────────────────┬─────────────────────────────┘
+                 ↓
+┌────────────────────────────────────────────────────────────┐
+│ Outreach CloudFront (outreach-dev.mydreamconnect.com)            │
+│ - Custom domain (stable URL)                                     │
+│ - Origin: Lambda Function URL                                    │
+│ - basePath: /outreach                                            │
+│ - assetPrefix: /outreach-static                                  │
+└──────────────────────────────┬─────────────────────────────┘
+                 ↓
+┌────────────────────────────────────────────────────────────┐
+│ Outreach Lambda                                                  │
+│ - Validates JWT from x-sax-user-context cookie                  │
+│ - Extracts user/tenant info                                      │
+│ - Proxies API calls with auth headers                           │
+└──────────────────────────────┬─────────────────────────────┘
+                 ↓
+┌────────────────────────────────────────────────────────────┐
+│ API Gateway (Custom Domains)                                     │
+│ - REST: https://outreach-api-dev.mydreamconnect.com             │
+│ - WebSocket: wss://outreach-ws-dev.mydreamconnect.com           │
+│ - Lambda functions process requests                             │
+└────────────────────────────────────────────────────────────┘
+```
                  ▼
 ┌─────────────────────────────────────────────────┐
 │ SleepConnect (dev.mydreamconnect.com)           │
