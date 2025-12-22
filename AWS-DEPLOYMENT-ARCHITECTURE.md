@@ -1,48 +1,62 @@
 # AWS Deployment Architecture for SMS Outreach
 
-**Date**: December 17, 2025  
+**Date**: December 22, 2025  
 **Project**: Twilio Conversations SMS Outreach  
-**Target**: `outreach.mydreamconnect.com`
+**Architecture**: Multi-Zone Integration with Custom Domains  
+**Status**: Develop deployed; Staging/Production pending
 
 ## 🏗️ Architecture Overview
 
-This Next.js application uses a **standalone output** build and will be deployed to AWS using:
+This Next.js application deploys as part of a **multi-zone architecture** integrated with SleepConnect, using **custom domains** for stable, permanent URLs.
 
-- **S3**: Static asset storage and Next.js server files
-- **CloudFront**: CDN, HTTPS, and routing
-- **EC2/ECS** (or Lambda): For Next.js server rendering (SSR)
-- **ACM**: SSL/TLS certificates
-- **Route53**: DNS management
+### Deployment Architecture
 
-### Deployment Strategy
+```
+User Request: https://dev.mydreamconnect.com/outreach/conversations
+                          ↓
+┌────────────────────────────────────────────────────────────┐
+│ SleepConnect CloudFront (dev.mydreamconnect.com)          │
+│ - Proxy /outreach/* → https://outreach-dev.mydreamconnect.com  │
+│ - Serve /outreach-static/* from S3                         │
+│ - Forward JWT cookies                                      │
+└──────────────────────────┬─────────────────────────────────┘
+                          ↓
+┌────────────────────────────────────────────────────────────┐
+│ Outreach CloudFront (outreach-dev.mydreamconnect.com)     │
+│ - Custom domain (stable URL)                              │
+│ - Origin: Lambda Function URL                             │
+│ - Forward cookies, headers                                │
+└──────────────────────────┬─────────────────────────────────┘
+                          ↓
+┌────────────────────────────────────────────────────────────┐
+│ Outreach Lambda (sax-lambda-...-outreach-server_develop)  │
+│ - Next.js SSR (OpenNext)                                  │
+│ - JWT validation from x-sax-user-context cookie           │
+│ - API proxy with auth headers                             │
+└──────────────────────────┬─────────────────────────────────┘
+                          ↓
+┌────────────────────────────────────────────────────────────┐
+│ API Gateway (Custom Domains)                              │
+│ - REST: https://outreach-api-dev.mydreamconnect.com       │
+│ - WebSocket: wss://outreach-ws-dev.mydreamconnect.com     │
+└────────────────────────────────────────────────────────────┘
+```
 
-Since this is a Next.js app with SSR, we have two deployment options:
+### Why This Architecture?
 
-#### Option 1: Static Export (Recommended for Multi-Zone)
-Convert to static export since this app is primarily used in multi-zone mode where SSR is handled by SleepConnect.
+1. **Stable URLs**: Custom domains never change, even if Lambda functions are recreated
+2. **Professional**: Clean, consistent domain structure across all environments
+3. **Integrated Auth**: SleepConnect JWT flows seamlessly to Outreach
+4. **Scalable**: Same pattern for develop, staging, and production
+5. **Multi-Zone**: Outreach integrates into SleepConnect's navigation
 
-**Pros**:
-- Simple S3 + CloudFront deployment
-- No server management
-- Lower costs
-- Better multi-zone performance
+### Deployment Method
 
-**Cons**:
-- Limited to client-side data fetching
-- No API routes (move to separate API)
-
-#### Option 2: Server-Side Rendering with EC2/ECS
-Keep full Next.js functionality with server-side rendering.
-
-**Pros**:
-- Full Next.js features
-- API routes supported
-- Dynamic rendering
-
-**Cons**:
-- More complex infrastructure
-- Higher costs
-- Server management required
+**Current**: OpenNext (Next.js → AWS Lambda)
+- Full Next.js features including SSR and API routes
+- API routes execute in Lambda (required for JWT validation)
+- Lambda packages built with OpenNext
+- Static assets served from S3
 
 ## 📋 Required AWS Services
 

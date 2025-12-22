@@ -1,8 +1,26 @@
-# AWS Deployment Guide - SMS Outreach (OpenNext)
+# AWS Deployment Guide - SMS Outreach (Multi-Zone Integration)
 
-**Last Updated**: December 17, 2025  
+**Last Updated**: December 22, 2025  
 **Project**: Twilio Conversations SMS Outreach  
-**Deployment Method**: OpenNext (Next.js → AWS Lambda + S3 + CloudFront)
+**Deployment Method**: OpenNext (Next.js → AWS Lambda + S3 + CloudFront)  
+**Architecture**: Multi-Zone Integration with SleepConnect  
+**Custom Domains**: Stable URLs for all environments
+
+---
+
+## 🎯 Architecture Summary
+
+This application deploys as part of a **multi-zone architecture** with SleepConnect using **custom domains** for stability:
+
+**Environment URLs:**
+- **Develop**: `https://dev.mydreamconnect.com/outreach` (via `https://outreach-dev.mydreamconnect.com`)
+- **Staging**: `https://stage.mydreamconnect.com/outreach` (via `https://outreach-staging.mydreamconnect.com`)
+- **Production**: `https://mydreamconnect.com/outreach` (via `https://outreach.mydreamconnect.com`)
+
+**Custom Domain Components (per environment):**
+- UI: CloudFront → Lambda (e.g., `outreach-dev.mydreamconnect.com`)
+- REST API: API Gateway (e.g., `outreach-api-dev.mydreamconnect.com`)
+- WebSocket: API Gateway (e.g., `outreach-ws-dev.mydreamconnect.com`)
 
 ---
 
@@ -62,6 +80,16 @@ aws <command> --no-cli-pager
 ---
 
 ## Quick Start
+
+**Note**: This application is deployed as part of a multi-zone architecture. For complete setup, see:
+- SleepConnect repo: `DEPLOY-MULTI-ZONE-OUTREACH.md`
+- This repo: `MULTI-ZONE-DEPLOYMENT-GUIDE.md`
+
+### Prerequisites for Multi-Zone Deployment
+
+1. **Custom domains must be configured** (recommended, see SleepConnect repo: `OUTREACH-CUSTOM-DOMAIN-SETUP.md`)
+2. **SleepConnect must be configured** to proxy `/outreach/*` requests
+3. **Environment variables must be set** for API endpoints
 
 ### 1. Install Dependencies
 
@@ -317,7 +345,81 @@ aws lambda update-alias \
 
 ---
 
+## 🎯 Recommended: Custom Domain for Stability
+
+**Before production deployment**, set up custom domains for Outreach Lambda:
+
+- `outreach-dev.mydreamconnect.com` → develop
+- `outreach-staging.mydreamconnect.com` → staging  
+- `outreach.mydreamconnect.com` → production
+
+**Benefits**:
+- Lambda URLs won't change on function recreation
+- `OUTREACH_APP_URL` stays constant
+- No manual URL updates needed
+
+**Setup**: See [`../sleepconnect/OUTREACH-CUSTOM-DOMAIN-SETUP.md`](../sleepconnect/OUTREACH-CUSTOM-DOMAIN-SETUP.md)
+
+---
+
 ## Environment Variables
+
+### Build-Time Variables (Required)
+
+These must be set **before building** the application:
+
+```bash
+# API Endpoints (use custom domains)
+export NEXT_PUBLIC_API_BASE_URL="https://outreach-api-dev.mydreamconnect.com"
+export NEXT_PUBLIC_WS_URL="wss://outreach-ws-dev.mydreamconnect.com"
+
+# Application URLs
+export NEXT_PUBLIC_APP_BASE_URL="https://outreach-dev.mydreamconnect.com"
+export NEXT_PUBLIC_SLEEPCONNECT_URL="https://dev.mydreamconnect.com"
+
+# Multi-zone configuration
+export NEXT_PUBLIC_BASE_PATH="/outreach"
+```
+
+### Runtime Variables (Lambda Environment)
+
+Set these in the Lambda function configuration:
+
+```bash
+NODE_ENV=production
+MULTI_ZONE_MODE=true
+AUTH0_SECRET=<shared-with-sleepconnect>
+AUTH0_CLIENT_SECRET=<shared-with-sleepconnect>
+AUTH0_CLIENT_ID=<shared-with-sleepconnect>
+AUTH0_ISSUER_BASE_URL=https://sleeparchitects.us.auth0.com
+AUTH0_BASE_URL=https://dev.mydreamconnect.com/outreach
+API_BASE_URL=https://outreach-api-dev.mydreamconnect.com
+NEXT_PUBLIC_API_BASE_URL=https://outreach-api-dev.mydreamconnect.com
+NEXT_PUBLIC_WS_URL=wss://outreach-ws-dev.mydreamconnect.com
+```
+
+### Custom Domain URLs by Environment
+
+**Develop:**
+```bash
+OUTREACH_APP_URL=https://outreach-dev.mydreamconnect.com
+NEXT_PUBLIC_API_BASE_URL=https://outreach-api-dev.mydreamconnect.com
+NEXT_PUBLIC_WS_URL=wss://outreach-ws-dev.mydreamconnect.com
+```
+
+**Staging:**
+```bash
+OUTREACH_APP_URL=https://outreach-staging.mydreamconnect.com
+NEXT_PUBLIC_API_BASE_URL=https://outreach-api-staging.mydreamconnect.com
+NEXT_PUBLIC_WS_URL=wss://outreach-ws-staging.mydreamconnect.com
+```
+
+**Production:**
+```bash
+OUTREACH_APP_URL=https://outreach.mydreamconnect.com
+NEXT_PUBLIC_API_BASE_URL=https://outreach-api.mydreamconnect.com
+NEXT_PUBLIC_WS_URL=wss://outreach-ws.mydreamconnect.com
+```
 
 ### Build-Time Variables
 
