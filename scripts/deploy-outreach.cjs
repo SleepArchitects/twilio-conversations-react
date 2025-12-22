@@ -15,6 +15,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 // Environment configurations (to be updated after infrastructure is created)
 const ENVIRONMENTS = {
@@ -24,6 +25,8 @@ const ENVIRONMENTS = {
     lambdaFunctionUrl: process.env.FUNCTION_URL || '',
     // SleepConnect CloudFront distribution ID (optional, used only for cache invalidation)
     cloudfrontDistribution: process.env.SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID || '',
+    // Outreach-specific CloudFront distribution (outreach-dev.mydreamconnect.com)
+    outreachCloudfrontDistribution: 'E8BMOBRWCCCO2',
     s3AssetsBucket: 'sax-nextjs-us-east-1-develop-outreach-assets',
     region: 'us-east-1',
     memory: 1024,
@@ -33,6 +36,7 @@ const ENVIRONMENTS = {
     lambdaFunction: 'sax-lambda-us-east-1-0x-s-outreach-server_staging',
     lambdaFunctionUrl: process.env.FUNCTION_URL || '',
     cloudfrontDistribution: process.env.SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID || '',
+    outreachCloudfrontDistribution: '', // TODO: Add staging Outreach CloudFront ID
     s3AssetsBucket: 'sax-nextjs-us-east-1-staging-outreach-assets',
     region: 'us-east-1',
     memory: 1024,
@@ -42,6 +46,7 @@ const ENVIRONMENTS = {
     lambdaFunction: 'sax-lambda-us-east-1-0x-p-outreach-server_production',
     lambdaFunctionUrl: process.env.FUNCTION_URL || '',
     cloudfrontDistribution: process.env.SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID || '',
+    outreachCloudfrontDistribution: '', // TODO: Add production Outreach CloudFront ID
     s3AssetsBucket: 'sax-nextjs-us-east-1-production-outreach-assets',
     region: 'us-east-1',
     memory: 2048,
@@ -373,13 +378,23 @@ try {
       ...envVars
     };
 
+    // Use a temp JSON file to avoid shell escaping issues with complex JSON
+    const tempConfigPath = path.join(os.tmpdir(), `lambda-env-${Date.now()}.json`);
+    const lambdaEnvConfig = {
+      FunctionName: config.lambdaFunction,
+      Environment: { Variables: variables }
+    };
+    fs.writeFileSync(tempConfigPath, JSON.stringify(lambdaEnvConfig));
+
     execSync(
       `aws lambda update-function-configuration \
-        --function-name "${config.lambdaFunction}" \
-        --environment "Variables=${JSON.stringify(variables).replace(/"/g, '\\"')}" \
+        --cli-input-json file://${tempConfigPath} \
         --region ${config.region}`,
       { stdio: 'inherit' }
     );
+
+    // Clean up temp file
+    fs.unlinkSync(tempConfigPath);
     
     console.log('✅ Environment variables updated');
     console.log('');
@@ -393,6 +408,74 @@ try {
     );
   } catch (error) {
     console.log(`⚠️  Warning: Could not update environment variables: ${error.message}`);
+  }
+
+  // Step 5.6: Fix CloudFront headers configuration
+  // Lambda function URLs reject requests where Host header doesn't match their domain
+  // CloudFront must NOT forward the Host header to the origin
+  if (config.outreachCloudfrontDistribution) {
+    console.log('🔧 Step 5.6: Checking CloudFront headers configuration...');
+    console.log(`   Distribution: ${config.outreachCloudfrontDistribution}`);
+
+    try {
+      // Get current distribution config
+      const cfConfigOutput = execSync(
+        `aws cloudfront get-distribution-config \
+          --id ${config.outreachCloudfrontDistribution} \
+          --output json`,
+        { encoding: 'utf8' }
+      );
+      const cfConfig = JSON.parse(cfConfigOutput);
+      const etag = cfConfig.ETag;
+      const distConfig = cfConfig.DistributionConfig;
+
+      // Check if Headers is set to forward all ("*")
+      const forwardedHeaders = distConfig.DefaultCacheBehavior?.ForwardedValues?.Headers;
+      if (forwardedHeaders?.Items?.includes('*')) {
+        console.log('   ⚠️  CloudFront is forwarding ALL headers (including Host)');
+        console.log('   🔧 Updating to forward specific headers only...');
+
+        // Update to forward specific headers (NOT Host - Lambda URLs reject mismatched Host)
+        distConfig.DefaultCacheBehavior.ForwardedValues.Headers = {
+          Quantity: 9,
+          Items: [
+            'Accept',
+            'Accept-Language', 
+            'Authorization',
+            'Content-Type',
+            'Cookie',
+            'Origin',
+            'Referer',
+            'X-Forwarded-Host',
+            'X-Requested-With'
+          ]
+        };
+
+        // Write updated config to temp file
+        const tempCfConfigPath = path.join(os.tmpdir(), `cf-config-${Date.now()}.json`);
+        fs.writeFileSync(tempCfConfigPath, JSON.stringify(distConfig));
+
+        execSync(
+          `aws cloudfront update-distribution \
+            --id ${config.outreachCloudfrontDistribution} \
+            --if-match ${etag} \
+            --distribution-config file://${tempCfConfigPath}`,
+          { stdio: 'inherit' }
+        );
+
+        // Clean up temp file
+        fs.unlinkSync(tempCfConfigPath);
+
+        console.log('   ✅ CloudFront headers configuration updated');
+        console.log('   ⏳ Note: CloudFront changes may take a few minutes to propagate');
+      } else {
+        console.log('   ✅ CloudFront headers configuration is correct');
+      }
+      console.log('');
+    } catch (error) {
+      console.log(`   ⚠️  Warning: Could not check/update CloudFront config: ${error.message}`);
+      console.log('');
+    }
   }
 
   // Step 6: Deploy static assets to S3
