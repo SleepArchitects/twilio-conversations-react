@@ -60,6 +60,96 @@ if (!ENVIRONMENTS[environment]) {
 
 const config = ENVIRONMENTS[environment];
 
+// Validate required environment variables
+console.log('');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('🔍 Validating Environment Variables');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+// Core Auth0 variables (must match SleepConnect for shared sessions)
+const requiredAuthVars = [
+  'AUTH0_CLIENT_ID',
+  'AUTH0_CLIENT_SECRET',
+  'AUTH0_SECRET',
+  'AUTH0_DOMAIN',
+  'AUTH0_BASE_URL',
+];
+
+// Twilio variables (required for SMS functionality)
+const requiredTwilioVars = [
+  'TWILIO_ACCOUNT_SID',
+  'TWILIO_AUTH_TOKEN',
+];
+
+// Multi-zone integration variables
+const requiredMultiZoneVars = [
+  'NEXT_PUBLIC_APP_BASE_URL',
+  'NEXT_PUBLIC_SLEEPCONNECT_URL',
+  'NEXT_PUBLIC_BASE_PATH',
+];
+
+// API Gateway variables
+const requiredApiVars = [
+  'NEXT_PUBLIC_API_BASE_URL',
+  'NEXT_PUBLIC_WS_API_URL',
+];
+
+const allRequired = [
+  ...requiredAuthVars,
+  ...requiredTwilioVars,
+  ...requiredMultiZoneVars,
+  ...requiredApiVars,
+];
+
+const missing = allRequired.filter(varName => !process.env[varName]);
+
+if (missing.length > 0) {
+  console.error('');
+  console.error('❌ Missing required environment variables:');
+  
+  const missingAuth = missing.filter(v => requiredAuthVars.includes(v));
+  const missingTwilio = missing.filter(v => requiredTwilioVars.includes(v));
+  const missingMultiZone = missing.filter(v => requiredMultiZoneVars.includes(v));
+  const missingApi = missing.filter(v => requiredApiVars.includes(v));
+  
+  if (missingAuth.length > 0) {
+    console.error('');
+    console.error('  Auth0 (must match SleepConnect):');
+    missingAuth.forEach(v => console.error(`   - ${v}`));
+  }
+  if (missingTwilio.length > 0) {
+    console.error('');
+    console.error('  Twilio:');
+    missingTwilio.forEach(v => console.error(`   - ${v}`));
+  }
+  if (missingMultiZone.length > 0) {
+    console.error('');
+    console.error('  Multi-zone integration:');
+    missingMultiZone.forEach(v => console.error(`   - ${v}`));
+  }
+  if (missingApi.length > 0) {
+    console.error('');
+    console.error('  API Gateway:');
+    missingApi.forEach(v => console.error(`   - ${v}`));
+  }
+  
+  console.error('');
+  console.error('Please set these in your .env.local file or as Lambda environment variables.');
+  console.error('See ENVIRONMENT_VARIABLES.md for required values.');
+  process.exit(1);
+}
+
+console.log('');
+console.log('✅ All required environment variables present');
+console.log('');
+console.log('Multi-zone configuration:');
+console.log(`   MULTI_ZONE_MODE:  true (hardcoded - Outreach always runs behind SleepConnect)`);
+console.log(`   Base Path:        ${process.env.NEXT_PUBLIC_BASE_PATH}`);
+console.log(`   SleepConnect URL: ${process.env.NEXT_PUBLIC_SLEEPCONNECT_URL}`);
+console.log(`   Outreach URL:     ${process.env.NEXT_PUBLIC_APP_BASE_URL}`);
+console.log('');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
 console.log('');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('🚀 Outreach SMS App Deployment (No SST)');
