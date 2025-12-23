@@ -336,13 +336,33 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   }, [state.messageIds]);
 
   // Initial fetch with TanStack Query (no polling)
+  // Fetch the LAST page of messages first to show recent messages
   const {
     data: queryData,
     isLoading,
     error: queryError,
   } = useQuery({
     queryKey: messagesQueryKey(conversationId),
-    queryFn: () => fetchMessagesFromApi(conversationId, 0, DEFAULT_PAGE_SIZE),
+    queryFn: async () => {
+      // First, get total count by fetching with limit=1
+      const countResponse = await fetchMessagesFromApi(conversationId, 0, 1);
+      const total = countResponse.pagination.total;
+
+      // Calculate offset to get the last page
+      // If total=77 and limit=50, offset should be 27 to get messages 28-77
+      const lastPageOffset = Math.max(0, total - DEFAULT_PAGE_SIZE);
+
+      console.log(
+        `[useMessages] Total messages: ${total}, fetching from offset: ${lastPageOffset}`,
+      );
+
+      // Fetch the last page
+      return fetchMessagesFromApi(
+        conversationId,
+        lastPageOffset,
+        DEFAULT_PAGE_SIZE,
+      );
+    },
     // Disable polling - we'll use WebSocket for updates
     refetchInterval: false,
     refetchOnWindowFocus: true, // Refetch when window regains focus
