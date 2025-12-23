@@ -437,13 +437,12 @@ try {
 
         // Update to forward specific headers (NOT Host - Lambda URLs reject mismatched Host)
         distConfig.DefaultCacheBehavior.ForwardedValues.Headers = {
-          Quantity: 9,
+          Quantity: 8,
           Items: [
             'Accept',
             'Accept-Language', 
             'Authorization',
             'Content-Type',
-            'Cookie',
             'Origin',
             'Referer',
             'X-Forwarded-Host',

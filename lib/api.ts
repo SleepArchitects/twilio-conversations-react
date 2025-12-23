@@ -4,9 +4,12 @@
  */
 
 // For server-side Lambda API calls, use the backend API URL
-// For client-side calls to local Next.js API routes, use the app base URL
+// For client-side calls, we always use relative paths to our local Next.js proxy routes
+// to avoid CORS issues and leverage the server-side auth context.
 const API_BASE_URL =
-  process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  typeof window === "undefined"
+    ? process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
+    : "";
 
 // Get the basePath from Next.js config (set at build time via NEXT_PUBLIC_BASE_PATH)
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -187,35 +190,65 @@ async function request<T>(
 
   console.log("[API] Request:", method, url);
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
-    ...customHeaders,
+    ...(customHeaders as Record<string, string>),
   };
+
+  // Log custom headers being passed in
+  if (customHeaders) {
+    console.log("[API] Custom headers received:", Object.keys(customHeaders));
+    if ((customHeaders as Record<string, string>)["Authorization"]) {
+      console.log("[API] Authorization header present in custom headers: YES");
+      const authHeader = (customHeaders as Record<string, string>)[
+        "Authorization"
+      ];
+      console.log(
+        "[API] Authorization header value (first 20 chars):",
+        authHeader?.substring(0, 20),
+      );
+    } else {
+      console.log("[API] Authorization header present in custom headers: NO");
+    }
+  }
 
   // Add user context headers from the SleepConnect-issued JWT cookie
   // Lambdas expect tenant/practice/coordinator identifiers either as headers or query params
   if (typeof window !== "undefined") {
     const userContext = getCookie("x-sax-user-context");
     if (userContext) {
-      (headers as Record<string, string>)["x-sax-user-context"] = userContext;
+      headers["x-sax-user-context"] = userContext;
       const claims = decodeJwtPayload(userContext);
       if (claims) {
         const saxId = (claims as any).sax_id || (claims as any).saxId;
         const tenantId = (claims as any).tenant_id || (claims as any).tenantId;
         const practiceId =
           (claims as any).practice_id || (claims as any).practiceId;
-        if (saxId)
-          (headers as Record<string, string>)["x-coordinator-sax-id"] =
-            String(saxId);
-        if (tenantId)
-          (headers as Record<string, string>)["x-tenant-id"] = String(tenantId);
-        if (practiceId)
-          (headers as Record<string, string>)["x-practice-id"] =
-            String(practiceId);
+        if (saxId) headers["x-coordinator-sax-id"] = String(saxId);
+        if (tenantId) headers["x-tenant-id"] = String(tenantId);
+        if (practiceId) headers["x-practice-id"] = String(practiceId);
       }
       console.log("[API] Added user context headers from cookie");
     }
+  }
+
+  // Log final headers before sending request
+  console.log("[API] Final headers being sent:", Object.keys(headers));
+  if (headers["Authorization"]) {
+    console.log("[API] Authorization header in final headers: YES");
+    console.log(
+      "[API] Authorization header value (first 20 chars):",
+      headers["Authorization"]?.substring(0, 20),
+    );
+  } else if (headers["authorization"]) {
+    console.log("[API] authorization header (lowercase) in final headers: YES");
+    console.log(
+      "[API] authorization header value (first 20 chars):",
+      headers["authorization"]?.substring(0, 20),
+    );
+  } else {
+    console.log("[API] Authorization header in final headers: NO");
   }
 
   const config: RequestInit = {

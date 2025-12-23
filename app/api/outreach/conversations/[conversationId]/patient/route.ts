@@ -13,7 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { type UserContext, withUserContext } from "@/lib/auth";
+import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
 import { api, buildPath } from "@/lib/api";
 
 /**
@@ -68,6 +68,13 @@ async function handleGet(
   conversationId: string,
 ) {
   try {
+    // Get access token for Authorization header
+    const accessToken = await getAccessToken();
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     // Fetch patient context from Lambda API
     // The Lambda API will query the conversation record and join with patient data
     const response = await api.get(
@@ -78,7 +85,7 @@ async function handleGet(
           practice_id: userContext.practiceId,
           coordinator_sax_id: String(userContext.saxId),
         },
-        headers: getLambdaHeaders(userContext),
+        headers,
       },
     );
 
@@ -155,6 +162,13 @@ async function handlePatch(
       );
     }
 
+    // Get access token for Authorization header
+    const accessToken = await getAccessToken();
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     // Link patient via Lambda API
     // The Lambda API will:
     // 1. Validate patient exists in SleepConnect
@@ -169,7 +183,7 @@ async function handlePatch(
         coordinator_sax_id: String(userContext.saxId),
       },
       {
-        headers: getLambdaHeaders(userContext),
+        headers,
       },
     );
 

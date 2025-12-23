@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
-import { type UserContext, withUserContext } from "@/lib/auth";
+import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
 import type { Template, TemplateCategory } from "@/types/sms";
 
 export const dynamic = "force-dynamic";
@@ -167,12 +167,19 @@ export const GET = withUserContext(
         limit: String(limit),
       };
 
+      // Get access token for Authorization header
+      const accessToken = await getAccessToken();
+      const headers: Record<string, string> = getLambdaHeaders(userContext);
+      if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      }
+
       // Call Lambda API to get frequent templates
       const lambdaResponse = await api.get<LambdaTemplatesResponse>(
         buildPath(LAMBDA_API_BASE, "templates", "frequent"),
         {
           params: queryParams,
-          headers: getLambdaHeaders(userContext),
+          headers,
         },
       );
 

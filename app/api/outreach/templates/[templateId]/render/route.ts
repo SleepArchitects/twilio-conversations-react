@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
-import { type UserContext, withUserContext } from "@/lib/auth";
+import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
 import type {
   RenderTemplateRequest,
   // RenderTemplateResponse,
@@ -142,6 +142,13 @@ export const POST = withUserContext(
       // Get template first to validate access and extract required variables
       let template: LambdaTemplate;
       try {
+        // Get access token for Authorization header
+        const accessToken = await getAccessToken();
+        const headers: Record<string, string> = getLambdaHeaders(userContext);
+        if (accessToken) {
+          headers["Authorization"] = `Bearer ${accessToken}`;
+        }
+
         template = await api.get<LambdaTemplate>(
           buildPath(LAMBDA_API_BASE, "templates", templateId),
           {
@@ -150,7 +157,7 @@ export const POST = withUserContext(
               practice_id: userContext.practiceId,
               coordinator_sax_id: userContext.saxId,
             },
-            headers: getLambdaHeaders(userContext),
+            headers,
           },
         );
       } catch (error) {
@@ -197,11 +204,18 @@ export const POST = withUserContext(
         variables: body.variables,
       };
 
+      // Get access token for Authorization header
+      const accessToken = await getAccessToken();
+      const headers: Record<string, string> = getLambdaHeaders(userContext);
+      if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      }
+
       const lambdaResponse = await api.post<LambdaRenderResponse>(
         buildPath(LAMBDA_API_BASE, "templates", templateId, "render"),
         renderPayload,
         {
-          headers: getLambdaHeaders(userContext),
+          headers,
         },
       );
 

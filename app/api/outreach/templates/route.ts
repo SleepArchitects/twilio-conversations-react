@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
-import { type UserContext, withUserContext } from "@/lib/auth";
+import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
 import type {
   Template,
   TemplateCategory,
@@ -144,6 +144,13 @@ export const GET = withUserContext(
         saxId: userContext.saxId,
       });
 
+      // Get access token for Authorization header
+      const accessToken = await getAccessToken();
+      const headers: Record<string, string> = getLambdaHeaders(userContext);
+      if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      }
+
       // Note: Backend stored procedure accepts category_id (UUID), not category name
       // For now, we'll omit category filtering until we have category mapping
       // TODO: Add category name -> category_id lookup when implementing full template management
@@ -172,7 +179,7 @@ export const GET = withUserContext(
         buildPath(LAMBDA_API_BASE, "templates"),
         {
           params: queryParams,
-          headers: getLambdaHeaders(userContext),
+          headers,
         },
       );
 
@@ -224,6 +231,13 @@ export const POST = withUserContext(
         );
       }
 
+      // Get access token for Authorization header
+      const accessToken = await getAccessToken();
+      const headers: Record<string, string> = getLambdaHeaders(userContext);
+      if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      }
+
       // Call Lambda API to create template
       const lambdaResponse = await api.post<LambdaTemplate>(
         buildPath(LAMBDA_API_BASE, "templates"),
@@ -235,7 +249,7 @@ export const POST = withUserContext(
           isGlobal: body.isGlobal || false,
         },
         {
-          headers: getLambdaHeaders(userContext),
+          headers,
         },
       );
 

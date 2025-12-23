@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
-import { type UserContext, withUserContext } from "@/lib/auth";
+import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
 import type {
   Template,
   TemplateCategory,
@@ -104,11 +104,18 @@ async function handleGet(
       return errorResponse("INVALID_REQUEST", "Template ID is required", 400);
     }
 
+    // Get access token for Authorization header
+    const accessToken = await getAccessToken();
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     // Call Lambda API to get template
     const lambdaResponse = await api.get<LambdaTemplate>(
       buildPath(LAMBDA_API_BASE, "templates", templateId),
       {
-        headers: getLambdaHeaders(userContext),
+        headers,
       },
     );
 
@@ -170,6 +177,13 @@ async function handlePatch(
 
     const body = (await req.json()) as UpdateTemplateRequest;
 
+    // Get access token for Authorization header
+    const accessToken = await getAccessToken();
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     // Call Lambda API to update template
     const lambdaResponse = await api.patch<LambdaTemplate>(
       buildPath(LAMBDA_API_BASE, "templates", templateId),
@@ -180,7 +194,7 @@ async function handlePatch(
         variables: body.variables,
       },
       {
-        headers: getLambdaHeaders(userContext),
+        headers,
       },
     );
 
@@ -238,9 +252,16 @@ async function handleDelete(
       return errorResponse("INVALID_REQUEST", "Template ID is required", 400);
     }
 
+    // Get access token for Authorization header
+    const accessToken = await getAccessToken();
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     // Call Lambda API to delete template
     await api.delete(buildPath(LAMBDA_API_BASE, "templates", templateId), {
-      headers: getLambdaHeaders(userContext),
+      headers,
     });
 
     return NextResponse.json({ success: true }, { status: 200 });

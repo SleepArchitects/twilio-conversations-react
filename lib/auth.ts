@@ -274,6 +274,71 @@ export async function getUserContext(): Promise<UserContext | null> {
 }
 
 /**
+ * Get Auth0 access token for calling backend APIs
+ * In multi-zone mode, this fetches the token from SleepConnect's token endpoint
+ */
+export async function getAccessToken(): Promise<string | null> {
+  try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SLEEPCONNECT_URL ||
+      process.env.NEXT_PUBLIC_APP_BASE_URL ||
+      "http://localhost:3000";
+    const tokenUrl = `${baseUrl}/api/auth/token`;
+
+    console.log("[AUTH] getAccessToken - fetching from:", tokenUrl);
+
+    const headersList = headers();
+    const cookieHeader = headersList.get("cookie") || "";
+    console.log(
+      "[AUTH] getAccessToken - cookie header length:",
+      cookieHeader.length,
+    );
+
+    const response = await fetch(tokenUrl, {
+      method: "GET",
+      headers: {
+        cookie: cookieHeader,
+      },
+    });
+
+    console.log("[AUTH] getAccessToken - response status:", response.status);
+    console.log("[AUTH] getAccessToken - response ok:", response.ok);
+
+    if (!response.ok) {
+      console.log("[AUTH] getAccessToken - response not ok, returning null");
+      return null;
+    }
+
+    const data = await response.json();
+    console.log(
+      "[AUTH] getAccessToken - response data keys:",
+      Object.keys(data),
+    );
+
+    // SleepConnect returns 'accessToken' (camelCase), not 'access_token' (snake_case)
+    const token = data.accessToken || data.access_token;
+    console.log("[AUTH] getAccessToken - token present:", !!token);
+
+    if (token) {
+      console.log(
+        "[AUTH] getAccessToken - token (first 20 chars):",
+        token.substring(0, 20),
+      );
+    } else {
+      console.log(
+        "[AUTH] getAccessToken - WARNING: No token in response data:",
+        JSON.stringify(data),
+      );
+    }
+
+    return token || null;
+  } catch (error) {
+    console.error("[AUTH] Error fetching access token:", error);
+    return null;
+  }
+}
+
+/**
  * Wrapper that extracts user context for API routes.
  * Combines Auth0 authentication with SAX user context extraction.
  *

@@ -4,9 +4,10 @@ const nextConfig = {
 	output: "standalone",
 
 	// Multi-zone configuration for sleepconnect integration
+	// basePath restored - CloudFront now forwards /outreach/* AS-IS to Lambda
+	// CloudFront Function 'strip-outreach-prefix' must be removed from /outreach/* behavior
+	// Use /outreach-static for assets (handled by CloudFront S3 origin)
 	basePath: "/outreach",
-	// Use /outreach-static in production (CloudFront path), /outreach in dev (local server)
-	// This fixes CSS 404s in local dev while maintaining production multi-zone architecture
 	assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outreach",
 
 	// Disable ESLint during builds (we run separately)

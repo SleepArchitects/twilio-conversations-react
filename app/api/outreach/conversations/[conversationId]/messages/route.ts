@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
-import { type UserContext, withUserContext } from "@/lib/auth";
+import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
 import { getTwilioClient } from "@/lib/twilio";
 import type {
   Conversation,
@@ -113,6 +113,17 @@ async function validateConversationAccess(
   userContext: UserContext,
 ): Promise<Conversation | null> {
   try {
+    // Get access token for Authorization header
+    const accessToken = await getAccessToken();
+    const headers: Record<string, string> = {
+      "x-tenant-id": userContext.tenantId,
+      "x-practice-id": userContext.practiceId,
+      "x-coordinator-sax-id": String(userContext.saxId),
+    };
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     const response = await api.get<LambdaConversationResponse>(
       buildPath(LAMBDA_API_BASE, "conversations", conversationId),
       {
@@ -122,11 +133,7 @@ async function validateConversationAccess(
           practice_id: userContext.practiceId,
           coordinator_sax_id: String(userContext.saxId),
         },
-        headers: {
-          "x-tenant-id": userContext.tenantId,
-          "x-practice-id": userContext.practiceId,
-          "x-coordinator-sax-id": String(userContext.saxId),
-        },
+        headers,
       },
     );
 
@@ -242,6 +249,18 @@ export const GET = withUserContext(
         "[GET MESSAGES] Fetching messages for conversation:",
         conversationId,
       );
+
+      // Get access token for Authorization header
+      const accessToken = await getAccessToken();
+      const headers: Record<string, string> = {
+        "x-tenant-id": userContext.tenantId,
+        "x-practice-id": userContext.practiceId,
+        "x-coordinator-sax-id": String(userContext.saxId),
+      };
+      if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      }
+
       const lambdaResponse = await api.get<LambdaMessagesResponse>(
         buildPath(LAMBDA_API_BASE, "conversations", conversationId, "messages"),
         {
@@ -253,11 +272,7 @@ export const GET = withUserContext(
             practice_id: userContext.practiceId,
             coordinator_sax_id: String(userContext.saxId),
           },
-          headers: {
-            "x-tenant-id": userContext.tenantId,
-            "x-practice-id": userContext.practiceId,
-            "x-coordinator-sax-id": String(userContext.saxId),
-          },
+          headers,
         },
       );
 
@@ -447,6 +462,17 @@ export const POST = withUserContext(
       const segmentCount = Math.ceil(messageBody.length / 160);
 
       // Store message in database via Lambda
+      // Get access token for Authorization header
+      const accessToken = await getAccessToken();
+      const headers: Record<string, string> = {
+        "x-tenant-id": userContext.tenantId,
+        "x-practice-id": userContext.practiceId,
+        "x-coordinator-sax-id": String(userContext.saxId),
+      };
+      if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      }
+
       const lambdaResponse = await api.post<
         { message: LambdaMessage } | LambdaMessage
       >(
@@ -462,11 +488,7 @@ export const POST = withUserContext(
           media_urls: body.mediaUrls,
         },
         {
-          headers: {
-            "x-tenant-id": userContext.tenantId,
-            "x-practice-id": userContext.practiceId,
-            "x-coordinator-sax-id": String(userContext.saxId),
-          },
+          headers,
         },
       );
 
@@ -488,35 +510,47 @@ export const POST = withUserContext(
 
       if (shouldCompleteSla) {
         console.log("[SLA] Calling complete-tracking API");
-        api
-          .post(
-            buildPath(LAMBDA_API_BASE, "sla", "complete-tracking"),
-            {
-              conversationId: conversation.twilioSid,
-              outboundMessageId: twilioMessage.sid,
-              // inboundMessageId is now optional - Lambda will find the pending SLA metric
-            },
-            {
-              headers: {
-                "x-tenant-id": userContext.tenantId,
-                "x-practice-id": userContext.practiceId,
-                "x-coordinator-sax-id": String(userContext.saxId),
+
+        // Get access token for Authorization header
+        getAccessToken().then((accessToken) => {
+          const slaHeaders: Record<string, string> = {
+            "x-tenant-id": userContext.tenantId,
+            "x-practice-id": userContext.practiceId,
+            "x-coordinator-sax-id": String(userContext.saxId),
+          };
+          if (accessToken) {
+            slaHeaders["Authorization"] = `Bearer ${accessToken}`;
+          }
+
+          api
+            .post(
+              buildPath(LAMBDA_API_BASE, "sla", "complete-tracking"),
+              {
+                conversationId: conversation.twilioSid,
+                outboundMessageId: twilioMessage.sid,
+                // inboundMessageId is now optional - Lambda will find the pending SLA metric
               },
-            },
-          )
-          .then((result) => {
-            console.log("[SLA] Complete tracking succeeded", result);
-          })
-          .catch((slaError) => {
-            console.error("[SLA] Failed to complete response metric", {
-              conversationId,
-              conversationTwilioSid: conversation.twilioSid,
-              outboundTwilioSid: twilioMessage.sid,
-              errorType: slaError instanceof Error ? slaError.name : "Unknown",
-              errorMessage:
-                slaError instanceof Error ? slaError.message : "Unknown error",
+              {
+                headers: slaHeaders,
+              },
+            )
+            .then((result) => {
+              console.log("[SLA] Complete tracking succeeded", result);
+            })
+            .catch((slaError) => {
+              console.error("[SLA] Failed to complete response metric", {
+                conversationId,
+                conversationTwilioSid: conversation.twilioSid,
+                outboundTwilioSid: twilioMessage.sid,
+                errorType:
+                  slaError instanceof Error ? slaError.name : "Unknown",
+                errorMessage:
+                  slaError instanceof Error
+                    ? slaError.message
+                    : "Unknown error",
+              });
             });
-          });
+        });
       }
 
       // Log audit event without PHI
@@ -532,31 +566,39 @@ export const POST = withUserContext(
 
       // Track template usage (non-blocking, fire-and-forget)
       if (body.templateId) {
+        const templateId = body.templateId;
         // Call increment_sms_template_usage via Lambda API
         // This is non-blocking - we don't wait for it to complete
-        api
-          .post(
-            buildPath(LAMBDA_API_BASE, "templates", body.templateId, "usage"),
-            {
-              tenant_id: userContext.tenantId,
-            },
-            {
-              headers: {
-                "x-tenant-id": userContext.tenantId,
-                "x-practice-id": userContext.practiceId,
-                "x-coordinator-sax-id": String(userContext.saxId),
+        getAccessToken().then((accessToken) => {
+          const usageHeaders: Record<string, string> = {
+            "x-tenant-id": userContext.tenantId,
+            "x-practice-id": userContext.practiceId,
+            "x-coordinator-sax-id": String(userContext.saxId),
+          };
+          if (accessToken) {
+            usageHeaders["Authorization"] = `Bearer ${accessToken}`;
+          }
+
+          api
+            .post(
+              buildPath(LAMBDA_API_BASE, "templates", templateId, "usage"),
+              {
+                tenant_id: userContext.tenantId,
               },
-            },
-          )
-          .catch((error) => {
-            // Log error but don't fail the request
-            console.error("Failed to track template usage", {
-              templateId: body.templateId,
-              errorType: error instanceof Error ? error.name : "Unknown",
-              errorMessage:
-                error instanceof Error ? error.message : "Unknown error",
+              {
+                headers: usageHeaders,
+              },
+            )
+            .catch((error) => {
+              // Log error but don't fail the request
+              console.error("Failed to track template usage", {
+                templateId: body.templateId,
+                errorType: error instanceof Error ? error.name : "Unknown",
+                errorMessage:
+                  error instanceof Error ? error.message : "Unknown error",
+              });
             });
-          });
+        });
       }
 
       return NextResponse.json(storedMessage, { status: 201 });
