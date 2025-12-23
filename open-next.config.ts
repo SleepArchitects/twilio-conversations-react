@@ -12,9 +12,10 @@ const config = {
     // Override configuration for multi-zone deployment
     override: {
       // Wrapper for the Next.js server handler
-      wrapper: "aws-lambda-streaming",
+      // Using standard wrapper instead of streaming for CloudFront compatibility
+      wrapper: "aws-lambda",
       
-      // Since we use basePath: "/outreach", ensure assets are correctly resolved
+      // CloudFront handles /outreach routing, assets use /outreach-static prefix
       // The assetPrefix in next.config.mjs handles the static asset path
     },
   },

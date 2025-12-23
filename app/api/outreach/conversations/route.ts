@@ -211,6 +211,9 @@ async function findActiveConversationByPhone(
   userContext: UserContext,
 ): Promise<Conversation | null> {
   try {
+    // Backend API uses header-based authentication (x-tenant-id, x-practice-id, x-coordinator-sax-id)
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+
     const response = await api.get<LambdaCheckDuplicateResponse>(
       buildPath(LAMBDA_API_BASE, "conversations", "check-duplicate"),
       {
@@ -221,7 +224,7 @@ async function findActiveConversationByPhone(
           practice_id: userContext.practiceId,
           coordinator_sax_id: String(userContext.saxId),
         },
-        headers: getLambdaHeaders(userContext),
+        headers,
       },
     );
     return response.exists ? (response.conversation ?? null) : null;
@@ -443,12 +446,20 @@ async function handleGet(
       }
     }
 
+    // Backend API uses header-based authentication (x-tenant-id, x-practice-id, x-coordinator-sax-id)
+    // NOT Bearer token authentication
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+    console.log(
+      "[CONVERSATIONS API] Using header-based auth with context:",
+      Object.keys(headers),
+    );
+
     // Call Lambda API to list conversations
     const response = await api.get<LambdaConversationsResponse>(
       buildPath(LAMBDA_API_BASE, "conversations"),
       {
         params: queryParams,
-        headers: getLambdaHeaders(userContext),
+        headers,
       },
     );
 
@@ -645,6 +656,10 @@ async function handlePost(
       metadata: body.metadata,
     };
 
+    // Backend API uses header-based authentication (x-tenant-id, x-practice-id, x-coordinator-sax-id)
+    // NOT Bearer token authentication
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+
     let conversation: Conversation & { existing?: boolean };
     let isExisting = false;
     try {
@@ -652,7 +667,7 @@ async function handlePost(
         buildPath(LAMBDA_API_BASE, "conversations"),
         createPayload,
         {
-          headers: getLambdaHeaders(userContext),
+          headers,
         },
       );
       isExisting = conversation.existing === true;
@@ -697,7 +712,7 @@ async function handlePost(
             body: body.initialMessage.trim(),
           },
           {
-            headers: getLambdaHeaders(userContext),
+            headers,
           },
         );
       } catch (msgError) {

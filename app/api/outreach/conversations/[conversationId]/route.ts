@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
-import { type UserContext, withUserContext } from "@/lib/auth";
+import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
 import type { Conversation, ConversationStatus, SlaStatus } from "@/types/sms";
 
 export const dynamic = "force-dynamic";
@@ -172,11 +172,18 @@ async function handleGet(
       process.env.API_BASE_URL,
     );
 
+    // Get access token for Authorization header
+    const accessToken = await getAccessToken();
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     const response = await api.get<LambdaConversationResponse>(
       buildPath(LAMBDA_API_BASE, "conversations", conversationId),
       {
         params: queryParams,
-        headers: getLambdaHeaders(userContext),
+        headers,
       },
     );
 
