@@ -9,6 +9,7 @@ import type {
   PaginatedResponse,
   SendMessageRequest,
 } from "@/types/sms";
+import type { WorkerMessage, WorkerCommand } from "../types/worker";
 
 // =============================================================================
 // Types
@@ -58,6 +59,8 @@ const WS_URL =
   process.env.NEXT_PUBLIC_WS_API_URL ||
   "wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev";
 
+console.log("[useMessages] configured WS_URL:", WS_URL);
+
 /**
  * Query key factory for messages
  */
@@ -99,6 +102,7 @@ type MessageAction =
   | { type: "SET_MESSAGES"; payload: Message[] }
   | { type: "PREPEND_MESSAGES"; payload: Message[] }
   | { type: "ADD_MESSAGE"; payload: Message }
+  | { type: "MERGE_MESSAGES"; payload: Message[] }
   | {
       type: "UPDATE_MESSAGE";
       payload: { id: string; updates: Partial<Message> };
@@ -155,6 +159,39 @@ function messageReducer(
       return {
         messages: [...state.messages, action.payload],
         messageIds: new Set([...state.messageIds, action.payload.id]),
+      };
+    }
+
+    case "MERGE_MESSAGES": {
+      // Merge new messages with existing ones, deduplicate, and sort by createdOn
+      const incomingMessages = Array.isArray(action.payload)
+        ? action.payload
+        : [];
+
+      // Filter out messages we already have
+      const newMessages = incomingMessages.filter(
+        (m) => !state.messageIds.has(m.id),
+      );
+
+      if (newMessages.length === 0) {
+        return state;
+      }
+
+      console.log(
+        `[messageReducer] Merging ${newMessages.length} new messages`,
+      );
+
+      // Combine and sort
+      const allMessages = [...state.messages, ...newMessages].sort(
+        (a, b) =>
+          new Date(a.createdOn).getTime() - new Date(b.createdOn).getTime(),
+      );
+
+      const newMessageIds = new Set(allMessages.map((m) => m.id));
+
+      return {
+        messages: allMessages,
+        messageIds: newMessageIds,
       };
     }
 
@@ -329,6 +366,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const pingIntervalRef = useRef<NodeJS.Timeout>();
+  const workerRef = useRef<Worker | null>(null);
 
   // Keep messageIdsRef in sync with state
   useEffect(() => {
@@ -555,13 +593,148 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       if (pingIntervalRef.current) {
         clearInterval(pingIntervalRef.current);
       }
+
+      // Cleanup Worker
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
     };
   }, [conversationId]);
+
+  /**
+   * Polling Worker integration
+   */
+  useEffect(() => {
+    if (!conversationId) {
+      console.log("[useMessages] Skipping worker - no conversationId");
+      return;
+    }
+
+    // Create worker if it doesn't exist
+    if (!workerRef.current) {
+      console.log(
+        "[useMessages] ⚙️ Initializing polling worker for conversation:",
+        conversationId,
+      );
+
+      try {
+        const workerUrl = new URL(
+          "../workers/message-poller.worker.js",
+          import.meta.url,
+        );
+        console.log("[useMessages] Worker URL:", workerUrl.href);
+
+        // Use native Worker API with pure JavaScript worker (no TypeScript imports)
+        const worker = new Worker(workerUrl);
+
+        // Add error handler for worker creation
+        worker.onerror = (e) => {
+          console.error("[useMessages] ❌ Worker error:", {
+            message: e.message,
+            filename: e.filename,
+            lineno: e.lineno,
+            colno: e.colno,
+            error: e.error,
+          });
+        };
+
+        worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+          const data = event.data;
+          console.log("[useMessages] 📨 Worker message received:", data.type);
+
+          switch (data.type) {
+            case "MESSAGES_FETCHED": {
+              console.log(
+                `[useMessages] ✅ Polling worker fetched ${data.payload.fetchCount} messages`,
+              );
+
+              // Messages from API are already in the correct format (Message interface)
+              // No transformation needed - just add them to state
+              const newMessages: Message[] = data.payload.messages;
+
+              // Dispatch all messages to the reducer to merge and sort
+              if (newMessages.length > 0) {
+                console.log(
+                  `[useMessages] 📥 Merging ${newMessages.length} polled messages`,
+                );
+                dispatch({ type: "MERGE_MESSAGES", payload: newMessages });
+              }
+              break;
+            }
+
+            case "POLL_ERROR":
+              console.error(
+                `[useMessages] Polling error for ${data.conversationSid}:`,
+                data.payload.error,
+              );
+              break;
+
+            case "POLL_STATUS":
+              if (!data.payload.isPolling) {
+                console.log(
+                  `[useMessages] Polling stopped for ${data.conversationSid}`,
+                );
+              }
+              break;
+          }
+        };
+
+        workerRef.current = worker;
+        console.log("[useMessages] Worker initialized successfully");
+      } catch (error) {
+        console.error("[useMessages] Failed to create worker:", error);
+        // Continue without worker - WebSocket will be the only update mechanism
+        return;
+      }
+    }
+
+    // Start polling for current conversation
+    // Safety Net: removed lastMessageId and sinceTimestamp from payload
+    const startCommand: WorkerCommand = {
+      type: "START_POLLING",
+      timestamp: Date.now(),
+      payload: {
+        conversationSid: conversationId,
+      },
+    };
+
+    if (workerRef.current) {
+      console.log("[useMessages] 🚀 Starting worker polling:", startCommand);
+      workerRef.current.postMessage(startCommand);
+    } else {
+      console.warn(
+        "[useMessages] ⚠️ Worker not initialized, cannot start polling",
+      );
+    }
+
+    return () => {
+      if (workerRef.current) {
+        const stopCommand: WorkerCommand = {
+          type: "STOP_POLLING",
+          timestamp: Date.now(),
+          payload: {
+            conversationSid: conversationId,
+          },
+        };
+        workerRef.current.postMessage(stopCommand);
+      }
+    };
+  }, [conversationId, tenantId, practiceId]);
 
   /**
    * WebSocket connection management
    */
   useEffect(() => {
+    // Debug log for dependency changes
+    console.log("[useMessages] WebSocket effect triggered", {
+      conversationId,
+      saxId,
+      tenantId,
+      practiceId,
+      wsConnected: wsRef.current?.readyState === WebSocket.OPEN,
+    });
+
     // Don't connect if we don't have user context yet
     if (!saxId || !tenantId || !practiceId) {
       console.log(
@@ -571,186 +744,219 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     }
 
     const connectWebSocket = () => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) return;
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        console.log("[useMessages] WebSocket already connected, skipping");
+        return;
+      }
 
       console.log(
-        `[useMessages] Connecting WebSocket for conversation ${conversationId}`,
+        `[useMessages] 🔌 Attempting WebSocket connection for conversation ${conversationId}`,
       );
+      console.log("[useMessages] Auth context:", {
+        saxId,
+        tenantId,
+        practiceId,
+      });
 
-      const ws = new WebSocket(
-        `${WS_URL}?coordinatorId=${saxId}&tenantId=${tenantId}&practiceId=${practiceId}`,
-      );
+      const wsUrlWithParams = `${WS_URL}?coordinatorId=${saxId}&tenantId=${tenantId}&practiceId=${practiceId}`;
+      console.log("[useMessages] WebSocket URL:", wsUrlWithParams);
 
-      ws.onopen = () => {
-        console.log("[useMessages] WebSocket connected");
-        setWsConnected(true);
+      try {
+        const ws = new WebSocket(wsUrlWithParams);
+        console.log(
+          "[useMessages] WebSocket object created, waiting for connection...",
+        );
 
-        // Start ping interval to keep connection alive
-        pingIntervalRef.current = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ action: "ping" }));
+        ws.onopen = () => {
+          console.log("[useMessages] ✅ WebSocket CONNECTED successfully");
+          setWsConnected(true);
+
+          // Start ping interval to keep connection alive
+          pingIntervalRef.current = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              console.log("[useMessages] 🏓 Sending WebSocket ping");
+              ws.send(JSON.stringify({ action: "ping" }));
+            }
+          }, 30000); // Ping every 30 seconds
+        };
+
+        ws.onerror = (error) => {
+          console.error("[useMessages] ❌ WebSocket ERROR:", {
+            type: error.type,
+            target: error.target,
+            readyState: ws.readyState,
+            url: wsUrlWithParams,
+          });
+        };
+
+        ws.onclose = (event) => {
+          console.log("[useMessages] 🔌 WebSocket CLOSED:", {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean,
+          });
+          setWsConnected(false);
+
+          // Clear ping interval
+          if (pingIntervalRef.current) {
+            clearInterval(pingIntervalRef.current);
+            pingIntervalRef.current = undefined;
           }
-        }, 30000); // Ping every 30 seconds
-      };
+        };
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-
-          // Handle pong response from ping action
-          if (data.message === "pong") {
-            return;
-          }
-
-          // Handle new message broadcast
-          if (data.type === "newMessage" && data.message) {
-            // @eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const rawMessage = data.message as Record<string, any>;
-
-            // Transform snake_case to camelCase for Message interface
-            const message: Message = {
-              id: rawMessage.id,
-              conversationId:
-                rawMessage.conversationId || rawMessage.conversation_id,
-              twilioSid: rawMessage.twilioSid || rawMessage.twilio_sid || "",
-              direction: rawMessage.direction,
-              authorSaxId:
-                rawMessage.authorSaxId ?? rawMessage.author_sax_id ?? null,
-              authorPhone:
-                rawMessage.authorPhone || rawMessage.author_phone || null,
-              body: rawMessage.body,
-              status: rawMessage.status,
-              segmentCount:
-                rawMessage.segmentCount ?? rawMessage.segment_count ?? 1,
-              sentiment: rawMessage.sentiment || null,
-              sentimentScore:
-                rawMessage.sentimentScore || rawMessage.sentiment_score || null,
-              errorCode: rawMessage.errorCode || rawMessage.error_code || null,
-              errorMessage:
-                rawMessage.errorMessage || rawMessage.error_message || null,
-              createdOn: rawMessage.createdOn || rawMessage.created_on,
-              createdBy: rawMessage.createdBy ?? rawMessage.created_by ?? null,
-              sentAt: rawMessage.sentAt || rawMessage.sent_at || null,
-              deliveredAt:
-                rawMessage.deliveredAt || rawMessage.delivered_at || null,
-              readAt: rawMessage.readAt || rawMessage.read_at || null,
-              active: rawMessage.active ?? true,
-              tenantId: rawMessage.tenantId || rawMessage.tenant_id || "",
-              practiceId: rawMessage.practiceId || rawMessage.practice_id || "",
-            };
-
-            const msgConvId = message.conversationId;
-
-            console.log("[useMessages] Received WebSocket message", {
-              messageId: message.id,
-              msgConvId,
-              currentConvId: conversationId,
-              authorPhone: message.authorPhone,
-              matches: msgConvId === conversationId,
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log("[useMessages] 📨 WebSocket received data:", {
+              type: data.type,
+              message: data.message ? "present" : "absent",
+              messageId: data.message?.id,
             });
 
-            // Only add if it's for this conversation
-            if (msgConvId === conversationId) {
-              console.log("[useMessages] Processing WebSocket message", {
-                id: message.id,
-                twilioSid: message.twilioSid,
-                direction: message.direction,
-                body: message.body?.substring(0, 50),
+            // Handle pong response from ping action
+            if (data.message === "pong") {
+              return;
+            }
+
+            // Handle new message broadcast
+            if (data.type === "newMessage" && data.message) {
+              // @eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const rawMessage = data.message as Record<string, any>;
+
+              // Transform snake_case to camelCase for Message interface
+              const message: Message = {
+                id: rawMessage.id,
+                conversationId:
+                  rawMessage.conversationId || rawMessage.conversation_id,
+                twilioSid: rawMessage.twilioSid || rawMessage.twilio_sid || "",
+                direction: rawMessage.direction,
+                authorSaxId:
+                  rawMessage.authorSaxId ?? rawMessage.author_sax_id ?? null,
+                authorPhone:
+                  rawMessage.authorPhone || rawMessage.author_phone || null,
+                body: rawMessage.body,
+                status: rawMessage.status,
+                segmentCount:
+                  rawMessage.segmentCount ?? rawMessage.segment_count ?? 1,
+                sentiment: rawMessage.sentiment || null,
+                sentimentScore:
+                  rawMessage.sentimentScore ||
+                  rawMessage.sentiment_score ||
+                  null,
+                errorCode:
+                  rawMessage.errorCode || rawMessage.error_code || null,
+                errorMessage:
+                  rawMessage.errorMessage || rawMessage.error_message || null,
+                createdOn: rawMessage.createdOn || rawMessage.created_on,
+                createdBy:
+                  rawMessage.createdBy ?? rawMessage.created_by ?? null,
+                sentAt: rawMessage.sentAt || rawMessage.sent_at || null,
+                deliveredAt:
+                  rawMessage.deliveredAt || rawMessage.delivered_at || null,
+                readAt: rawMessage.readAt || rawMessage.read_at || null,
+                active: rawMessage.active ?? true,
+                tenantId: rawMessage.tenantId || rawMessage.tenant_id || "",
+                practiceId:
+                  rawMessage.practiceId || rawMessage.practice_id || "",
+              };
+
+              const msgConvId = message.conversationId;
+
+              console.log("[useMessages] Received WebSocket message", {
+                messageId: message.id,
+                msgConvId,
+                currentConvId: conversationId,
                 authorPhone: message.authorPhone,
-                currentMessageIds: Array.from(messageIdsRef.current),
-                pendingOptimistic: Array.from(
-                  pendingOptimisticRef.current.entries(),
-                ),
+                matches: msgConvId === conversationId,
               });
 
-              // Check if this message is already in our state by ID (use ref for current state)
-              if (messageIdsRef.current.has(message.id)) {
-                console.log(
-                  "[useMessages] Message already exists in state, skipping",
-                  message.id,
-                );
-                return;
-              }
+              // Only add if it's for this conversation
+              if (msgConvId === conversationId) {
+                console.log("[useMessages] Processing WebSocket message", {
+                  id: message.id,
+                  twilioSid: message.twilioSid,
+                  direction: message.direction,
+                  body: message.body?.substring(0, 50),
+                  authorPhone: message.authorPhone,
+                  currentMessageIds: Array.from(messageIdsRef.current),
+                  pendingOptimistic: Array.from(
+                    pendingOptimisticRef.current.entries(),
+                  ),
+                });
 
-              // Check if this message was already handled via optimistic update
-              // by checking both the twilioSid and the message ID
-              const optimisticId = Array.from(
-                pendingOptimisticRef.current.entries(),
-              ).find(
-                ([key]) => key === message.twilioSid || key === message.id,
-              )?.[1];
+                // Check if this message is already in our state by ID (use ref for current state)
+                if (messageIdsRef.current.has(message.id)) {
+                  console.log(
+                    "[useMessages] Message already exists in state, skipping",
+                    message.id,
+                  );
+                  return;
+                }
 
-              if (optimisticId) {
-                console.log(
-                  "[useMessages] WebSocket message matches optimistic update, skipping",
-                  {
-                    optimisticId,
-                    realId: message.id,
-                  },
-                );
-                // This message was already added via optimistic update and API response
-                // Clean up the tracking
-                pendingOptimisticRef.current.delete(message.twilioSid);
-                pendingOptimisticRef.current.delete(message.id);
-                optimisticIdsRef.current.delete(optimisticId);
-              } else {
-                // This is a genuinely new message (likely from another device or inbound)
-                console.log(
-                  "[useMessages] Adding new message from WebSocket",
-                  message.id,
-                );
-                dispatch({ type: "ADD_MESSAGE", payload: message });
+                // Check if this message was already handled via optimistic update
+                // by checking both the twilioSid and the message ID
+                const optimisticId = Array.from(
+                  pendingOptimisticRef.current.entries(),
+                ).find(
+                  ([key]) => key === message.twilioSid || key === message.id,
+                )?.[1];
+
+                if (optimisticId) {
+                  console.log(
+                    "[useMessages] WebSocket message matches optimistic update, skipping",
+                    {
+                      optimisticId,
+                      realId: message.id,
+                    },
+                  );
+                  // This message was already added via optimistic update and API response
+                  // Clean up the tracking
+                  pendingOptimisticRef.current.delete(message.twilioSid);
+                  pendingOptimisticRef.current.delete(message.id);
+                  optimisticIdsRef.current.delete(optimisticId);
+                } else {
+                  // This is a genuinely new message (likely from another device or inbound)
+                  console.log(
+                    "[useMessages] Adding new message from WebSocket",
+                    message.id,
+                  );
+                  dispatch({ type: "ADD_MESSAGE", payload: message });
+                }
               }
             }
-          }
 
-          // Handle message status updates
-          if (
-            data.type === "messageStatusUpdate" &&
-            data.messageId &&
-            data.status
-          ) {
-            console.log(
-              "[useMessages] Message status update",
-              data.messageId,
-              data.status,
+            // Handle message status updates
+            if (
+              data.type === "messageStatusUpdate" &&
+              data.messageId &&
+              data.status
+            ) {
+              console.log(
+                "[useMessages] Message status update",
+                data.messageId,
+                data.status,
+              );
+              dispatch({
+                type: "UPDATE_MESSAGE",
+                payload: {
+                  id: data.messageId,
+                  updates: { status: data.status },
+                },
+              });
+            }
+          } catch (err) {
+            console.error(
+              "[useMessages] Error parsing WebSocket message:",
+              err,
             );
-            dispatch({
-              type: "UPDATE_MESSAGE",
-              payload: {
-                id: data.messageId,
-                updates: { status: data.status },
-              },
-            });
           }
-        } catch (err) {
-          console.error("[useMessages] Error parsing WebSocket message:", err);
-        }
-      };
+        };
 
-      ws.onerror = (error) => {
-        console.error("[useMessages] WebSocket error:", error);
+        wsRef.current = ws;
+      } catch (wsError) {
+        console.error("[useMessages] ❌ Failed to create WebSocket:", wsError);
         setWsConnected(false);
-      };
-
-      ws.onclose = () => {
-        console.log("[useMessages] WebSocket closed");
-        setWsConnected(false);
-
-        if (pingIntervalRef.current) {
-          clearInterval(pingIntervalRef.current);
-        }
-
-        // Attempt to reconnect after 3 seconds
-        if (isMountedRef.current) {
-          reconnectTimeoutRef.current = setTimeout(() => {
-            console.log("[useMessages] Attempting to reconnect WebSocket");
-            connectWebSocket();
-          }, 3000);
-        }
-      };
-
-      wsRef.current = ws;
+      }
     };
 
     connectWebSocket();

@@ -20,7 +20,7 @@ const nextConfig = {
 		ignoreBuildErrors: false,
 	},
 
-	// Webpack configuration to handle optional ws dependencies
+	// Webpack configuration to handle optional ws dependencies and Web Workers
 	webpack: (config, { isServer }) => {
 		// These are optional native modules used by the ws package (via Twilio)
 		// They provide performance optimizations but are not required
@@ -31,6 +31,7 @@ const nextConfig = {
 				"utf-8-validate": false,
 			};
 		}
+
 		return config;
 	},
 };
