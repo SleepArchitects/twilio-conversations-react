@@ -67,6 +67,7 @@ echo "✅ S3 bucket created: ${BUCKET}"
 ```
 
 **Verify:**
+
 ```bash
 aws s3 ls | grep outreach-assets
 ```
@@ -113,6 +114,7 @@ echo "Save this ARN for the next step!"
 ```
 
 **Verify:**
+
 ```bash
 aws iam get-role --role-name sax-lambda-outreach-execution-role
 ```
@@ -164,6 +166,7 @@ rm /tmp/placeholder-handler.mjs /tmp/placeholder-function.zip
 ```
 
 **Verify:**
+
 ```bash
 aws lambda get-function --function-name sax-lambda-us-east-1-0x-d-outreach-server_develop
 ```
@@ -216,6 +219,7 @@ echo "Saved to: .outreach-lambda-url-${ENVIRONMENT}.txt"
 ```
 
 **Verify:**
+
 ```bash
 curl $(cat .outreach-lambda-url-develop.txt)
 # Should return: {"message":"Awaiting OpenNext deployment",...}
@@ -242,7 +246,6 @@ aws lambda update-function-configuration \
     NODE_ENV=production,
     ENVIRONMENT=${ENVIRONMENT},
     MULTI_ZONE_MODE=true,
-    DISABLE_AUTH=false,
     AUTH0_SECRET=YOUR_AUTH0_CLIENT_SECRET_HERE,
     AUTH0_CLIENT_SECRET=YOUR_AUTH0_CLIENT_SECRET_HERE,
     AUTH0_CLIENT_ID=YOUR_AUTH0_CLIENT_ID_HERE,
@@ -264,6 +267,7 @@ echo "✅ Lambda environment variables updated"
 ```
 
 **Get secrets from SleepConnect:**
+
 ```bash
 # From sleepconnect/.env.local
 cd ../sleepconnect
@@ -271,6 +275,7 @@ grep -E "AUTH0|TWILIO" .env.local
 ```
 
 **Verify:**
+
 ```bash
 aws lambda get-function-configuration \
   --function-name sax-lambda-us-east-1-0x-d-outreach-server_develop \
@@ -324,6 +329,7 @@ echo "SleepConnect CloudFront Distribution: ${DIST_ID}"
 ```
 
 **Steps in AWS Console:**
+
 1. Go to CloudFront → Distributions → Select SleepConnect distribution
 2. **Origins** tab → **Create origin**
    - **Origin domain**: `sax-nextjs-us-east-1-develop-outreach-assets.s3.us-east-1.amazonaws.com`
@@ -333,6 +339,7 @@ echo "SleepConnect CloudFront Distribution: ${DIST_ID}"
    - Save
 3. **Copy the S3 bucket policy** from the warning message
 4. Apply policy to S3 bucket:
+
    ```bash
    # Policy will look like this (get actual from CloudFront):
    aws s3api put-bucket-policy \
@@ -359,6 +366,7 @@ echo "SleepConnect CloudFront Distribution: ${DIST_ID}"
 ### 7.2: Add Cache Behavior for Static Assets
 
 **In CloudFront Console:**
+
 1. **Behaviors** tab → **Create behavior**
 2. Configure:
    - **Path pattern**: `/outreach-static/*`
@@ -454,6 +462,7 @@ node scripts/deploy-outreach.cjs develop
 ```
 
 **Expected output:**
+
 ```
 ✅ Lambda function code updated
 ✅ Static assets deployed to S3
@@ -524,6 +533,7 @@ After successful first deployment:
 ## 🐛 Troubleshooting
 
 ### Lambda returns 500 error
+
 ```bash
 # Check logs
 aws logs tail /aws/lambda/sax-lambda-us-east-1-0x-d-outreach-server_develop --follow
@@ -535,6 +545,7 @@ aws logs tail /aws/lambda/sax-lambda-us-east-1-0x-d-outreach-server_develop --fo
 ```
 
 ### Static assets 404
+
 ```bash
 # Verify S3 upload
 aws s3 ls s3://sax-nextjs-us-east-1-develop-outreach-assets/ --recursive | head
@@ -546,6 +557,7 @@ aws s3 ls s3://sax-nextjs-us-east-1-develop-outreach-assets/ --recursive | head
 ```
 
 ### Authentication fails
+
 ```bash
 # Verify environment variables match SleepConnect
 cd ../sleepconnect
@@ -558,6 +570,7 @@ aws lambda get-function-configuration \
 ```
 
 ### CloudFront not routing to Outreach
+
 ```bash
 # Verify SleepConnect has OUTREACH_APP_URL
 aws ssm get-parameter --name /sleepconnect/develop/OUTREACH_APP_URL

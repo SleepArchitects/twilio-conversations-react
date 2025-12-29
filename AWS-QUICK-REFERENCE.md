@@ -56,6 +56,7 @@ node scripts/deploy-outreach.cjs production
 **CRITICAL**: Follow [AWS-PRE-DEPLOYMENT-SETUP.md](./AWS-PRE-DEPLOYMENT-SETUP.md) step-by-step
 
 Quick checklist:
+
 ```bash
 # 1. Create S3 bucket
 aws s3 mb s3://sax-nextjs-us-east-1-develop-outreach-assets --region us-east-1
@@ -117,6 +118,7 @@ After `npm run build:open-next`:
 ## 🔐 Required Secrets
 
 ### Build-time (public)
+
 ```bash
 NEXT_PUBLIC_APP_BASE_URL=https://outreach.mydreamconnect.com
 NEXT_PUBLIC_SLEEPCONNECT_URL=https://dev.mydreamconnect.com
@@ -126,6 +128,7 @@ NEXT_PUBLIC_WS_API_URL=wss://...amazonaws.com/dev
 ```
 
 ### Runtime (Lambda environment)
+
 ```bash
 AUTH0_CLIENT_SECRET=***
 AUTH0_DOMAIN=your-tenant.auth0.com
@@ -133,8 +136,8 @@ AUTH0_CLIENT_ID=***
 AUTH0_BASE_URL=https://dev.mydreamconnect.com
 NODE_ENV=production
 MULTI_ZONE_MODE=true
-DISABLE_AUTH=false
 ```
+
  (or local build)
 2. **GitHub Actions** triggers (or manual: `npm run build:open-next`)
 3. **OpenNext** transforms Next.js → AWS format (`.open-next/`)
@@ -143,6 +146,7 @@ DISABLE_AUTH=false
 6. **Done** ✅
 
 **Multi-zone flow:**
+
 ```
 User → dev.mydreamconnect.com/outreach
   ↓
@@ -169,6 +173,7 @@ sam local invoke --event event.json
 # Stream Lambda logs
 aws logs tail /aws/lambda/sax-lambda-us-east-1-0x-d-outreach-server_develop --follow --format short
 ```
+
 ```** transforms Next.js → AWS format
 4. **Deploy script** uploads to S3 + Lambda
 5. **CloudFront** invalidation clears cache

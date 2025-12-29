@@ -9,6 +9,7 @@
 ## Overview
 
 This deployment integrates two Next.js applications:
+
 - **SleepConnect** (main app) at `https://dev.mydreamconnect.com`
 - **Outreach** (SMS zone) at `https://dev.mydreamconnect.com/outreach`
 
@@ -19,6 +20,7 @@ SleepConnect proxies `/outreach/*` requests to Outreach Lambda, creating a seaml
 ## Prerequisites
 
 ### Required Tools
+
 - AWS CLI configured with appropriate credentials (`aws configure`)
 - Node.js 18+ and pnpm/npm installed
 - Access to both repositories:
@@ -27,6 +29,7 @@ SleepConnect proxies `/outreach/*` requests to Outreach Lambda, creating a seaml
 - GitHub repository access with ability to trigger workflows
 
 ### Required Credentials
+
 - AWS Account ID: `597088017323`
 - Auth0 tenant: `sleeparchitects.us.auth0.com`
 - Twilio Account SID and Auth Token
@@ -37,6 +40,7 @@ SleepConnect proxies `/outreach/*` requests to Outreach Lambda, creating a seaml
 ## Phase 1: Verify Infrastructure (15-20 min)
 
 ### 1.1 Outreach Lambda Function
+
 ```bash
 # Check if Lambda exists
 aws lambda get-function \
@@ -51,6 +55,7 @@ cd ~/code/SAX/twilio-conversations-react
 **Expected**: Lambda exists or can be created.
 
 ### 1.2 Outreach S3 Assets Bucket
+
 ```bash
 # Check if bucket exists
 aws s3 ls s3://sax-nextjs-us-east-1-develop-outreach-assets/
@@ -69,6 +74,7 @@ aws s3api put-public-access-block \
 **Expected**: Bucket exists with versioning and public access blocked.
 
 ### 1.3 SleepConnect CloudFront Distribution
+
 ```bash
 # Find SleepConnect CloudFront ID
 aws cloudfront list-distributions \
@@ -81,6 +87,7 @@ aws cloudfront list-distributions \
 **Expected**: CloudFront distribution ID found. Save this as `CLOUDFRONT_DIST_ID`.
 
 ### 1.4 Backend API Gateway (Must exist)
+
 ```bash
 # Test REST API
 curl -I https://outreach-api-dev.mydreamconnect.com/health
@@ -113,6 +120,7 @@ grep -A 10 "async rewrites" next.config.js
 **Expected**: Should see `/outreach/:path*` rewrite using `OUTREACH_APP_URL`.
 
 **If missing**, add to `next.config.js`:
+
 ```javascript
 async rewrites() {
   const outreachUrl = process.env.OUTREACH_APP_URL || 'http://localhost:3001';
@@ -132,6 +140,7 @@ async rewrites() {
 Go to: **sleepconnect repo → Settings → Secrets and variables → Actions**
 
 Verify these secrets exist (or add them):
+
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `AUTH0_CLIENT_SECRET`
@@ -156,6 +165,7 @@ grep -n "OUTREACH_APP_URL" .github/workflows/deploy-develop.yml
 ### 2.4 Configure CloudFront for Outreach
 
 #### Check Current Origins
+
 ```bash
 CLOUDFRONT_DIST_ID="E2CJ0SW11QUMP8"  # Replace with actual ID from step 1.3
 
@@ -167,10 +177,12 @@ aws cloudfront get-distribution-config \
 ```
 
 **Check for**:
+
 - Origin with domain: `outreach-dev.mydreamconnect.com` (or Lambda Function URL)
 - Origin with domain: `sax-nextjs-us-east-1-develop-outreach-assets.s3.us-east-1.amazonaws.com`
 
 **If missing**, you need to update CloudFront:
+
 1. Get current config: `aws cloudfront get-distribution-config --id $CLOUDFRONT_DIST_ID > /tmp/cf-config.json`
 2. Edit `/tmp/cf-config.json` to add origins and behaviors
 3. Update: `aws cloudfront update-distribution --id $CLOUDFRONT_DIST_ID --if-match <ETag> --distribution-config file:///tmp/cf-config-updated.json`
@@ -178,17 +190,20 @@ aws cloudfront get-distribution-config \
 **Recommended**: Use AWS Console → CloudFront → E2CJ0SW11QUMP8 → Edit to add:
 
 **Origin 1: Outreach UI**
+
 - Name: `outreach-lambda-dev`
 - Domain: `outreach-dev.mydreamconnect.com` (or Lambda Function URL without https://)
 - Protocol: HTTPS only
 
 **Origin 2: Outreach S3 Assets**
+
 - Name: `outreach-assets-dev`
 - Domain: `sax-nextjs-us-east-1-develop-outreach-assets.s3.us-east-1.amazonaws.com`
 - Origin access: Origin access control (recommended)
 - Create new OAC if needed
 
 **Behavior 1**: `/outreach/*`
+
 - Precedence: 0 (highest)
 - Origin: `outreach-lambda-dev`
 - Viewer protocol: Redirect HTTP to HTTPS
@@ -197,6 +212,7 @@ aws cloudfront get-distribution-config \
 - Origin request policy: AllViewer
 
 **Behavior 2**: `/outreach-static/*`
+
 - Precedence: 1
 - Origin: `outreach-assets-dev`
 - Viewer protocol: Redirect HTTP to HTTPS
@@ -205,6 +221,7 @@ aws cloudfront get-distribution-config \
 - Compress: Yes
 
 #### Configure S3 Bucket Policy for OAC
+
 ```bash
 cat > /tmp/outreach-assets-policy.json <<EOF
 {
@@ -244,17 +261,20 @@ git push origin develop  # or current branch
 ```
 
 **Go to GitHub**:
+
 1. Navigate to: **sleepconnect repo → Actions → Deploy Develop**
 2. Click **Run workflow**
 3. Select branch: `develop` (or current branch if testing)
 4. Click **Run workflow**
 
 **Monitor deployment**:
+
 - Watch workflow progress in GitHub Actions UI
 - Expected duration: 10-20 minutes
 - All jobs should complete successfully
 
 **Verify deployment**:
+
 ```bash
 # Test SleepConnect loads
 curl -I https://dev.mydreamconnect.com
@@ -318,7 +338,6 @@ aws lambda update-function-configuration \
   --environment "Variables={
     NODE_ENV=production,
     MULTI_ZONE_MODE=true,
-    DISABLE_AUTH=false,
     AUTH0_SECRET=<same-as-sleepconnect>,
     AUTH0_CLIENT_SECRET=<same-as-sleepconnect>,
     AUTH0_CLIENT_ID=<same-as-sleepconnect>,
@@ -338,6 +357,7 @@ aws lambda update-function-configuration \
 ```
 
 **To get Auth0 secrets from SleepConnect**:
+
 ```bash
 cd ~/code/SAX/sleepconnect
 grep AUTH0_CLIENT_SECRET .env.local
@@ -376,6 +396,7 @@ node scripts/deploy-outreach.cjs develop
 ```
 
 **Monitor deployment**:
+
 ```bash
 # Stream Lambda logs during deployment
 aws logs tail /aws/lambda/sax-lambda-us-east-1-0x-d-outreach-server_develop \
@@ -412,11 +433,13 @@ curl -I https://dev.mydreamconnect.com/outreach-static/_next/static/chunks/main.
 ### 4.1 Test Multi-Zone Access
 
 **Open browser** (or use curl with session cookies):
+
 ```bash
 open https://dev.mydreamconnect.com/outreach/conversations
 ```
 
 **Expected flow**:
+
 1. Redirect to Auth0 login (if not logged in)
 2. After login, redirect back to `/outreach/conversations`
 3. Page loads with conversation list
@@ -425,11 +448,13 @@ open https://dev.mydreamconnect.com/outreach/conversations
 ### 4.2 Test Static Assets
 
 **In browser DevTools**:
+
 1. Open Network tab
 2. Reload page
 3. Filter by `.js` and `.css` files
 
 **Verify**:
+
 - All assets return 200 status
 - Assets load from `/outreach-static/_next/...` path
 - `x-cache` header shows `Hit from cloudfront` (after first load)
@@ -437,6 +462,7 @@ open https://dev.mydreamconnect.com/outreach/conversations
 ### 4.3 Test API Integration
 
 **In browser console**:
+
 ```javascript
 // Test REST API
 fetch('https://outreach-api-dev.mydreamconnect.com/outreach/conversations', {
@@ -448,6 +474,7 @@ fetch('https://outreach-api-dev.mydreamconnect.com/outreach/conversations', {
 ```
 
 **Expected**:
+
 - API calls return 200 with data
 - WebSocket connection established
 - Real-time updates work (send message, see it appear)
@@ -455,12 +482,14 @@ fetch('https://outreach-api-dev.mydreamconnect.com/outreach/conversations', {
 ### 4.4 Test Authentication
 
 **Test valid session**:
+
 1. Log in to SleepConnect
 2. Navigate to `/outreach`
 3. Verify user name appears in UI
 4. Verify conversations load
 
 **Test invalid session**:
+
 1. Clear cookies (incognito mode)
 2. Navigate to `https://dev.mydreamconnect.com/outreach`
 3. Verify redirect to SleepConnect login
@@ -487,6 +516,7 @@ aws logs tail /aws/lambda/sax-lambda-us-east-1-0x-d-outreach-server_develop \
 ## Phase 5: Validation Checklist
 
 ### SleepConnect Deployment
+
 - [ ] GitHub Actions workflow completed successfully
 - [ ] SleepConnect Lambda has `OUTREACH_APP_URL` set
 - [ ] CloudFront has `/outreach/*` behavior → Outreach origin
@@ -495,6 +525,7 @@ aws logs tail /aws/lambda/sax-lambda-us-east-1-0x-d-outreach-server_develop \
 - [ ] `https://dev.mydreamconnect.com/outreach` returns 200 (after Outreach deployed)
 
 ### Outreach Deployment
+
 - [ ] Lambda function code updated
 - [ ] Lambda has all required environment variables
 - [ ] S3 assets uploaded successfully
@@ -502,6 +533,7 @@ aws logs tail /aws/lambda/sax-lambda-us-east-1-0x-d-outreach-server_develop \
 - [ ] No errors in CloudWatch Logs
 
 ### Integration
+
 - [ ] Multi-zone access works: `https://dev.mydreamconnect.com/outreach`
 - [ ] Static assets load from `/outreach-static/*`
 - [ ] API calls succeed
@@ -519,6 +551,7 @@ aws logs tail /aws/lambda/sax-lambda-us-east-1-0x-d-outreach-server_develop \
 **Cause**: Rewrites not configured or `OUTREACH_APP_URL` not set.
 
 **Fix**:
+
 ```bash
 # Check SleepConnect Lambda env var
 aws lambda get-function-configuration \
@@ -536,6 +569,7 @@ OUTREACH_APP_URL="https://outreach-dev.mydreamconnect.com" node scripts/deploy-n
 **Cause**: CloudFront behavior missing or S3 bucket policy incorrect.
 
 **Fix**:
+
 ```bash
 # Verify CloudFront behavior exists for /outreach-static/*
 aws cloudfront get-distribution-config \
@@ -554,6 +588,7 @@ aws s3api get-bucket-policy \
 **Cause**: `AUTH0_CLIENT_SECRET` mismatch between SleepConnect and Outreach.
 
 **Fix**:
+
 ```bash
 # Get SleepConnect secret
 cd ~/code/SAX/sleepconnect
@@ -577,6 +612,7 @@ aws lambda update-function-configuration \
 **Cause**: Incorrect `NEXT_PUBLIC_WS_API_URL` or WebSocket API not deployed.
 
 **Fix**:
+
 ```bash
 # Test WebSocket API directly
 wscat -c wss://outreach-ws-dev.mydreamconnect.com
@@ -592,6 +628,7 @@ aws lambda get-function-configuration \
 **Cause**: Missing environment variables or code error.
 
 **Fix**:
+
 ```bash
 # Check CloudWatch Logs for error details
 aws logs tail /aws/lambda/sax-lambda-us-east-1-0x-d-outreach-server_develop \
@@ -611,10 +648,13 @@ aws lambda get-function-configuration \
 ## Rollback Procedures
 
 ### Rollback SleepConnect
+
 **Option 1**: Re-run previous successful GitHub Actions workflow
+
 - Go to Actions → Find last successful run → Re-run all jobs
 
 **Option 2**: Revert Lambda to previous version
+
 ```bash
 aws lambda update-alias \
   --function-name sax-lambda-us-east-1-0x-d-sleep-connect-server_develop \
@@ -624,7 +664,9 @@ aws lambda update-alias \
 ```
 
 ### Rollback Outreach
+
 **Option 1**: Redeploy previous commit
+
 ```bash
 cd ~/code/SAX/twilio-conversations-react
 git checkout <previous-commit>
@@ -633,6 +675,7 @@ node scripts/deploy-outreach.cjs develop
 ```
 
 **Option 2**: Restore Lambda version
+
 ```bash
 # List versions
 aws lambda list-versions-by-function \
@@ -650,6 +693,7 @@ aws lambda update-alias \
 ## Success Criteria
 
 **All must pass**:
+
 - [ ] SleepConnect GitHub Actions deployment succeeded
 - [ ] Outreach manual deployment completed without errors
 - [ ] `https://dev.mydreamconnect.com` loads SleepConnect

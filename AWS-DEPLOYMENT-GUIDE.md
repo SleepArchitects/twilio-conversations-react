@@ -13,11 +13,13 @@
 This application deploys as part of a **multi-zone architecture** with SleepConnect using **custom domains** for stability:
 
 **Environment URLs:**
+
 - **Develop**: `https://dev.mydreamconnect.com/outreach` (via `https://outreach-dev.mydreamconnect.com`)
 - **Staging**: `https://stage.mydreamconnect.com/outreach` (via `https://outreach-staging.mydreamconnect.com`)
 - **Production**: `https://mydreamconnect.com/outreach` (via `https://outreach.mydreamconnect.com`)
 
 **Custom Domain Components (per environment):**
+
 - UI: CloudFront → Lambda (e.g., `outreach-dev.mydreamconnect.com`)
 - REST API: API Gateway (e.g., `outreach-api-dev.mydreamconnect.com`)
 - WebSocket: API Gateway (e.g., `outreach-ws-dev.mydreamconnect.com`)
@@ -64,10 +66,12 @@ aws <command> --no-cli-pager
 
 1. **AWS Account** with appropriate permissions
 2. **AWS CLI** configured with credentials:
+
    ```bash
    aws configure
    # Enter: Access Key ID, Secret Access Key, Region (us-east-1), Output format (json)
    ```
+
 3. **Domain** managed in Route53 or external DNS provider
 4. **Permissions** required:
    - S3: Full access to create buckets
@@ -82,6 +86,7 @@ aws <command> --no-cli-pager
 ## Quick Start
 
 **Note**: This application is deployed as part of a multi-zone architecture. For complete setup, see:
+
 - SleepConnect repo: `DEPLOY-MULTI-ZONE-OUTREACH.md`
 - This repo: `MULTI-ZONE-DEPLOYMENT-GUIDE.md`
 
@@ -108,6 +113,7 @@ This will install `@opennextjs/aws` along with all other dependencies.
 ```
 
 This creates:
+
 - S3 bucket for static assets
 - CloudFront Origin Access Identity
 - ACM certificate (requires DNS validation)
@@ -130,6 +136,7 @@ aws acm describe-certificate \
 Add the CNAME record to your DNS provider (Route53 or external).
 
 Wait for validation (can take 5-30 minutes):
+
 ```bash
 aws acm describe-certificate \
   --certificate-arn $CERT_ARN \
@@ -150,6 +157,7 @@ npm run build:open-next:debug
 ```
 
 This creates a `.open-next/` directory with:
+
 - `server-function/` - Lambda function for Next.js SSR
 - `assets/` - Static files (JS, CSS, images)
 - `image-optimization-function/` - Lambda for image optimization
@@ -162,6 +170,7 @@ This creates a `.open-next/` directory with:
 ```
 
 This will:
+
 1. Upload static assets to S3
 2. Create/update Lambda functions
 3. Save CloudFront configuration
@@ -229,6 +238,7 @@ When you run `npm run build:open-next`:
 1. **Next.js Build**: Creates `.next/` directory
 2. **OpenNext Transform**: Converts to AWS-compatible format
 3. **Output Structure**:
+
    ```
    .open-next/
    ├── server-function/          # Main Lambda function
@@ -282,6 +292,7 @@ When you run `npm run build:open-next`:
 ### Environments
 
 The scripts support multiple environments:
+
 - `production` - Production deployment
 - `staging` - Staging environment
 - `dev` - Development environment
@@ -354,6 +365,7 @@ aws lambda update-alias \
 - `outreach.mydreamconnect.com` → production
 
 **Benefits**:
+
 - Lambda URLs won't change on function recreation
 - `OUTREACH_APP_URL` stays constant
 - No manual URL updates needed
@@ -401,6 +413,7 @@ NEXT_PUBLIC_WS_URL=wss://outreach-ws-dev.mydreamconnect.com
 ### Custom Domain URLs by Environment
 
 **Develop:**
+
 ```bash
 OUTREACH_APP_URL=https://outreach-dev.mydreamconnect.com
 NEXT_PUBLIC_API_BASE_URL=https://outreach-api-dev.mydreamconnect.com
@@ -408,6 +421,7 @@ NEXT_PUBLIC_WS_URL=wss://outreach-ws-dev.mydreamconnect.com
 ```
 
 **Staging:**
+
 ```bash
 OUTREACH_APP_URL=https://outreach-staging.mydreamconnect.com
 NEXT_PUBLIC_API_BASE_URL=https://outreach-api-staging.mydreamconnect.com
@@ -415,6 +429,7 @@ NEXT_PUBLIC_WS_URL=wss://outreach-ws-staging.mydreamconnect.com
 ```
 
 **Production:**
+
 ```bash
 OUTREACH_APP_URL=https://outreach.mydreamconnect.com
 NEXT_PUBLIC_API_BASE_URL=https://outreach-api.mydreamconnect.com
@@ -449,7 +464,9 @@ AUTH0_BASE_URL=https://dev.mydreamconnect.com
 NODE_ENV=production
 ENVIRONMENT=production
 MULTI_ZONE_MODE=true
-DISABLE_AUTH=false  # NEVER true in production
+
+# Authentication is hardened and mandatory. For local testing,
+# run the SleepConnect proxy and use valid test credentials.
 ```
 
 ### Setting Lambda Environment Variables
@@ -477,8 +494,7 @@ Or create a `.env.lambda.json` file:
     "AUTH0_DOMAIN": "your-tenant.auth0.com",
     "AUTH0_CLIENT_ID": "your-client-id",
     "AUTH0_BASE_URL": "https://dev.mydreamconnect.com",
-    "MULTI_ZONE_MODE": "true",
-    "DISABLE_AUTH": "false"
+    "MULTI_ZONE_MODE": "true"
   }
 }
 ```
@@ -593,12 +609,14 @@ resource "aws_cloudfront_distribution" "outreach" {
 ### Build Issues
 
 **Error: "Cannot find module '@opennextjs/aws'"**
+
 ```bash
 # Solution: Install dependencies
 npm install
 ```
 
 **Error: "Output 'standalone' is not compatible with OpenNext"**
+
 ```bash
 # Solution: This is normal, OpenNext handles standalone output
 # Just ensure next.config.mjs has: output: "standalone"
@@ -607,12 +625,14 @@ npm install
 ### Deployment Issues
 
 **Error: "S3 bucket not found"**
+
 ```bash
 # Solution: Run infrastructure setup first
 ./scripts/setup-aws-infrastructure.sh production
 ```
 
 **Error: "Certificate not validated"**
+
 ```bash
 # Check certificate status
 CERT_ARN=$(cat .aws-cert-arn-production.txt)
@@ -622,6 +642,7 @@ aws acm describe-certificate --certificate-arn $CERT_ARN --region us-east-1 --no
 ```
 
 **Error: "Lambda function too large"**
+
 ```bash
 # Solution: Enable minification
 npm run build:open-next  # (not build:open-next:debug)
@@ -632,6 +653,7 @@ npm run build:open-next  # (not build:open-next:debug)
 ### Runtime Issues
 
 **500 Error from Lambda**
+
 ```bash
 # Check Lambda logs
 aws logs tail /aws/lambda/outreach-mydreamconnect-server-production --follow
@@ -643,6 +665,7 @@ aws lambda get-function-configuration \
 ```
 
 **404 for static assets**
+
 ```bash
 # Verify S3 upload
 aws s3 ls s3://outreach-mydreamconnect-production/outreach-static/ --recursive --no-cli-pager
@@ -651,6 +674,7 @@ aws s3 ls s3://outreach-mydreamconnect-production/outreach-static/ --recursive -
 ```
 
 **Authentication failures**
+
 ```bash
 # Verify Lambda environment variables include AUTH0_CLIENT_SECRET
 # Check Auth0 configuration matches
@@ -748,12 +772,13 @@ jobs:
 
 ## Support & References
 
-- **OpenNext Documentation**: https://opennext.js.org
-- **Next.js Deployment**: https://nextjs.org/docs/deployment
-- **AWS Lambda**: https://docs.aws.amazon.com/lambda/
-- **CloudFront**: https://docs.aws.amazon.com/cloudfront/
+- **OpenNext Documentation**: <https://opennext.js.org>
+- **Next.js Deployment**: <https://nextjs.org/docs/deployment>
+- **AWS Lambda**: <https://docs.aws.amazon.com/lambda/>
+- **CloudFront**: <https://docs.aws.amazon.com/cloudfront/>
 
 **Internal Documentation**:
+
 - [AWS-DEPLOYMENT-ARCHITECTURE.md](./AWS-DEPLOYMENT-ARCHITECTURE.md)
 - [DEPLOYMENT-HANDOVER.md](./DEPLOYMENT-HANDOVER.md)
 - [next.config.mjs](./next.config.mjs)

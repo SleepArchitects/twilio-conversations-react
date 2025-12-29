@@ -27,13 +27,13 @@ Scope: Outreach Next.js app and its AWS/OpenNext deployment. SleepConnect backen
 | `NEXT_PUBLIC_BASE_PATH` | Yes | Base path for multi-zone routing | `/outreach` |
 | `NEXT_PUBLIC_API_BASE_URL` | Yes | REST API base URL (client) | `https://outreach-api-dev.mydreamconnect.com` |
 | `NEXT_PUBLIC_WS_API_URL` | Yes | WebSocket endpoint for real-time updates | `wss://outreach-ws-dev.mydreamconnect.com` |
-| `NEXT_PUBLIC_DISABLE_AUTH` | No (dev only) | Bypass client AuthGuard for local testing | `true` |
 | `NEXT_PUBLIC_SHOW_BANNER` | No | Toggle marketing banner | `false` |
 | `NEXT_PUBLIC_BANNER_LOGO` | No | Banner logo key | `moonplus` |
 | `NEXT_PUBLIC_BANNER_LINK` | No | Banner href | `/bot` |
 | `NEXT_PUBLIC_BANNER_TEXT` | No | Banner copy | `Meet Alora` |
 | `NEXT_PUBLIC_PRACTICE_NAME` | No | Default practice name fallback | `Sleep Architects` |
 | `NEXT_PUBLIC_ENABLE_SLA_MONITORING` | No | Enable SLA UI | `true` |
+
 | `NEXT_PUBLIC_ALLOW_INTERNATIONAL_PHONES` | No | Allow international phone input | `false` |
 
 ## Runtime variables (Lambda / server-side)
@@ -42,8 +42,8 @@ Scope: Outreach Next.js app and its AWS/OpenNext deployment. SleepConnect backen
 |----------|:--------:|---------|-------------------|
 | `NODE_ENV` | Yes | Execution environment | `production` |
 | `MULTI_ZONE_MODE` | Yes | Enable multi-zone auth (read JWT from SleepConnect) | `true` |
-| `DISABLE_AUTH` | No (dev only) | Bypass middleware auth | `false` |
 | `AUTH0_SECRET` | Yes | Shared secret for JWT verification | `***` |
+
 | `AUTH0_CLIENT_SECRET` | Yes | Same as `AUTH0_SECRET` (alias) | `***` |
 | `AUTH0_CLIENT_ID` | Yes | Auth0 client ID | `***` |
 | `AUTH0_DOMAIN` | Yes | Auth0 domain | `sleeparchitects.us.auth0.com` |
@@ -353,8 +353,8 @@ Expected variables:
 
 - [ ] `NODE_ENV=production`
 - [ ] `MULTI_ZONE_MODE=true`
-- [ ] `DISABLE_AUTH=false`
 - [ ] `AUTH0_SECRET=<same as SleepConnect>`
+
 - [ ] `AUTH0_CLIENT_SECRET=<same as SleepConnect>`
 - [ ] `AUTH0_CLIENT_ID=<same as SleepConnect>`
 - [ ] `AUTH0_DOMAIN=sleeparchitects.us.auth0.com`
