@@ -49,6 +49,13 @@ export async function middleware(request: NextRequest) {
   console.log(`[OUTREACH MIDDLEWARE] 🍪 Cookies:`, Array.from(request.cookies.getAll()).map(c => `${c.name}=${c.value.substring(0, 20)}...`));
   console.log(`[OUTREACH MIDDLEWARE] 📥 Headers: x-sax-user-context present: ${!!request.headers.get('x-sax-user-context')}`);
   
+  // ⚠️ CRITICAL: Skip ALL API routes - they handle their own authentication
+  // API routes must be accessible without middleware interference to allow session checking
+  if (pathname.startsWith('/outreach/api/')) {
+    console.log(`[OUTREACH MIDDLEWARE] ⏭️  Skipping API route: ${pathname}`);
+    return NextResponse.next();
+  }
+  
   // Auth routes are handled internally by this app (via proxy to /api/auth/profile)
   // Only redirect actual Auth0 login/logout/callback routes to sleepconnect
   if (pathname.startsWith('/outreach/auth/login') ||
@@ -93,15 +100,14 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all /outreach/* routes EXCEPT:
-     * - /outreach/auth/* (Auth0 UI routes - redirect to SleepConnect)
-     * - /outreach/api/auth/* (API auth endpoints - handled internally)
+     * Match all /outreach/* routes for authentication checks.
      *
-     * Using explicit path patterns instead of regex negative lookahead
-     * because negative lookahead doesn't work correctly for path segment exclusion.
+     * IMPORTANT: The middleware code explicitly skips /outreach/api/* routes
+     * to allow API endpoints to handle their own authentication logic.
+     *
+     * Auth0 login/logout/callback routes are redirected to sleepconnect.
+     * All other page routes require valid session authentication.
      */
-    '/outreach/auth/:path*',
-    '/outreach/api/auth/:path*',
-    '/outreach/:path*',
+    "/outreach/:path*",
   ],
 };

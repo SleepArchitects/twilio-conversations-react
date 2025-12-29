@@ -158,12 +158,11 @@ export async function getSession(): Promise<{ user: SaxClaims } | null> {
       // console.debug("[AUTH] Found user from forwarded cookie:", user.sax_id);
       return { user };
     }
-    // Fallback to mock user so local/missing headers don't block UI in dev
-    console
-      .debug
-      // "[AUTH] Multi-zone mode but no user context found - using mock user",
-      ();
-    return { user: getMockUser() };
+    // No user context found in multi-zone mode - return null (unauthenticated)
+    console.debug(
+      "[AUTH] Multi-zone mode but no user context found - returning null",
+    );
+    return null;
   }
 
   // Standalone mode: use Auth0 session

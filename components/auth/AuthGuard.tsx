@@ -41,13 +41,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         // First, try to set the cookie from the header (in case rewrite didn't forward it)
         const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-        await fetch(`${basePath}/api/auth/set-cookie`, {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }).catch(() => {
-          // Ignore errors - cookie might already be set
-        });
+        const setCookieResponse = await fetch(
+          `${basePath}/api/auth/set-cookie`,
+          {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
+          },
+        );
+
+        console.log(
+          "[AuthGuard] set-cookie response status:",
+          setCookieResponse.status,
+        );
 
         // Then call our local API endpoint which can read the HttpOnly cookie
         const response = await fetch(`${basePath}/api/auth/session`, {
@@ -56,8 +62,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           cache: "no-store",
         });
 
+        console.log("[AuthGuard] session response status:", response.status);
+
         if (response.ok) {
           const data = await response.json();
+          console.log("[AuthGuard] session data:", data);
 
           if (
             data.authenticated &&
@@ -65,27 +74,32 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             data.tenant_id &&
             data.practice_id
           ) {
-            console.log("[AuthGuard] Valid session found");
+            console.log("[AuthGuard] ✅ Valid session found");
             setIsAuthenticated(true);
             return;
           }
         }
 
         // No valid session - redirect to login
-        console.log("[AuthGuard] No valid session - redirecting to login");
+        console.log("[AuthGuard] ❌ No valid session - redirecting to login");
         const sleepconnectUrl =
           process.env.NEXT_PUBLIC_SLEEPCONNECT_URL || "http://localhost:3000";
         const returnTo = encodeURIComponent(`/outreach${pathname}`);
         const loginUrl = `${sleepconnectUrl}/login?returnTo=${returnTo}`;
+        console.log("[AuthGuard] 🔀 Redirecting to:", loginUrl);
         window.location.href = loginUrl;
       } catch (error) {
-        console.error("[AuthGuard] Auth check failed:", error);
+        console.error("[AuthGuard] ❌ Auth check failed:", error);
 
         // On error, redirect to login as fallback
         const sleepconnectUrl =
           process.env.NEXT_PUBLIC_SLEEPCONNECT_URL || "http://localhost:3000";
         const returnTo = encodeURIComponent(`/outreach${pathname}`);
         const loginUrl = `${sleepconnectUrl}/login?returnTo=${returnTo}`;
+        console.log(
+          "[AuthGuard] 🔀 Error fallback - redirecting to:",
+          loginUrl,
+        );
         window.location.href = loginUrl;
       }
     };
