@@ -11,7 +11,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SMS Outreach | SleepConnect",
+  title: "SMS Outreach | DreamConnect",
   description: "Patient SMS communication management",
 };
 

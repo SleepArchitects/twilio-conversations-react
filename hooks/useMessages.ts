@@ -156,9 +156,16 @@ function messageReducer(
         return state;
       }
       console.log("[messageReducer] Adding message", action.payload.id);
+
+      // Add and sort by createdOn to ensure correct order
+      const newMessages = [...state.messages, action.payload].sort(
+        (a, b) =>
+          new Date(a.createdOn).getTime() - new Date(b.createdOn).getTime(),
+      );
+
       return {
-        messages: [...state.messages, action.payload],
-        messageIds: new Set([...state.messageIds, action.payload.id]),
+        messages: newMessages,
+        messageIds: new Set(newMessages.map((m) => m.id)),
       };
     }
 
