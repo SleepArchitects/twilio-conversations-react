@@ -21,15 +21,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Skip auth check if disabled (development only)
-    const isAuthDisabled = process.env.NEXT_PUBLIC_DISABLE_AUTH === "true";
-
-    if (isAuthDisabled) {
-      console.log("[AuthGuard] Auth disabled - bypassing check");
-      setIsAuthenticated(true);
-      return;
-    }
-
     // Don't check auth on auth routes (they're handled by middleware)
     if (pathname?.includes("/auth")) {
       setIsAuthenticated(true);

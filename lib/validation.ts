@@ -12,12 +12,10 @@ export const INTERNATIONAL_PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
 /** Regex for 10 digits only (no country code or formatting) */
 export const PHONE_DIGITS_ONLY_REGEX = /^\d{10}$/;
 
-/** Flag to allow all international phone numbers (dev mode) - uses NEXT_PUBLIC_ for client-side access */
+/** Flag to allow all international phone numbers - uses NEXT_PUBLIC_ for client-side access */
 const ALLOW_ALL_PHONE_NUMBERS =
   process.env.NEXT_PUBLIC_ALLOW_INTERNATIONAL_PHONES === "true" ||
-  process.env.ALLOW_INTERNATIONAL_PHONES === "true" ||
-  process.env.NEXT_PUBLIC_DISABLE_AUTH === "true" ||
-  process.env.DISABLE_AUTH === "true";
+  process.env.ALLOW_INTERNATIONAL_PHONES === "true";
 
 /**
  * Validates if a phone number is a valid US phone number in E.164 format
@@ -33,7 +31,7 @@ export function isValidUSPhoneNumber(phone: string): boolean {
     return false;
   }
 
-  // In dev mode, allow any valid international number
+  // If international phones are allowed, accept any valid international number
   if (ALLOW_ALL_PHONE_NUMBERS) {
     return INTERNATIONAL_PHONE_REGEX.test(phone.trim());
   }
@@ -156,7 +154,7 @@ export function getPhoneValidationError(phone: string): string | null {
     return "Invalid phone number format. Must start with + and country code";
   }
 
-  // In dev mode, allow any valid international number
+  // If international phones are allowed, accept any valid international number
   if (ALLOW_ALL_PHONE_NUMBERS) {
     if (INTERNATIONAL_PHONE_REGEX.test(trimmed)) {
       return null; // Valid international number
