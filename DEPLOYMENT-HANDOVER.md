@@ -3,6 +3,7 @@
 **Date**: December 16, 2025  
 **Project**: Twilio Conversations SMS Outreach  
 **Target Domains**:
+
 - Primary: `outreach.mydreamconnect.com` (standalone)
 - Multi-zone: `dev.mydreamconnect.com/outreach` (integrated with SleepConnect)
 - API: `outreach-api.mydreamconnect.com` (backend API)
@@ -63,9 +64,8 @@ Based on `.env.example` and code analysis, here are ALL required environment var
 # AUTHENTICATION
 # =============================================================================
 
-# CRITICAL: NEVER set DISABLE_AUTH=true in production
-# Only for local development/testing
-DISABLE_AUTH=false
+# Authentication is hardened and mandatory.
+# For local development, run the SleepConnect multi-zone proxy and use valid test credentials.
 
 # Multi-zone mode: validates JWT from SleepConnect's forwarded cookie
 # Set to true when deployed behind SleepConnect proxy
@@ -160,7 +160,8 @@ CI=false
 
 **Current WebSocket URL**: `wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev`
 
-#### Actions Needed:
+#### Actions Needed
+
 ```bash
 # List existing APIs
 aws apigatewayv2 get-apis --region us-east-1
@@ -173,6 +174,7 @@ aws apigatewayv2 get-stages --api-id <api-id> --region us-east-1
 ```
 
 **Target Configuration**:
+
 - **WebSocket API**: For real-time message updates
 - **HTTP API**: For REST endpoints (conversations, messages, templates)
 - **Custom Domain**: `outreach-api.mydreamconnect.com`
@@ -191,6 +193,7 @@ aws route53 list-resource-record-sets --hosted-zone-id <zone-id>
 ```
 
 **DNS Records Needed**:
+
 - `outreach.mydreamconnect.com` → CloudFront or ALB
 - `outreach-api.mydreamconnect.com` → API Gateway custom domain
 - `dev.mydreamconnect.com` → SleepConnect (already exists)
@@ -208,6 +211,7 @@ aws cloudfront list-distributions --query 'DistributionList.Items[?contains(Comm
 ```
 
 **Configuration Needed**:
+
 - Origin: S3 bucket or Next.js server
 - Alternate domain: `outreach.mydreamconnect.com`
 - SSL certificate: ACM certificate for `*.mydreamconnect.com`
@@ -223,6 +227,7 @@ aws rds describe-db-instances --region us-east-1 --query 'DBInstances[*].[DBInst
 ```
 
 **Connection Details Needed**:
+
 - Host: `<instance>.cluster-<id>.us-east-1.rds.amazonaws.com`
 - Port: `5432`
 - Database name: `outreach` or `sleepconnect`
@@ -268,6 +273,7 @@ async rewrites() {
 **Validation**: `lib/jwt-utils.ts` verifies signature using `AUTH0_CLIENT_SECRET`
 
 **User Context Structure**:
+
 ```typescript
 {
   sub: string;           // Auth0 user ID
@@ -283,6 +289,7 @@ async rewrites() {
 #### 3. Middleware Authentication Flow
 
 See [middleware.ts](middleware.ts):
+
 - Checks for `x-sax-user-context` cookie
 - Verifies JWT signature
 - Redirects to SleepConnect login if invalid
@@ -295,6 +302,7 @@ See [middleware.ts](middleware.ts):
 ### Phase 1: AWS Infrastructure Setup
 
 1. **Create/Verify API Gateway**
+
    ```bash
    # Find existing WebSocket API
    aws apigatewayv2 get-apis --region us-east-1
@@ -306,6 +314,7 @@ See [middleware.ts](middleware.ts):
    ```
 
 2. **Configure Route53 DNS**
+
    ```bash
    # Add A record for outreach.mydreamconnect.com
    # Add CNAME record for outreach-api.mydreamconnect.com → API Gateway
@@ -317,6 +326,7 @@ See [middleware.ts](middleware.ts):
    - SSL: ACM certificate
 
 4. **Database Connection**
+
    ```bash
    # Get RDS endpoint
    aws rds describe-db-instances --region us-east-1
@@ -428,12 +438,14 @@ vercel --prod
 ### Phase 5: Verification
 
 1. **Test Standalone Mode**:
+
    ```bash
    curl https://outreach.mydreamconnect.com/outreach/conversations
    # Should redirect to login if not authenticated
    ```
 
 2. **Test Multi-Zone Mode**:
+
    ```bash
    # Login to SleepConnect first
    # Then navigate to:
@@ -442,12 +454,14 @@ vercel --prod
    ```
 
 3. **Test API Endpoints**:
+
    ```bash
    curl https://outreach-api.mydreamconnect.com/outreach/conversations
    # Should return conversations data (with auth token)
    ```
 
 4. **Test WebSocket Connection**:
+
    ```bash
    wscat -c wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
    # Should establish connection
@@ -522,6 +536,7 @@ aws secretsmanager list-secrets --region us-east-1 --query 'SecretList[?contains
 **Cause**: `assetPrefix` misconfiguration
 
 **Solution**: Already fixed in [next.config.mjs](next.config.mjs#L10):
+
 ```javascript
 assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outreach"
 ```
@@ -532,7 +547,8 @@ assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outr
 
 **Cause**: JWT cookie not being set or verified correctly
 
-**Solution**: 
+**Solution**:
+
 1. Check `AUTH0_CLIENT_SECRET` matches between SleepConnect and Outreach
 2. Verify cookie is set with `httpOnly`, `secure`, `sameSite: 'lax'`
 3. Check middleware logs: `console.log('[OUTREACH MIDDLEWARE]')`
@@ -544,6 +560,7 @@ assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outr
 **Cause**: `API_BASE_URL` not set or incorrect
 
 **Solution**:
+
 1. Verify `API_BASE_URL` in environment
 2. Check API Gateway is deployed and accessible
 3. Ensure CORS headers are configured in API Gateway
@@ -555,6 +572,7 @@ assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outr
 **Cause**: `NEXT_PUBLIC_WS_API_URL` incorrect or WebSocket API not deployed
 
 **Solution**:
+
 1. Test WebSocket URL: `wscat -c <WS_URL>`
 2. Verify API Gateway WebSocket API stage is deployed
 3. Check Lambda function logs for connection errors
@@ -564,12 +582,14 @@ assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outr
 ## 📚 Additional Resources
 
 ### Documentation Files
+
 - [AUTHENTICATION.md](docs/AUTHENTICATION.md) - Auth flow details
 - [JWT-MIGRATION.md](docs/JWT-MIGRATION.md) - JWT implementation guide
 - [FIXES-APPLIED-2025-12-08.md](specs/001-sms-outreach-integration/FIXES-APPLIED-2025-12-08.md) - Recent fixes applied
 - [PHASE-6B-FRONTEND-COMPLETE.md](PHASE-6B-FRONTEND-COMPLETE.md) - Frontend completion status
 
 ### External References
+
 - [Next.js Multi-Zones](https://nextjs.org/docs/pages/building-your-application/deploying/multi-zones)
 - [Next.js Rewrites](https://nextjs.org/docs/pages/api-reference/next-config-js/rewrites)
 - [Auth0 Custom Domains](https://auth0.com/docs/customize/custom-domains)
@@ -580,6 +600,7 @@ assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outr
 ## 🎯 Next Actions
 
 ### Immediate Tasks
+
 1. ✅ Complete environment variable inventory (done above)
 2. ⬜ Locate SleepConnect project folder
 3. ⬜ Run AWS inventory commands to find existing resources
@@ -587,6 +608,7 @@ assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outr
 5. ⬜ Configure SleepConnect rewrites and JWT forwarding
 
 ### AWS Infrastructure Tasks
+
 1. ⬜ Verify API Gateway endpoints exist
 2. ⬜ Create custom domain `outreach-api.mydreamconnect.com`
 3. ⬜ Setup CloudFront distribution for `outreach.mydreamconnect.com`
@@ -594,12 +616,14 @@ assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outr
 5. ⬜ Test database connectivity
 
 ### Integration Tasks
+
 1. ⬜ Add multi-zone rewrites to SleepConnect `next.config.js`
 2. ⬜ Implement JWT forwarding in SleepConnect middleware
 3. ⬜ Test authentication flow end-to-end
 4. ⬜ Verify header/footer injection from SleepConnect
 
 ### Deployment Tasks
+
 1. ⬜ Build Next.js application (`pnpm build`)
 2. ⬜ Deploy to AWS (OpenNext/Lambda or ECS)
 3. ⬜ Configure environment variables in deployment environment
@@ -611,6 +635,7 @@ assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outr
 ## 📞 Support & Troubleshooting
 
 ### Logs to Check
+
 ```bash
 # CloudWatch Logs - API Gateway
 aws logs tail /aws/apigateway/<api-id> --follow
@@ -624,12 +649,15 @@ pnpm dev
 ```
 
 ### Debug Mode
+
 Enable verbose logging by setting:
+
 ```bash
 DEBUG=* pnpm dev
 ```
 
 ### Health Checks
+
 ```bash
 # Frontend health
 curl https://outreach.mydreamconnect.com/outreach/api/health

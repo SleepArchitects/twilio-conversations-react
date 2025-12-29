@@ -2,22 +2,23 @@
 
 ## Overview
 
-The SMS Outreach (Twilio Conversations) application is secured with multi-layer authentication that ensures only logged-in users with valid sessions from SleepConnect can access the application.
+The SMS Outreach (Twilio Conversations) application is secured with **hardened multi-zone authentication** that **REQUIRES** access through the SleepConnect proxy. The application will NOT function without proper forwarded authentication headers from the multi-zone proxy.
 
 ## Authentication Architecture
 
-### Multi-Zone Mode
+### Multi-Zone Mode (REQUIRED)
 
-The application runs in **multi-zone mode** behind the SleepConnect proxy. User authentication is handled by SleepConnect, and user context is forwarded to the Outreach zone via the `x-sax-user-context` cookie.
+The application **MUST** run in multi-zone mode behind the SleepConnect proxy. There is no standalone mode or authentication bypass. User authentication is handled exclusively by SleepConnect, and user context is forwarded to the Outreach zone via the `x-sax-user-context` JWT cookie.
 
 ### Authentication Layers
 
 1. **Middleware (Server-Side) - `middleware.ts`**
-   - Runs on every request to `/outreach/*` routes
-   - Validates the presence of `x-sax-user-context` cookie
+   - Runs on EVERY request to `/outreach/*` routes
+   - **REQUIRES** valid `x-sax-user-context` JWT cookie
+   - Validates JWT signature and decodes user context
    - Checks that required fields exist: `sax_id`, `tenant_id`, `practice_id`
    - Redirects to SleepConnect login if session is invalid
-   - Bypassed only when `DISABLE_AUTH=true` (development only)
+   - **NO BYPASS** - authentication is mandatory
 
 2. **AuthGuard Component (Client-Side) - `components/auth/AuthGuard.tsx`**
    - Wraps the entire application in `app/layout.tsx`
@@ -26,7 +27,7 @@ The application runs in **multi-zone mode** behind the SleepConnect proxy. User 
    - Cannot read cookie directly (it's HttpOnly for security)
    - Shows loading state during verification
    - Redirects to login if session is invalid
-   - Bypassed only when `NEXT_PUBLIC_DISABLE_AUTH=true` (development only)
+   - **NO BYPASS** - authentication is mandatory
 
 3. **Session API Route - `app/api/auth/session/route.ts`**
    - Server-side endpoint that reads HttpOnly cookie
@@ -34,7 +35,7 @@ The application runs in **multi-zone mode** behind the SleepConnect proxy. User 
    - Returns user context if valid session exists
    - Returns 401 if no valid session
 
-3. **API Route Protection - `lib/auth.ts`**
+4. **API Route Protection - `lib/auth.ts`**
    - All API routes use `withUserContext()` wrapper
    - Validates user context from forwarded cookie
    - Returns 401/403 for invalid authentication
@@ -69,10 +70,10 @@ The application runs in **multi-zone mode** behind the SleepConnect proxy. User 
 
 ## Environment Configuration
 
-### Required Settings (Production)
+### Required Settings (ALL Environments)
 
 ```bash
-# Enable multi-zone mode to use forwarded JWT cookies
+# Multi-zone mode is MANDATORY - application requires forwarded JWT from SleepConnect
 MULTI_ZONE_MODE=true
 
 # Auth0 client secret for JWT signing/verification (MUST match between sleepconnect and outreach)
@@ -81,26 +82,22 @@ AUTH0_CLIENT_SECRET=your-auth0-client-secret-here
 # SleepConnect URL for redirects
 NEXT_PUBLIC_SLEEPCONNECT_URL=https://app.sleepconnect.com
 
-# Auth routes go through SleepConnect (port 3000)
+# Auth routes go through SleepConnect
 AUTH0_BASE_URL=https://app.sleepconnect.com
+```
+
 ### Development Settings
 
 ```bash
-# For local development
+# For local development (still requires SleepConnect proxy)
 MULTI_ZONE_MODE=true
 NEXT_PUBLIC_SLEEPCONNECT_URL=http://localhost:3000
 
 # Auth0 client secret (MUST match sleepconnect's AUTH0_CLIENT_SECRET)
 AUTH0_CLIENT_SECRET=your-auth0-client-secret-here
-
-# DISABLE_AUTH should NEVER be enabled in production
-# Uncomment ONLY for local testing without SleepConnect proxy
-# DISABLE_AUTH=true
-# NEXT_PUBLIC_DISABLE_AUTH=true
-```ncomment ONLY for local testing without SleepConnect proxy
-# DISABLE_AUTH=true
-# NEXT_PUBLIC_DISABLE_AUTH=true
 ```
+
+**IMPORTANT**: There is no authentication bypass mode. The application MUST be accessed through the SleepConnect proxy in all environments.
 
 ## Security Considerations
 
@@ -120,13 +117,8 @@ AUTH0_CLIENT_SECRET=your-auth0-client-secret-here
 - All routes protected by default (middleware + AuthGuard)
 - API endpoints additionally protected with `withUserContext()`
 - No public routes except redirects to SleepConnect auth
-
-### Development Mode
-
-- `DISABLE_AUTH` flag exists for local testing only
-- Should NEVER be enabled in production
-- When enabled, bypasses both middleware and AuthGuard checks
-- Uses mock user data from `lib/auth.ts`
+- **NO AUTHENTICATION BYPASS** - multi-zone proxy access is mandatory
+- Application will not function without proper forwarded authentication headers
 
 ## Testing Authentication
 
@@ -160,6 +152,7 @@ AUTH0_CLIENT_SECRET=your-auth0-client-secret-here
 **Cause**: AuthGuard cannot verify session via `/api/auth/session` endpoint
 
 **Solutions**:
+
 - Verify you're logged into SleepConnect (port 3000)
 - Check the session API endpoint is accessible: `/outreach/api/auth/session`
 - Ensure cookie is being forwarded from SleepConnect proxy
@@ -172,6 +165,7 @@ AUTH0_CLIENT_SECRET=your-auth0-client-secret-here
 **Cause**: Cookie not being forwarded or has invalid format
 
 **Solutions**:
+
 - Check cookie is present in browser dev tools
 - Verify cookie contains valid JSON with required fields
 - Ensure SleepConnect proxy is forwarding cookies
@@ -182,6 +176,7 @@ AUTH0_CLIENT_SECRET=your-auth0-client-secret-here
 **Cause**: `withUserContext()` can't read user context
 
 **Solutions**:
+
 ## Related Files
 
 - `middleware.ts` - Server-side authentication middleware (JWT verification)
@@ -193,17 +188,14 @@ AUTH0_CLIENT_SECRET=your-auth0-client-secret-here
 - `.env.example` - Environment variable template
 
 **SleepConnect Project:**
+
 - `sleepconnect/middleware.ts` - Creates and sets JWT token
-- `sleepconnect/lib/jwt-utils.ts` - JWT token creation utilitiesfication endpoint
-- `lib/auth.ts` - Authentication utilities and API protection
-- `app/layout.tsx` - Root layout with AuthGuard wrapper
-- `.env.example` - Environment variable templatewrapper
-- `.env.example` - Environment variable template
+- `sleepconnect/lib/jwt-utils.ts` - JWT token creation utilities
 
 ## Constitution Compliance
 
-This authentication implementation conforms to:
+This hardened authentication implementation conforms to:
 
-- **Patient-First Privacy & Security**: Ensures all patient data access requires valid authentication
-- **Developer Enablement**: Provides clear auth bypass for local development
+- **Patient-First Privacy & Security**: Ensures all patient data access requires valid authentication with NO bypass
 - **Production-Grade Excellence**: Multi-layer defense prevents unauthorized access
+- **Zero-Trust Architecture**: Application only functions when accessed through authenticated multi-zone proxy

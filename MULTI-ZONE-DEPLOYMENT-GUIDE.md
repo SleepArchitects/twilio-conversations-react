@@ -342,13 +342,16 @@ cat > .env.production <<'EOF'
 # Production Environment Variables
 NODE_ENV=production
 
-# Authentication
-DISABLE_AUTH=false
+# Authentication (MANDATORY)
+# Authentication bypass flags are deprecated and have been removed.
+# Outreach must be deployed behind the SleepConnect multi-zone proxy which
+# injects and forwards the signed `x-sax-user-context` JWT cookie.
+# MULTI_ZONE_MODE must be enabled and Auth0 secrets must match SleepConnect.
 MULTI_ZONE_MODE=true
 AUTH0_DOMAIN=sleeparchitects.us.auth0.com
 AUTH0_CLIENT_ID=your-production-client-id
 AUTH0_CLIENT_SECRET=your-production-client-secret
-AUTH0_BASE_URL=https://dev.mydreamconnect.com
+AUTH0_BASE_URL=https://dev.mydreamconnect.com/outreach
 
 # Application URLs
 NEXT_PUBLIC_APP_BASE_URL=https://outreach.mydreamconnect.com
@@ -468,11 +471,10 @@ wscat -c wss://outreach-api.mydreamconnect.com
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `DISABLE_AUTH` | Disable auth (dev only) | `false` |
-| `MULTI_ZONE_MODE` | Enable multi-zone | `true` |
-| `AUTH0_CLIENT_SECRET` | JWT signing secret | `<secret>` |
+| `MULTI_ZONE_MODE` | Enable multi-zone; REQUIRED — the app must run behind SleepConnect which provides the signed `x-sax-user-context` JWT cookie | `true` |
+| `AUTH0_CLIENT_SECRET` | JWT signing secret (must match SleepConnect) | `<secret>` |
 | `NEXT_PUBLIC_APP_BASE_URL` | This app's URL | `https://outreach.mydreamconnect.com` |
-| `NEXT_PUBLIC_SLEEPCONNECT_URL` | SleepConnect URL | `https://dev.mydreamconnect.com` |
+| `NEXT_PUBLIC_SLEEPCONNECT_URL` | SleepConnect URL (proxy shell) | `https://dev.mydreamconnect.com` |
 | `API_BASE_URL` | Backend API | `https://outreach-api.mydreamconnect.com` |
 | `NEXT_PUBLIC_WS_API_URL` | WebSocket API | `wss://outreach-api.mydreamconnect.com` |
 
