@@ -94,12 +94,14 @@ export const config = {
   matcher: [
     /*
      * Match all /outreach/* routes EXCEPT:
-     * - /outreach/auth/* (any auth UI routes)
-     * - /outreach/api/auth/* (API authentication endpoints)
+     * - /outreach/auth/* (Auth0 UI routes - redirect to SleepConnect)
+     * - /outreach/api/auth/* (API auth endpoints - handled internally)
      *
-     * The pattern below uses negative lookahead to exclude these paths.
-     * This is critical to prevent circular authentication dependencies!
+     * Using explicit path patterns instead of regex negative lookahead
+     * because negative lookahead doesn't work correctly for path segment exclusion.
      */
-    '/outreach/((?!auth|api/auth).)*'
+    '/outreach/auth/:path*',
+    '/outreach/api/auth/:path*',
+    '/outreach/:path*',
   ],
 };

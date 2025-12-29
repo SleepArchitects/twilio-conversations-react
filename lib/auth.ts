@@ -199,15 +199,14 @@ export function withApiAuthRequired(
     // Multi-zone mode: validate forwarded cookie
     if (isMultiZoneMode()) {
       // console.debug("[AUTH] Multi-zone mode - checking forwarded cookie");
-      const user = getUserFromForwardedCookie();
+      const user = await getUserFromForwardedCookie();
       if (!user) {
-        console
-          .debug
-          // "[AUTH] Multi-zone: missing user context - allowing with mock user",
-          ();
-      } else {
-        // console.debug("[AUTH] Multi-zone: found user context:", user.sax_id);
+        console.debug(
+          "[AUTH] Multi-zone: missing user context - returning 401",
+        );
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
+      // console.debug("[AUTH] Multi-zone: found user context:", user.sax_id);
       return handler(req, routeContext);
     }
 
