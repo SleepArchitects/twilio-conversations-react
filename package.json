@@ -10,6 +10,7 @@
 		"build:open-next:debug": "NODE_OPTIONS='--max-old-space-size=4096' OPEN_NEXT_DEBUG=true open-next build && node scripts/fix-opennext-pnpm-symlinks.mjs",
 		"start": "next start",
 		"lint": "next lint --dir app --dir components --dir hooks --dir lib --dir types --dir utils",
+		"lint-types": "tsc --noEmit --skipLibCheck",
 		"lint:fix": "next lint --dir app --dir components --dir hooks --dir lib --dir types --dir utils --fix",
 		"test": "jest",
 		"test:watch": "jest --watch",

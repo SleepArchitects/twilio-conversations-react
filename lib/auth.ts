@@ -28,28 +28,6 @@ export interface UserContext {
 }
 
 /**
- * Check if auth is disabled for development
- */
-function isAuthDisabled(): boolean {
-  return process.env.DISABLE_AUTH === "true";
-}
-
-/**
- * Mock user for development when auth is disabled
- * Uses real default tenant/practice IDs from sleepconnect/constants/index.ts
- */
-function getMockUser(): SaxClaims {
-  return {
-    sax_id: 1,
-    tenant_id: "00000000-0000-0000-0000-000000000001",
-    practice_id: "00000000-0000-0000-0000-000000000020",
-    email: "dev@example.com",
-    name: "Dev User",
-    sub: "1",
-  };
-}
-
-/**
  * Check if running in multi-zone mode (behind SleepConnect proxy)
  */
 function isMultiZoneMode(): boolean {
@@ -144,13 +122,8 @@ async function getUserFromForwardedCookie(): Promise<SaxClaims | null> {
  */
 export async function getSession(): Promise<{ user: SaxClaims } | null> {
   // console.debug("[AUTH] getSession called");
-  // Dev mode: return mock user when auth is disabled
-  if (isAuthDisabled()) {
-    // console.debug("[AUTH] Auth disabled - using mock user");
-    return { user: getMockUser() };
-  }
 
-  // Multi-zone mode: read from forwarded cookie
+  // Multi-zone mode: read from forwarded cookie (REQUIRED)
   if (isMultiZoneMode()) {
     // console.debug("[AUTH] Multi-zone mode - looking for forwarded cookie");
     const user = await getUserFromForwardedCookie();
@@ -189,13 +162,8 @@ export function withApiAuthRequired(
 ) => Promise<NextResponse> {
   return async (req: NextRequest, routeContext?: Record<string, unknown>) => {
     // console.debug("[AUTH] withApiAuthRequired - starting");
-    // Dev mode: bypass auth when disabled
-    if (isAuthDisabled()) {
-      // console.debug("[AUTH] Auth disabled - bypassing authentication");
-      return handler(req, routeContext);
-    }
 
-    // Multi-zone mode: validate forwarded cookie
+    // Multi-zone mode: validate forwarded cookie (REQUIRED)
     if (isMultiZoneMode()) {
       // console.debug("[AUTH] Multi-zone mode - checking forwarded cookie");
       const user = await getUserFromForwardedCookie();

@@ -3,13 +3,6 @@ import type { NextRequest } from 'next/server';
 import { verifyUserContextToken } from './lib/jwt-utils';
 
 /**
- * Check if auth is disabled for development
- */
-function isAuthDisabled(): boolean {
-  return process.env.DISABLE_AUTH === "true";
-}
-
-/**
  * Check if user has a valid session from sleepconnect
  * Verifies JWT token from x-sax-user-context header or cookie
  */
@@ -70,13 +63,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
   
-  // Skip auth check if disabled (development only)
-  if (isAuthDisabled()) {
-    console.log('[OUTREACH MIDDLEWARE] ⚠️  Auth disabled - bypassing authentication');
-    return NextResponse.next();
-  }
-  
-  // Check for valid session cookie or header
+  // Check for valid session cookie or header (REQUIRED - no bypass)
   const hasSession = await hasValidSession(request);
   console.log(`[OUTREACH MIDDLEWARE] 🔐 Has valid session: ${hasSession}`);
   
