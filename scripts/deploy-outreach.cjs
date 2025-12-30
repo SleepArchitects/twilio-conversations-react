@@ -343,21 +343,84 @@ try {
     ENVIRONMENT: environment,
     MULTI_ZONE_MODE: 'true',
     NEXT_PUBLIC_BASE_PATH: '/outreach',
-    NEXT_PUBLIC_APP_BASE_URL: environment === 'production' 
-      ? 'https://dreamconnect.health' 
+    NEXT_PUBLIC_APP_BASE_URL: environment === 'production'
+      ? 'https://dreamconnect.health'
       : `https://${environment === 'develop' ? 'dev' : 'staging'}.mydreamconnect.com`,
     // Add other necessary runtime variables from process.env if available
-    AUTH0_SECRET: process.env.AUTH0_CLIENT_SECRET,
+    AUTH0_SECRET: process.env.AUTH0_SECRET || process.env.AUTH0_CLIENT_SECRET,
     AUTH0_CLIENT_SECRET: process.env.AUTH0_CLIENT_SECRET,
     AUTH0_DOMAIN: process.env.AUTH0_DOMAIN,
     AUTH0_CLIENT_ID: process.env.AUTH0_CLIENT_ID,
-    AUTH0_ISSUER_BASE_URL: process.env.AUTH0_DOMAIN ? `https://${process.env.AUTH0_DOMAIN}` : undefined,
+    AUTH0_ISSUER_BASE_URL: process.env.AUTH0_ISSUER_BASE_URL || (process.env.AUTH0_DOMAIN ? `https://${process.env.AUTH0_DOMAIN}` : undefined),
     AUTH0_BASE_URL: process.env.AUTH0_BASE_URL,
+    AUTH0_AUDIENCE: process.env.AUTH0_AUDIENCE,
     API_BASE_URL: process.env.API_BASE_URL,
     TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
     TWILIO_MESSAGING_SERVICE_SID: process.env.TWILIO_MESSAGING_SERVICE_SID,
     NEXT_PUBLIC_WS_API_URL: process.env.WS_API_URL,
+    
+    // Application
+    LOG_LEVEL: process.env.LOG_LEVEL,
+    SAX_COMPANY: process.env.SAX_COMPANY,
+    SST_STAGE: process.env.SST_STAGE,
+    
+    // Auth0 Management API (M2M)
+    AUTH0_M2M_DOMAIN: process.env.AUTH0_M2M_DOMAIN,
+    AUTH0_M2M_CLIENT_ID: process.env.AUTH0_M2M_CLIENT_ID,
+    AUTH0_M2M_CLIENT_SECRET: process.env.AUTH0_M2M_CLIENT_SECRET,
+    
+    // AWS Configuration
+    AWS_REGION: process.env.AWS_REGION,
+    SES_REGION: process.env.SES_REGION,
+    SES_FROM_EMAIL: process.env.SES_FROM_EMAIL,
+    CLOUDWATCH_EMAIL_LOG_GROUP: process.env.CLOUDWATCH_EMAIL_LOG_GROUP,
+    CLOUDWATCH_EMAIL_LOG_STREAM: process.env.CLOUDWATCH_EMAIL_LOG_STREAM,
+    
+    // S3 Configuration
+    S3_CHART_UPLOADS_BUCKET: process.env.S3_CHART_UPLOADS_BUCKET,
+    S3_CHART_UPLOADS_PREFIX: process.env.S3_CHART_UPLOADS_PREFIX,
+    S3_CHART_UPLOADS_KMS_KEY_ARN: process.env.S3_CHART_UPLOADS_KMS_KEY_ARN,
+    MAX_SINGLE_PART_BYTES: process.env.MAX_SINGLE_PART_BYTES,
+    
+    // DynamoDB Configuration
+    DYNAMODB_TABLE: process.env.DYNAMODB_TABLE,
+    AUTH_DYNAMODB_REGION: process.env.AUTH_DYNAMODB_REGION,
+    
+    // PostgreSQL Database (RDS)
+    HOST: process.env.HOST,
+    PG_DB: process.env.PG_DB,
+    SECRET_ARN: process.env.SECRET_ARN,
+    
+    // Twilio From Number
+    TWILIO_FROM_NUMBER: process.env.TWILIO_FROM_NUMBER,
+    
+    // Lex Bot Configuration
+    LEX_BOT_ID: process.env.LEX_BOT_ID,
+    LEX_BOT_ALIAS_ID: process.env.LEX_BOT_ALIAS_ID,
+    NEXT_PUBLIC_AI_OR_LEX: process.env.NEXT_PUBLIC_AI_OR_LEX,
+    
+    // UI Configuration
+    NEXT_PUBLIC_BANNER_LOGO: process.env.NEXT_PUBLIC_BANNER_LOGO,
+    NEXT_PUBLIC_BANNER_LINK: process.env.NEXT_PUBLIC_BANNER_LINK,
+    NEXT_PUBLIC_BANNER_TEXT: process.env.NEXT_PUBLIC_BANNER_TEXT,
+    NEXT_PUBLIC_SHOW_BANNER: process.env.NEXT_PUBLIC_SHOW_BANNER,
+    
+    // JWT Configuration
+    TOKEN_EXPIRY: process.env.TOKEN_EXPIRY,
+    
+    // Zoho Configuration
+    ZOHO_REDIRECT_URI: process.env.ZOHO_REDIRECT_URI,
+    ZOHO_SERVICE_ID: process.env.ZOHO_SERVICE_ID,
+    ZOHO_WORKSPACE_ID: process.env.ZOHO_WORKSPACE_ID,
+    ZOHO_STAFF_ID: process.env.ZOHO_STAFF_ID,
+    ZOHO_STAFF_EMAIL: process.env.ZOHO_STAFF_EMAIL,
+    
+    // URLs from .env
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+    NEXT_PUBLIC_EXTERNAL_FORM_URL: process.env.NEXT_PUBLIC_EXTERNAL_FORM_URL,
+    NEXT_SMS_URL: process.env.NEXT_SMS_URL,
+    FORMS_BASE_URL: process.env.FORMS_BASE_URL,
   };
 
   // Filter out undefined values
