@@ -216,8 +216,8 @@ export function MessageBubble({
           {displaySender}
         </div>
 
-        {/* Message body */}
-        <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
+        {/* Message body - Emojis render natively using browser fonts */}
+        <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-pretty">
           {message.body}
         </p>
 
