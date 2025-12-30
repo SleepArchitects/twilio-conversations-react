@@ -20,6 +20,9 @@ const nextConfig = {
 		ignoreBuildErrors: false,
 	},
 
+	// Enable source maps for production build to allow debugging in browser
+	productionBrowserSourceMaps: true,
+
 	// Webpack configuration to handle optional ws dependencies and Web Workers
 	webpack: (config, { isServer }) => {
 		// These are optional native modules used by the ws package (via Twilio)

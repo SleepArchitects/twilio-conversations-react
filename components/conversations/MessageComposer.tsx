@@ -8,6 +8,12 @@ import { TemplatePreview } from "@/components/templates/TemplatePreview";
 import { QuickTemplateButton } from "@/components/templates/QuickTemplateButton";
 import { useTemplates, useFrequentTemplates } from "@/hooks/useTemplates";
 import {
+  EmojiPicker,
+  type EmojiSelectData,
+} from "@/components/conversations/EmojiPicker";
+import { EmojiPickerButton } from "@/components/conversations/EmojiPickerButton";
+import { insertEmojiAtCursor, addToRecentEmojis } from "@/lib/emoji";
+import {
   detectUnresolvedVariables,
   renderTemplate,
   validateTemplateVariables,
@@ -152,6 +158,7 @@ export function MessageComposer({
   const [message, setMessage] = React.useState("");
   const [isSending, setIsSending] = React.useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = React.useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = React.useState(false);
   const [showVariablePrompt, setShowVariablePrompt] = React.useState(false);
   const [pendingSend, setPendingSend] = React.useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = React.useState<
@@ -164,6 +171,7 @@ export function MessageComposer({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const modalRef = React.useRef<HTMLDivElement>(null);
   const variablePromptRef = React.useRef<HTMLDivElement>(null);
+  const emojiPickerRef = React.useRef<HTMLDivElement>(null);
 
   // Template hooks
   const {
@@ -255,6 +263,21 @@ export function MessageComposer({
   }, [isSendDisabled, message, onSend, selectTemplate, selectedTemplate]);
 
   /**
+   * Handle emoji selection
+   */
+  const handleEmojiSelect = React.useCallback((emojiData: EmojiSelectData) => {
+    if (textareaRef.current) {
+      insertEmojiAtCursor(textareaRef.current, emojiData.emoji);
+      // Update local state since insertEmojiAtCursor modifies the DOM element directly
+      setMessage(textareaRef.current.value);
+      addToRecentEmojis(emojiData.emoji);
+    }
+    // Keep picker open for multiple insertions, or close it?
+    // Usually, it's better to keep it open for multiple emojis but close on click outside.
+    // However, some UX patterns close it. Let's keep it open for now as it's more flexible.
+  }, []);
+
+  /**
    * Handle template selection
    */
   const handleTemplateSelect = React.useCallback(
@@ -311,6 +334,28 @@ export function MessageComposer({
     },
     [],
   );
+
+  /**
+   * Close emoji picker on click outside
+   */
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    if (showEmojiPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showEmojiPicker]);
 
   /**
    * Close variable prompt modal on backdrop click
@@ -472,6 +517,27 @@ export function MessageComposer({
           >
             <HiTemplate className="h-5 w-5" aria-hidden={true} />
           </button>
+
+          {/* Emoji Picker Button & Popup */}
+          <div className="relative flex-shrink-0">
+            <EmojiPickerButton
+              isOpen={showEmojiPicker}
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              disabled={disabled || isSending}
+              className="h-11 w-11 rounded-lg bg-gray-800 border border-gray-700 hover:bg-gray-700"
+            />
+            {showEmojiPicker && (
+              <div
+                ref={emojiPickerRef}
+                className="absolute bottom-full left-0 mb-2 z-50"
+              >
+                <EmojiPicker
+                  onEmojiSelect={handleEmojiSelect}
+                  onClose={() => setShowEmojiPicker(false)}
+                />
+              </div>
+            )}
+          </div>
 
           <div className="relative flex-1 flex items-end">
             <textarea
