@@ -19,6 +19,7 @@ import {
   validateTemplateVariables,
 } from "@/lib/templates";
 import type { Template, TemplateCategory } from "@/types/sms";
+import { Tooltip } from "@/components/ui/tooltip";
 
 // =============================================================================
 // Types & Interfaces
@@ -496,27 +497,29 @@ export function MessageComposer({
             )}
 
           {/* Template Selector Button */}
-          <button
-            type="button"
-            onClick={() => setShowTemplateSelector(true)}
-            disabled={disabled || isSending}
-            aria-label="Select template"
-            className={cn(
-              "flex-shrink-0 inline-flex items-center justify-center",
-              "h-11 w-11 rounded-lg",
-              "transition-all duration-200",
-              "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
-              disabled || isSending
-                ? "bg-gray-700 text-gray-500 cursor-not-allowed opacity-50"
-                : [
-                    "bg-gray-800 text-gray-300 border border-gray-700",
-                    "hover:bg-gray-700 hover:text-white",
-                    "focus:ring-purple-500",
-                  ],
-            )}
-          >
-            <HiTemplate className="h-5 w-5" aria-hidden={true} />
-          </button>
+          <Tooltip content="Select message template" position="top">
+            <button
+              type="button"
+              onClick={() => setShowTemplateSelector(true)}
+              disabled={disabled || isSending}
+              aria-label="Select template"
+              className={cn(
+                "flex-shrink-0 inline-flex items-center justify-center",
+                "h-11 w-11 rounded-lg",
+                "transition-all duration-200",
+                "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
+                disabled || isSending
+                  ? "bg-gray-700 text-gray-500 cursor-not-allowed opacity-50"
+                  : [
+                      "bg-gray-800 text-gray-300 border border-gray-700",
+                      "hover:bg-gray-700 hover:text-white",
+                      "focus:ring-purple-500",
+                    ],
+              )}
+            >
+              <HiTemplate className="h-5 w-5" aria-hidden={true} />
+            </button>
+          </Tooltip>
 
           {/* Emoji Picker Button & Popup */}
           <div className="relative flex-shrink-0">
