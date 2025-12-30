@@ -7,6 +7,7 @@ const config = {
   default: {
     // Disable minification to avoid pnpm module resolution issues in Lambda
     // When minified, OpenNext doesn't properly flatten pnpm's nested structure
+    // Note: This keeps source maps available for production debugging
     minify: false,
     
     // Override configuration for multi-zone deployment
@@ -17,6 +18,10 @@ const config = {
       
       // CloudFront handles /outreach routing, assets use /outreach-static prefix
       // The assetPrefix in next.config.mjs handles the static asset path
+      
+      // Include source maps in the build for production debugging
+      // Since minify is false, esbuild will preserve source maps
+      generateDockerfile: false,
     },
   },
   
