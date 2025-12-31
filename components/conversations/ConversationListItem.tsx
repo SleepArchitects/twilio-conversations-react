@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/datetime";
 import type { Conversation } from "@/types/sms";
 import { SlaIndicator } from "./SlaIndicator";
+import { Tooltip } from "flowbite-react";
 
 // =============================================================================
 // Types & Interfaces
@@ -128,117 +129,125 @@ export function ConversationListItem({
   const isSlaBreached = !isArchived && conversation.slaStatus === "breached";
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      className={cn(
-        "flex items-start gap-3 p-3 rounded-lg cursor-pointer",
-        "transition-colors duration-150",
-        "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900",
-        isSelected
-          ? "bg-purple-600/20 border border-purple-500/30"
-          : "hover:bg-gray-700/50 border border-transparent",
-        !isSelected && isSlaWarning && "bg-yellow-500/5",
-        !isSelected && isSlaBreached && "bg-red-500/5",
-        isArchived && "opacity-60",
-      )}
-      aria-pressed={isSelected}
-      aria-label={`Conversation with ${conversation.friendlyName}`}
-    >
-      {/* Avatar */}
-      <div className="relative flex-shrink-0">
-        <UserCircleIcon
+    <div className="w-full">
+      <Tooltip content="Click to view conversation details" placement="top">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={handleClick}
+          onKeyDown={handleKeyDown}
           className={cn(
-            "text-gray-500",
-            isSelected && "text-purple-400",
-            isOptedOut && "text-red-400/50",
+            "flex items-start gap-3 p-3 rounded-lg cursor-pointer min-w-[99vw]",
+            "transition-colors duration-150",
+            "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900",
+            isSelected
+              ? "bg-purple-600/20 border border-purple-500/30"
+              : "hover:bg-gray-700/50 border border-transparent",
+            !isSelected && isSlaWarning && "bg-yellow-500/5",
+            !isSelected && isSlaBreached && "bg-red-500/5",
+            isArchived && "opacity-60",
           )}
-          aria-hidden="true"
-        />
-        {/* Unread badge */}
-        {conversation.unreadCount > 0 && (
-          <span
-            className={cn(
-              "absolute -top-1 -right-1",
-              "flex items-center justify-center",
-              "min-w-[18px] h-[18px] px-1",
-              "bg-purple-500 text-white text-xs font-bold rounded-full",
-            )}
-            aria-label={`${conversation.unreadCount} unread messages`}
-          >
-            {conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}
-          </span>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        {/* Header row */}
-        <div className="flex items-center justify-between gap-2 mb-0.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <h3
+          aria-pressed={isSelected}
+          aria-label={`Conversation with ${conversation.friendlyName}`}
+        >
+          {/* Avatar */}
+          <div className="relative flex-shrink-0">
+            <UserCircleIcon
               className={cn(
-                "text-sm font-medium truncate",
-                isSelected ? "text-white" : "text-gray-200",
-                conversation.unreadCount > 0 && "font-semibold",
+                "text-gray-500",
+                isSelected && "text-purple-400",
+                isOptedOut && "text-red-400/50",
               )}
-            >
-              {conversation.friendlyName}
-            </h3>
-            {isArchived && (
-              <ArchiveIcon
-                className="text-gray-500 flex-shrink-0"
-                aria-label="Archived"
-              />
-            )}
-            {isOptedOut && (
-              <NoSymbolIcon
-                className="text-red-400 flex-shrink-0"
-                aria-label="Opted out"
-              />
+              aria-hidden="true"
+            />
+            {/* Unread badge */}
+            {conversation.unreadCount > 0 && (
+              <span
+                className={cn(
+                  "absolute -top-1 -right-1",
+                  "flex items-center justify-center",
+                  "min-w-[18px] h-[18px] px-1",
+                  "bg-purple-500 text-white text-xs font-bold rounded-full",
+                )}
+                aria-label={`${conversation.unreadCount} unread messages`}
+              >
+                {conversation.unreadCount > 99
+                  ? "99+"
+                  : conversation.unreadCount}
+              </span>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* SLA indicator - show prominently in header for warning/breached */}
-            {!isArchived && conversation.slaStatus !== "ok" && (
-              <SlaIndicator
-                status={conversation.slaStatus}
-                lastMessageAt={conversation.lastMessageAt}
-                variant="badge"
-              />
-            )}
-            <span
-              className={cn(
-                "text-xs",
-                conversation.unreadCount > 0
-                  ? "text-purple-400"
-                  : "text-gray-500",
-              )}
-            >
-              {timeDisplay}
-            </span>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            {/* Header row */}
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3
+                  className={cn(
+                    "text-sm font-medium truncate",
+                    isSelected ? "text-white" : "text-gray-200",
+                    conversation.unreadCount > 0 && "font-semibold",
+                  )}
+                >
+                  {conversation.friendlyName}
+                </h3>
+                {isArchived && (
+                  <ArchiveIcon
+                    className="text-gray-500 flex-shrink-0"
+                    aria-label="Archived"
+                  />
+                )}
+                {isOptedOut && (
+                  <NoSymbolIcon
+                    className="text-red-400 flex-shrink-0"
+                    aria-label="Opted out"
+                  />
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {/* SLA indicator - show prominently in header for warning/breached */}
+                {!isArchived && conversation.slaStatus !== "ok" && (
+                  <SlaIndicator
+                    status={conversation.slaStatus}
+                    lastMessageAt={conversation.lastMessageAt}
+                    variant="badge"
+                  />
+                )}
+                <span
+                  className={cn(
+                    "text-xs",
+                    conversation.unreadCount > 0
+                      ? "text-purple-400"
+                      : "text-gray-500",
+                  )}
+                >
+                  {timeDisplay}
+                </span>
+              </div>
+            </div>
+
+            {/* Phone number */}
+            <p className="text-xs text-gray-500 mb-1">
+              {conversation.patientPhone}
+            </p>
+
+            {/* Preview row */}
+            <div className="flex items-start gap-2">
+              <p
+                className={cn(
+                  "text-sm flex-1 line-clamp-2",
+                  conversation.unreadCount > 0
+                    ? "text-gray-300"
+                    : "text-gray-500",
+                )}
+              >
+                {preview}
+              </p>
+            </div>
           </div>
         </div>
-
-        {/* Phone number */}
-        <p className="text-xs text-gray-500 mb-1">
-          {conversation.patientPhone}
-        </p>
-
-        {/* Preview row */}
-        <div className="flex items-start gap-2">
-          <p
-            className={cn(
-              "text-sm flex-1 line-clamp-2",
-              conversation.unreadCount > 0 ? "text-gray-300" : "text-gray-500",
-            )}
-          >
-            {preview}
-          </p>
-        </div>
-      </div>
+      </Tooltip>
     </div>
   );
 }
