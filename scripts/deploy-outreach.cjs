@@ -371,7 +371,7 @@ try {
     AUTH0_M2M_CLIENT_SECRET: process.env.AUTH0_M2M_CLIENT_SECRET,
     
     // AWS Configuration
-    AWS_REGION: process.env.AWS_REGION,
+    // Note: AWS_REGION is automatically set by Lambda and cannot be overridden
     SES_REGION: process.env.SES_REGION,
     SES_FROM_EMAIL: process.env.SES_FROM_EMAIL,
     CLOUDWATCH_EMAIL_LOG_GROUP: process.env.CLOUDWATCH_EMAIL_LOG_GROUP,

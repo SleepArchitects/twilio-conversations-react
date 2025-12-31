@@ -110,7 +110,7 @@ export default function ConversationsPage(): React.ReactElement {
   // ==========================================================================
 
   return (
-    <div className="flex flex-col bg-gray-900">
+    <div className="flex flex-col h-full bg-gray-900">
       <PageHeader
         title="SMS Conversations"
         subtitle="Manage patient conversations"
@@ -131,14 +131,14 @@ export default function ConversationsPage(): React.ReactElement {
       </PageHeader>
 
       {/* Main Content - ConversationList handles its own data fetching */}
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden flex">
         <ConversationList
           selectedConversationId={selectedConversationId}
           onConversationSelect={handleConversationSelect}
           onNewConversation={handleNewConversation}
           filterStatus={filterStatus}
           searchQuery={searchQuery}
-          className="h-full"
+          className="h-full w-full flex-1"
         />
       </main>
 

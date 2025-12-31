@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { HiTemplate, HiChevronDown, HiChevronUp } from "react-icons/hi";
+import { Tooltip } from "flowbite-react";
 import { cn } from "@/lib/utils";
 import { TemplateSelector } from "@/components/templates/TemplateSelector";
 import { TemplatePreview } from "@/components/templates/TemplatePreview";
@@ -19,7 +20,6 @@ import {
   validateTemplateVariables,
 } from "@/lib/templates";
 import type { Template, TemplateCategory } from "@/types/sms";
-import { Tooltip } from "@/components/ui/tooltip";
 
 // =============================================================================
 // Types & Interfaces
@@ -497,7 +497,7 @@ export function MessageComposer({
             )}
 
           {/* Template Selector Button */}
-          <Tooltip content="Select message template" position="top">
+          <Tooltip content="Select message template" placement="top">
             <button
               type="button"
               onClick={() => setShowTemplateSelector(true)}
@@ -522,25 +522,27 @@ export function MessageComposer({
           </Tooltip>
 
           {/* Emoji Picker Button & Popup */}
-          <div className="relative flex-shrink-0">
-            <EmojiPickerButton
-              isOpen={showEmojiPicker}
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              disabled={disabled || isSending}
-              className="h-11 w-11 rounded-lg bg-gray-800 border border-gray-700 hover:bg-gray-700"
-            />
-            {showEmojiPicker && (
-              <div
-                ref={emojiPickerRef}
-                className="absolute bottom-full left-0 mb-2 z-50"
-              >
-                <EmojiPicker
-                  onEmojiSelect={handleEmojiSelect}
-                  onClose={() => setShowEmojiPicker(false)}
-                />
-              </div>
-            )}
-          </div>
+          <Tooltip content="Add emoji" placement="top">
+            <div className="relative flex-shrink-0">
+              <EmojiPickerButton
+                isOpen={showEmojiPicker}
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                disabled={disabled || isSending}
+                className="h-11 w-11 rounded-lg bg-gray-800 border border-gray-700 hover:bg-gray-700"
+              />
+              {showEmojiPicker && (
+                <div
+                  ref={emojiPickerRef}
+                  className="absolute bottom-full left-0 mb-2 z-50"
+                >
+                  <EmojiPicker
+                    onEmojiSelect={handleEmojiSelect}
+                    onClose={() => setShowEmojiPicker(false)}
+                  />
+                </div>
+              )}
+            </div>
+          </Tooltip>
 
           <div className="relative flex-1 flex items-end">
             <textarea
@@ -574,38 +576,43 @@ export function MessageComposer({
           </div>
 
           {/* Send button */}
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={isSendDisabled}
-            aria-label={isSending ? "Sending message" : "Send message"}
-            className={cn(
-              "flex-shrink-0 inline-flex items-center justify-center",
-              "h-11 w-11 rounded-lg",
-              "transition-all duration-200",
-              "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
-              // Enabled state: purple/blue gradient
-              !isSendDisabled && [
-                "bg-gradient-to-r from-purple-600 to-blue-600",
-                "hover:from-purple-500 hover:to-blue-500",
-                "text-white",
-                "focus:ring-purple-500",
-                "shadow-lg shadow-purple-500/25",
-              ],
-              // Disabled state: gray
-              isSendDisabled && [
-                "bg-gray-700",
-                "text-gray-500",
-                "cursor-not-allowed",
-              ],
-            )}
+          <Tooltip
+            content={isSending ? "Sending message" : "Send message"}
+            placement="top"
           >
-            {isSending ? (
-              <SpinnerIcon aria-hidden={true} />
-            ) : (
-              <SendIcon aria-hidden={true} />
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={isSendDisabled}
+              aria-label={isSending ? "Sending message" : "Send message"}
+              className={cn(
+                "flex-shrink-0 inline-flex items-center justify-center",
+                "h-11 w-11 rounded-lg",
+                "transition-all duration-200",
+                "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
+                // Enabled state: purple/blue gradient
+                !isSendDisabled && [
+                  "bg-gradient-to-r from-purple-600 to-blue-600",
+                  "hover:from-purple-500 hover:to-blue-500",
+                  "text-white",
+                  "focus:ring-purple-500",
+                  "shadow-lg shadow-purple-500/25",
+                ],
+                // Disabled state: gray
+                isSendDisabled && [
+                  "bg-gray-700",
+                  "text-gray-500",
+                  "cursor-not-allowed",
+                ],
+              )}
+            >
+              {isSending ? (
+                <SpinnerIcon aria-hidden={true} />
+              ) : (
+                <SendIcon aria-hidden={true} />
+              )}
+            </button>
+          </Tooltip>
         </div>
 
         {/* Status bar: character count and segment info */}

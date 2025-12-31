@@ -12,6 +12,7 @@ import type {
   SlaStatus,
   Pagination,
 } from "@/types/sms";
+import { Tooltip } from "flowbite-react";
 
 // =============================================================================
 // Types & Interfaces
@@ -334,7 +335,7 @@ export function ConversationList({
 
   return (
     <div
-      className={cn("flex flex-col h-full bg-gray-900", className)}
+      className={cn("flex flex-col h-full w-full bg-gray-900", className)}
       role="region"
       aria-label="Conversations"
     >
@@ -342,26 +343,31 @@ export function ConversationList({
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
         <h2 className="text-lg font-semibold text-white">Conversations</h2>
         {onNewConversation && (
-          <button
-            type="button"
-            onClick={onNewConversation}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium",
-              "bg-purple-600 text-white",
-              "hover:bg-purple-500",
-              "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900",
-              "transition-colors",
-            )}
-            aria-label="Start new conversation"
-          >
-            <PlusIcon className="h-4 w-4" aria-hidden="true" />
-            New
-          </button>
+          <Tooltip content="Start new conversation" placement="top">
+            <button
+              type="button"
+              onClick={onNewConversation}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium",
+                "bg-purple-600 text-white",
+                "hover:bg-purple-500",
+                "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900",
+                "transition-colors",
+              )}
+              aria-label="Start new conversation"
+            >
+              <PlusIcon className="h-4 w-4" aria-hidden={true} />
+              New
+            </button>
+          </Tooltip>
         )}
       </div>
 
       {/* List Content */}
-      <div ref={listRef} className="flex-1 overflow-y-auto px-2 py-2">
+      <div
+        ref={listRef}
+        className="flex-1 overflow-y-auto px-2 py-2 w-full max-w-full"
+      >
         {/* Loading State */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center h-full py-12">
@@ -378,19 +384,21 @@ export function ConversationList({
               aria-hidden="true"
             />
             <p className="text-sm text-gray-300 text-center mb-4">{error}</p>
-            <button
-              type="button"
-              onClick={handleRetry}
-              className={cn(
-                "px-4 py-2 rounded-lg text-sm font-medium",
-                "bg-gray-700 text-white",
-                "hover:bg-gray-600",
-                "focus:outline-none focus:ring-2 focus:ring-purple-500",
-                "transition-colors",
-              )}
-            >
-              Try Again
-            </button>
+            <Tooltip content="Retry loading conversations" placement="top">
+              <button
+                type="button"
+                onClick={handleRetry}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium",
+                  "bg-gray-700 text-white",
+                  "hover:bg-gray-600",
+                  "focus:outline-none focus:ring-2 focus:ring-purple-500",
+                  "transition-colors",
+                )}
+              >
+                Try Again
+              </button>
+            </Tooltip>
           </div>
         )}
 
@@ -406,26 +414,28 @@ export function ConversationList({
                   : "No conversations yet"}
             </p>
             {!searchQuery && !statusFilter && onNewConversation && (
-              <button
-                type="button"
-                onClick={onNewConversation}
-                className={cn(
-                  "mt-4 px-4 py-2 rounded-lg text-sm font-medium",
-                  "bg-purple-600 text-white",
-                  "hover:bg-purple-500",
-                  "focus:outline-none focus:ring-2 focus:ring-purple-500",
-                  "transition-colors",
-                )}
-              >
-                Start a Conversation
-              </button>
+              <Tooltip content="Create a new conversation" placement="top">
+                <button
+                  type="button"
+                  onClick={onNewConversation}
+                  className={cn(
+                    "mt-4 px-4 py-2 rounded-lg text-sm font-medium",
+                    "bg-purple-600 text-white",
+                    "hover:bg-purple-500",
+                    "focus:outline-none focus:ring-2 focus:ring-purple-500",
+                    "transition-colors",
+                  )}
+                >
+                  Start a Conversation
+                </button>
+              </Tooltip>
             )}
           </div>
         )}
 
         {/* Conversation List */}
         {!isLoading && !error && filteredConversations.length > 0 && (
-          <div className="space-y-1" role="list">
+          <div className="space-y-1 w-full" role="list">
             {filteredConversations.map((conversation) => (
               <ConversationListItem
                 key={conversation.id}
