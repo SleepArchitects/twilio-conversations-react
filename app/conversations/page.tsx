@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Button } from "flowbite-react";
+import { Button, Tooltip } from "flowbite-react";
 import { HiTemplate } from "react-icons/hi";
 import { ConversationList } from "@/components/conversations/ConversationList";
 import {
@@ -116,12 +116,14 @@ export default function ConversationsPage(): React.ReactElement {
         subtitle="Manage patient conversations"
       >
         {/* Templates Link */}
-        <Link href="/templates">
-          <Button color="gray" size="sm">
-            <HiTemplate className="mr-2 h-4 w-4" />
-            Templates
-          </Button>
-        </Link>
+        <Tooltip content="Manage message templates" placement="bottom">
+          <Link href="/templates">
+            <Button color="gray" size="sm">
+              <HiTemplate className="mr-2 h-4 w-4" />
+              Templates
+            </Button>
+          </Link>
+        </Tooltip>
 
         {/* Status filter - FR-014c */}
         <ConversationFilter

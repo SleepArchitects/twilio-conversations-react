@@ -38,6 +38,11 @@ interface ConversationSummary {
   unreadCount: number;
   lastMessageAt: string | null;
   lastMessagePreview: string | null;
+  practiceName: string | null;
+  tenantName: string | null;
+  tenantId: string | null;
+  latestBookingStatus: string | null;
+  latestBookingStartTime: string | null;
 }
 
 /**
@@ -74,10 +79,10 @@ function sanitizeFriendlyName(name: string, practiceName?: string): string {
   sanitized = sanitized.replace(/www\.[^\s]+/gi, "");
   // 3. Escape HTML entities
   sanitized = sanitized
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
+    .replace(/"/g, "")
     .replace(/'/g, "&#x27;");
   // 4. Trim and limit length
   sanitized = sanitized.trim().slice(0, 200);
@@ -177,6 +182,11 @@ function toConversationSummary(conv: Conversation): ConversationSummary {
     unreadCount: conv.unreadCount,
     lastMessageAt: conv.lastMessageAt,
     lastMessagePreview: conv.lastMessagePreview,
+    practiceName: conv.practiceName ?? null,
+    tenantName: conv.tenantName ?? null,
+    tenantId: conv.tenantId ?? null,
+    latestBookingStatus: conv.latestBookingStatus ?? null,
+    latestBookingStartTime: conv.latestBookingStartTime ?? null,
   };
 }
 
