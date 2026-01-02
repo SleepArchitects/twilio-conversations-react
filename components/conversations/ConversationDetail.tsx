@@ -491,6 +491,7 @@ export function ConversationDetail({
     addValue("practiceId", ctx.practiceId);
     addValue("practiceName", ctx.practiceName);
     addValue("tenantId", ctx.tenantId);
+    addValue("tenantName", ctx.tenantName);
     addValue("saxId", ctx.saxId);
     addValue("userEmail", ctx.userEmail);
     addValue("userName", ctx.userName);
@@ -603,6 +604,8 @@ export function ConversationDetail({
           firstName={conversationData.patientFirstName!}
           lastName={conversationData.patientLastName!}
           dateOfBirth={conversationData.patientDob || null}
+          practiceName={practiceName}
+          tenantName={conversationData.tenantName}
         />
       ) : (
         <LinkPatientButton

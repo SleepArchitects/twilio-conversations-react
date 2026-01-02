@@ -8,6 +8,7 @@ export interface OutreachTemplateContext {
   practiceId?: string;
   practiceName?: string;
   tenantId?: string;
+  tenantName?: string;
   saxId?: string;
   userEmail?: string;
   userName?: string;

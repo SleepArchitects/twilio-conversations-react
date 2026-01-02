@@ -112,6 +112,14 @@ export interface Conversation extends TenantScope, AuditFields {
   patientLastName?: string | null;
   /** Optional: Patient date of birth in ISO 8601 format (US3a - Patient Context) */
   patientDob?: string | null;
+  /** Optional: Practice name for display context */
+  practiceName?: string | null;
+  /** Optional: Tenant name for display context */
+  tenantName?: string | null;
+  /** Optional: Tenant ID for display context */
+  latestBookingStatus?: string | null;
+  /** Optional: Start time of the latest Zoho booking */
+  latestBookingStartTime?: string | null;
 }
 
 /**

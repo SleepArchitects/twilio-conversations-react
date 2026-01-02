@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "flowbite-react";
 import type { Template } from "@/types/sms";
 import LightningIcon from "@/components/icons/LightningIcon";
 
@@ -78,30 +79,31 @@ export function QuickTemplateButton({
 
   return (
     <div className={cn("relative inline-flex", className)} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        disabled={disabled}
-        className={cn(
-          "inline-flex items-center justify-center",
-          "h-10 w-10 rounded-lg",
-          "transition-all duration-200",
-          "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900",
-          disabled
-            ? "cursor-not-allowed bg-gray-700 text-gray-500 opacity-50"
-            : [
-                "bg-gray-800 text-yellow-400",
-                "hover:bg-gray-700 hover:text-yellow-300",
-                "border border-gray-700",
-              ],
-        )}
-        aria-label="Quick templates"
-        title="Quick templates"
-        aria-haspopup="true"
-        aria-expanded={isOpen}
-      >
-        <LightningIcon className="h-5 w-5" />
-      </button>
+      <Tooltip content="Quick templates" placement="top">
+        <button
+          type="button"
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+          className={cn(
+            "inline-flex items-center justify-center",
+            "h-10 w-10 rounded-lg",
+            "transition-all duration-200",
+            "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900",
+            disabled
+              ? "cursor-not-allowed bg-gray-700 text-gray-500 opacity-50"
+              : [
+                  "bg-gray-800 text-yellow-400",
+                  "hover:bg-gray-700 hover:text-yellow-300",
+                  "border border-gray-700",
+                ],
+          )}
+          aria-label="Quick templates"
+          aria-haspopup="true"
+          aria-expanded={isOpen}
+        >
+          <LightningIcon className="h-5 w-5" />
+        </button>
+      </Tooltip>
 
       {isOpen && (
         <div className="absolute bottom-full left-0 mb-2 w-64 rounded-lg border border-gray-700 bg-gray-800 shadow-xl z-50 overflow-hidden">
