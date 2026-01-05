@@ -78,9 +78,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
   
-  // Valid session - pass through
+  // Valid session - pass through with cache-control headers to prevent stale caching
   console.log(`[OUTREACH MIDDLEWARE] ✅ Valid session - allowing request to: ${pathname}`);
-  return NextResponse.next();
+  
+  const response = NextResponse.next();
+  
+  // Prevent browser from caching authenticated pages
+  // This ensures fresh auth checks on each visit
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  response.headers.set('Pragma', 'no-cache');
+  response.headers.set('Expires', '0');
+  
+  return response;
 }
 
 // Configure which routes this middleware runs on
