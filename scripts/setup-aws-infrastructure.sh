@@ -10,7 +10,7 @@ set -e  # Exit on any error
 PROJECT_NAME="outreach-mydreamconnect"
 REGION="us-east-1"  # Required for CloudFront certificates
 DOMAIN="outreach.mydreamconnect.com"
-ENVIRONMENT="${1:-production}"  # Default to production, can pass 'dev' or 'staging'
+ENVIRONMENT="${1:-production}"  # Default to production, can pass 'develop' or 'staging'
 
 echo "🚀 Setting up AWS infrastructure for ${PROJECT_NAME} (${ENVIRONMENT})"
 echo "Region: ${REGION}"

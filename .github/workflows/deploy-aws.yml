@@ -16,7 +16,7 @@ on:
         options:
           - production
           - staging
-          - dev
+          - develop
 
 env:
   NODE_VERSION: "20"
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # Set environment based on branch or manual input
-    environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'dev') }}
+    environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'develop') }}
 
     steps:
       - name: Checkout code
@@ -74,17 +74,14 @@ jobs:
       - name: Verify AWS credentials
         run: |
           aws sts get-caller-identity
-          echo "Deploying to environment: ${{ github.event.inputs.environment || 'production' }}"
+          echo "Deploying to environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'develop') }}"
 
       - name: Deploy to AWS
         run: |
-          # Map 'dev' environment to 'develop' for the script
           DEPLOY_ENV="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'develop') }}"
-          if [ "$DEPLOY_ENV" == "dev" ]; then DEPLOY_ENV="develop"; fi
-
           node scripts/deploy-outreach.cjs $DEPLOY_ENV
         env:
-          ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
+          ENVIRONMENT: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'develop') }}
 
           # Auth0 Configuration
           AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
