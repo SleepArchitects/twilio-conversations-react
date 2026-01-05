@@ -3,6 +3,10 @@ import { headers, cookies } from "next/headers";
 import { auth0 } from "@/lib/auth0";
 import { SignJWT } from "jose";
 
+// Force dynamic rendering - this route should never be cached
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 /**
  * Set x-sax-user-context cookie from header OR Auth0 session (fallback)
  *
