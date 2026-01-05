@@ -1,4 +1,3 @@
-
 name: Deploy to AWS with OpenNext
 
 on:
@@ -86,7 +85,7 @@ jobs:
           node scripts/deploy-outreach.cjs $DEPLOY_ENV
         env:
           ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
-          
+
           # Auth0 Configuration
           AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
           AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
@@ -95,79 +94,79 @@ jobs:
           AUTH0_BASE_URL: ${{ secrets.AUTH0_BASE_URL }}
           AUTH0_ISSUER_BASE_URL: ${{ vars.AUTH0_ISSUER_BASE_URL }}
           AUTH0_AUDIENCE: ${{ vars.AUTH0_AUDIENCE }}
-          
+
           # Auth0 Management API (M2M)
           AUTH0_M2M_DOMAIN: ${{ vars.AUTH0_M2M_DOMAIN }}
           AUTH0_M2M_CLIENT_ID: ${{ secrets.AUTH0_M2M_CLIENT_ID }}
           AUTH0_M2M_CLIENT_SECRET: ${{ secrets.AUTH0_M2M_CLIENT_SECRET }}
-          
+
           # API Gateway variables
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           WS_API_URL: ${{ secrets.WS_API_URL }}
           NEXT_PUBLIC_API_BASE_URL: ${{ secrets.API_BASE_URL }}
           NEXT_PUBLIC_WS_API_URL: ${{ secrets.WS_API_URL }}
-          
+
           # Multi-zone integration variables
           # APP_BASE_URL and SLEEPCONNECT_URL are passed via secrets context
           # NEXT_PUBLIC_* are passed via vars context
           NEXT_PUBLIC_APP_BASE_URL: ${{ vars.NEXT_PUBLIC_APP_BASE_URL }}
           NEXT_PUBLIC_SLEEPCONNECT_URL: ${{ vars.NEXT_PUBLIC_SLEEPCONNECT_URL }}
           NEXT_PUBLIC_BASE_PATH: /outreach
-          
+
           # Twilio Configuration
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
           TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
           TWILIO_MESSAGING_SERVICE_SID: ${{ secrets.TWILIO_MESSAGING_SERVICE_SID }}
           TWILIO_FROM_NUMBER: ${{ vars.TWILIO_FROM_NUMBER }}
-          
+
           # AWS Configuration
           AWS_REGION: ${{ vars.AWS_REGION }}
           SES_REGION: ${{ vars.SES_REGION }}
           SES_FROM_EMAIL: ${{ vars.SES_FROM_EMAIL }}
           CLOUDWATCH_EMAIL_LOG_GROUP: ${{ vars.CLOUDWATCH_EMAIL_LOG_GROUP }}
           CLOUDWATCH_EMAIL_LOG_STREAM: ${{ vars.CLOUDWATCH_EMAIL_LOG_STREAM }}
-          
+
           # S3 Configuration
           S3_CHART_UPLOADS_BUCKET: ${{ vars.S3_CHART_UPLOADS_BUCKET }}
           S3_CHART_UPLOADS_PREFIX: ${{ vars.S3_CHART_UPLOADS_PREFIX }}
           S3_CHART_UPLOADS_KMS_KEY_ARN: ${{ vars.S3_CHART_UPLOADS_KMS_KEY_ARN }}
           MAX_SINGLE_PART_BYTES: ${{ vars.MAX_SINGLE_PART_BYTES }}
-          
+
           # DynamoDB Configuration
           DYNAMODB_TABLE: ${{ vars.DYNAMODB_TABLE }}
           AUTH_DYNAMODB_REGION: ${{ vars.AUTH_DYNAMODB_REGION }}
-          
+
           # PostgreSQL Database (RDS)
           HOST: ${{ vars.HOST }}
           PG_DB: ${{ vars.PG_DB }}
           SECRET_ARN: ${{ vars.SECRET_ARN }}
-          
+
           # Lex Bot Configuration
           LEX_BOT_ID: ${{ vars.LEX_BOT_ID }}
           LEX_BOT_ALIAS_ID: ${{ vars.LEX_BOT_ALIAS_ID }}
           NEXT_PUBLIC_AI_OR_LEX: ${{ vars.NEXT_PUBLIC_AI_OR_LEX }}
-          
+
           # UI Configuration
           NEXT_PUBLIC_BANNER_LOGO: ${{ vars.NEXT_PUBLIC_BANNER_LOGO }}
           NEXT_PUBLIC_BANNER_LINK: ${{ vars.NEXT_PUBLIC_BANNER_LINK }}
           NEXT_PUBLIC_BANNER_TEXT: ${{ vars.NEXT_PUBLIC_BANNER_TEXT }}
           NEXT_PUBLIC_SHOW_BANNER: ${{ vars.NEXT_PUBLIC_SHOW_BANNER }}
-          
+
           # JWT Configuration
           TOKEN_EXPIRY: ${{ vars.TOKEN_EXPIRY }}
-          
+
           # Zoho Configuration
           ZOHO_REDIRECT_URI: ${{ vars.ZOHO_REDIRECT_URI }}
           ZOHO_SERVICE_ID: ${{ vars.ZOHO_SERVICE_ID }}
           ZOHO_WORKSPACE_ID: ${{ vars.ZOHO_WORKSPACE_ID }}
           ZOHO_STAFF_ID: ${{ vars.ZOHO_STAFF_ID }}
           ZOHO_STAFF_EMAIL: ${{ vars.ZOHO_STAFF_EMAIL }}
-          
+
           # Application
           LOG_LEVEL: ${{ vars.LOG_LEVEL }}
           SAX_COMPANY: ${{ vars.SAX_COMPANY }}
           SST_STAGE: ${{ vars.SST_STAGE }}
-          
+
           # URLs from .env
           NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
           NEXT_PUBLIC_EXTERNAL_FORM_URL: ${{ vars.NEXT_PUBLIC_EXTERNAL_FORM_URL }}
@@ -199,43 +198,3 @@ jobs:
           echo "- AWS credentials not configured" >> $GITHUB_STEP_SUMMARY
           echo "- S3 bucket doesn't exist (run setup script)" >> $GITHUB_STEP_SUMMARY
           echo "- Lambda function creation failed" >> $GITHUB_STEP_SUMMARY
-
-  # Optional: Run E2E tests after deployment
-  test-deployment:
-    name: Test Deployment
-    needs: deploy
-    runs-on: ubuntu-latest
-    if: github.event.inputs.environment != 'production'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 8
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Install Playwright
-        run: pnpm exec playwright install --with-deps
-
-      - name: Run E2E tests
-        env:
-          BASE_URL: ${{ vars.NEXT_PUBLIC_APP_BASE_URL }}
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 7
