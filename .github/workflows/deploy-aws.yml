@@ -106,6 +106,7 @@ jobs:
           # Multi-zone integration variables
           # APP_BASE_URL and SLEEPCONNECT_URL are passed via secrets context
           # NEXT_PUBLIC_* are passed via vars context
+          MULTI_ZONE_MODE: true
           NEXT_PUBLIC_APP_BASE_URL: ${{ vars.NEXT_PUBLIC_APP_BASE_URL }}
           NEXT_PUBLIC_SLEEPCONNECT_URL: ${{ vars.NEXT_PUBLIC_SLEEPCONNECT_URL }}
           NEXT_PUBLIC_BASE_PATH: /outreach
@@ -172,16 +173,34 @@ jobs:
 
       - name: Create deployment summary
         run: |
+          DEPLOY_ENV="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'develop') }}"
+
+          # Determine verification URL based on environment
+          case "$DEPLOY_ENV" in
+            production)
+              VERIFY_URL="https://mydreamconnect.com/outreach"
+              ;;
+            staging)
+              VERIFY_URL="https://stage.mydreamconnect.com/outreach"
+              ;;
+            develop)
+              VERIFY_URL="https://dev.mydreamconnect.com/outreach"
+              ;;
+            *)
+              VERIFY_URL="https://$DEPLOY_ENV.mydreamconnect.com/outreach"
+              ;;
+          esac
+
           echo "### Deployment Summary 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment**: ${{ github.event.inputs.environment || 'production' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: $DEPLOY_ENV" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Deployed by**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Timestamp**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Verify deployment at: https://outreach.mydreamconnect.com/outreach" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verify deployment at: $VERIFY_URL" >> $GITHUB_STEP_SUMMARY
           echo "2. Check CloudWatch logs if needed" >> $GITHUB_STEP_SUMMARY
           echo "3. Monitor CloudFront metrics" >> $GITHUB_STEP_SUMMARY
 
