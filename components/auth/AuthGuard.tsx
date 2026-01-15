@@ -42,15 +42,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const checkAuth = async () => {
       try {
         // First, try to set the cookie from the header (in case rewrite didn't forward it)
-        const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-        const setCookieResponse = await fetch(
-          `${basePath}/api/auth/set-cookie`,
-          {
-            method: "GET",
-            credentials: "include",
-            cache: "no-store",
-          },
-        );
+        const setCookieResponse = await fetch("/api/auth/set-cookie", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
 
         console.log(
           "[AuthGuard] set-cookie response status:",
@@ -58,7 +54,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         );
 
         // Then call our local API endpoint which can read the HttpOnly cookie
-        const response = await fetch(`${basePath}/api/auth/session`, {
+        const response = await fetch("/api/auth/session", {
           method: "GET",
           credentials: "include",
           cache: "no-store",
