@@ -129,9 +129,7 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
       globalAccessTokenFetched = true; // Mark as fetched GLOBALLY to prevent ALL instances from re-fetching
 
       // Fetch access token from API route (client-side can't call getAccessToken directly in v4)
-      // Use basePath prefix for the API route
-      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-      fetch(`${basePath}/api/auth/token`, {
+      fetch("/api/auth/token", {
         method: "GET",
         credentials: "include",
       })

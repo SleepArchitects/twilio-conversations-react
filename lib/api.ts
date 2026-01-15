@@ -11,9 +11,6 @@ const API_BASE_URL =
     ? process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
     : "";
 
-// Get the basePath from Next.js config (set at build time via NEXT_PUBLIC_BASE_PATH)
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
-
 /**
  * Custom error class for API errors
  */
@@ -74,20 +71,6 @@ function buildUrl(
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
 ): string {
-  // For relative paths to internal API routes (starting with /api/), prepend the basePath
-  // This is for client-side calls to Next.js API routes
-  // Don't apply if:
-  // - Path already starts with BASE_PATH
-  // - This is a server-side call (API routes don't need basePath on server)
-  let fullPath = path;
-  if (
-    typeof window !== "undefined" &&
-    path.startsWith("/api/") &&
-    !path.startsWith(BASE_PATH)
-  ) {
-    fullPath = `${BASE_PATH}${path}`;
-  }
-
   // Determine the base URL
   const baseUrl =
     API_BASE_URL ||
@@ -102,12 +85,12 @@ function buildUrl(
     const base = new URL(API_BASE_URL);
     // Remove trailing slash from base pathname, add leading slash to path if missing
     const basePath = base.pathname.replace(/\/$/, "");
-    const pathSegment = fullPath.startsWith("/") ? fullPath : `/${fullPath}`;
+    const pathSegment = path.startsWith("/") ? path : `/${path}`;
     // Combine base path with our path
     base.pathname = `${basePath}${pathSegment}`;
     finalUrl = base.toString();
   } else {
-    const url = new URL(fullPath, baseUrl);
+    const url = new URL(path, baseUrl);
     finalUrl = url.toString();
   }
 

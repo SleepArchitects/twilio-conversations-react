@@ -4,7 +4,6 @@ import { Toaster } from "sonner";
 import { Providers } from "./providers";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import Banner from "@/components/layout/Banner";
-import Header from "@/components/layout/Header/MainHeader";
 import Footer from "@/components/layout/Footer";
 import "./globals.css";
 
@@ -20,14 +19,11 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Render complete page structure with SleepConnect header/footer
-  // Wrapped in AuthGuard to ensure only authenticated users can access
   const content = (
     <Providers>
       <AuthGuard>
         <div className="flex min-h-screen flex-col">
           <Banner />
-          <Header />
           <main className="flex-1 page-content">{children}</main>
           <Footer />
         </div>

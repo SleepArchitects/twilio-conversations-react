@@ -106,8 +106,7 @@ async function proxyRequest(
       if (!headers.has("authorization")) {
         try {
           const baseUrl = request.nextUrl.origin;
-          const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-          const tokenUrl = `${baseUrl}${basePath}/api/auth/token`;
+          const tokenUrl = `${baseUrl}/api/auth/token`;
 
           console.log(
             "[API Proxy] Fetching Auth0 access token from:",
