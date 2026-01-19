@@ -28,6 +28,29 @@ const nextConfig = {
   // Enable source maps for production build to allow debugging in browser
   productionBrowserSourceMaps: true,
 
+  // Prevent browser caching to avoid stale content issues
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, proxy-revalidate",
+          },
+          {
+            key: "Pragma",
+            value: "no-cache",
+          },
+          {
+            key: "Expires",
+            value: "0",
+          },
+        ],
+      },
+    ];
+  },
+
   // Webpack configuration to handle optional ws dependencies and Web Workers
   webpack: (config, { isServer }) => {
     // These are optional native modules used by the ws package (via Twilio)
