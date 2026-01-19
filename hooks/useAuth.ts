@@ -61,6 +61,7 @@ export interface UseAuthResult {
 
 // GLOBAL flag to prevent multiple simultaneous access token fetches
 // This is shared across ALL instances of useAuth()
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 let globalAccessTokenFetched = false;
 let globalAccessToken: string | undefined = undefined;
 
@@ -123,108 +124,18 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
     return plainUser;
   }, [user, accessToken]);
 
-  // Fetch access token ONCE when user is available (GLOBAL fetch, shared across all instances)
   useEffect(() => {
-    if (user && !isLoading && !globalAccessTokenFetched) {
-      globalAccessTokenFetched = true; // Mark as fetched GLOBALLY to prevent ALL instances from re-fetching
-
-      // Fetch access token from API route (client-side can't call getAccessToken directly in v4)
-      fetch("/api/auth/token", {
-        method: "GET",
-        credentials: "include",
-      })
-        .then(async (response) => {
-          if (!response.ok) {
-            throw new Error(`Failed to fetch access token: ${response.status}`);
-          }
-          const data = await response.json();
-          const token = data.accessToken;
-
-          globalAccessToken = token;
-          setAccessToken(token);
-
-          // Notify ALL instances immediately
-          tokenCallbacks.forEach((callback) => callback(token));
-        })
-        .catch((err: unknown) => {
-          console.error("[useAuth] ✗ Access token fetch failed:", err);
-
-          // Extract error details
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const code = (err as any)?.code;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const status = (err as any)?.status;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const message = String((err as any)?.message || err || "");
-
-          // Check if this is a 404 (endpoint not found) - this is a configuration issue, not an auth error
-          const is404 = status === 404 || message.includes("404");
-
-          if (is404) {
-            console.error(
-              "[useAuth] Token endpoint not found (404) - this is a configuration issue, not logging out",
-            );
-            // Don't clear token or redirect on 404 - the user is still authenticated
-            // Just log the error and continue
-            return;
-          }
-
-          // Clear token on any error
-          globalAccessToken = undefined;
-          setAccessToken(undefined);
-
-          // Notify ALL instances of token clear
-          tokenCallbacks.forEach((callback) => callback(undefined));
-          // BUG FIX: Do NOT reset globalAccessTokenFetched here!
-          // Resetting the flag on errors would allow all other mounted components
-          // to retry, causing a request storm. The flag should only be reset on logout.
-          // globalAccessTokenFetched = false; // ← REMOVED
-
-          // Protect against redirect loops: don't redirect if we're already on an auth route
-          if (typeof window !== "undefined") {
-            const path = window.location.pathname || "";
-            if (
-              path.includes("/logout") ||
-              path.includes("/api/auth/logout") ||
-              path.includes("/auth/logout") ||
-              path.includes("/auth/login")
-            ) {
-              return;
-            }
-          }
-
-          // Inspect error to determine if it's an authentication/session error
-          const isAuthError =
-            code === "invalid_session" ||
-            code === "access_token_expired" ||
-            status === 401 ||
-            /invalid[_ ]?session/i.test(message);
-
-          if (isAuthError) {
-            // Redirect to the logout endpoint to clear session and force re-login
-            // Use router.push to keep client-side navigation where possible.
-            try {
-              router.push("/auth/logout");
-            } catch {
-              // Fallback to full navigation
-              if (typeof window !== "undefined")
-                window.location.href = "/auth/logout";
-            }
-          }
-        });
-    } else if (!user) {
-      // Reset global state when user logs out
+    if (!user) {
       globalAccessToken = undefined;
       setAccessToken(undefined);
       globalAccessTokenFetched = false;
-
-      // Notify ALL instances of logout
-      tokenCallbacks.forEach((callback) => callback(undefined));
+      tokenCallbacks.forEach((callback) => {
+        callback(undefined);
+      });
     } else if (user && globalAccessToken) {
-      // If another instance already fetched the token, use it
       setAccessToken(globalAccessToken);
     }
-  }, [user, isLoading, router]);
+  }, [user]);
 
   // Store user's timezone to localStorage on login
   useEffect(() => {
@@ -259,8 +170,10 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
         // Mark as tracked immediately to prevent duplicate calls
         sessionStorage.setItem(sessionKey, "true");
 
+        const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
         // Call login tracking API (fire and forget)
-        fetch("/api/track-login", {
+        fetch(`${basePath}/api/track-login`, {
           method: "POST",
           credentials: "include",
         })
