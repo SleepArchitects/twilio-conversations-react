@@ -64,29 +64,42 @@ export function buildPath(...segments: (string | number)[]): string {
     .join("/");
 }
 
-/**
- * Build URL with query parameters
- */
-function buildUrl(
+function isClientSideApiRoute(path: string): boolean {
+  return typeof window !== "undefined" && path.startsWith("/api/");
+}
+
+function buildRelativeUrlForProxy(
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
 ): string {
-  // Determine the base URL
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const fullPath = basePath ? `${basePath}${path}` : path;
+  const url = new URL(fullPath, window.location.origin);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        url.searchParams.append(key, String(value));
+      }
+    });
+  }
+  return url.pathname + url.search;
+}
+
+function buildFullUrlForDirectCall(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>,
+): string {
   const baseUrl =
     API_BASE_URL ||
     (typeof window !== "undefined"
       ? window.location.origin
       : "http://localhost:3001");
 
-  // If API_BASE_URL has a path component (e.g., /dev), we need to preserve it
-  // and append our path to it rather than replacing it
   let finalUrl: string;
   if (API_BASE_URL) {
     const base = new URL(API_BASE_URL);
-    // Remove trailing slash from base pathname, add leading slash to path if missing
     const basePath = base.pathname.replace(/\/$/, "");
     const pathSegment = path.startsWith("/") ? path : `/${path}`;
-    // Combine base path with our path
     base.pathname = `${basePath}${pathSegment}`;
     finalUrl = base.toString();
   } else {
@@ -94,7 +107,6 @@ function buildUrl(
     finalUrl = url.toString();
   }
 
-  // Parse the final URL to add query params
   const url = new URL(finalUrl);
 
   if (params) {
@@ -106,6 +118,16 @@ function buildUrl(
   }
 
   return url.toString();
+}
+
+function buildUrl(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>,
+): string {
+  if (isClientSideApiRoute(path)) {
+    return buildRelativeUrlForProxy(path, params);
+  }
+  return buildFullUrlForDirectCall(path, params);
 }
 
 /**

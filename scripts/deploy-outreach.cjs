@@ -473,15 +473,85 @@ try {
     console.log(`⚠️  Warning: Could not update environment variables: ${error.message}`);
   }
 
-  // Step 5.6: Fix CloudFront headers configuration
-  // Lambda function URLs reject requests where Host header doesn't match their domain
-  // CloudFront must NOT forward the Host header to the origin
+  // Step 5.6: Configure CloudFront cache policy for RSC support
+  // Next.js 14+ uses React Server Components (RSC) which require specific headers
+  // in the cache key to prevent caching empty prefetch responses
   if (config.outreachCloudfrontDistribution) {
-    console.log('🔧 Step 5.6: Checking CloudFront headers configuration...');
+    console.log('🔧 Step 5.6: Configuring CloudFront cache policy for RSC...');
     console.log(`   Distribution: ${config.outreachCloudfrontDistribution}`);
 
     try {
+      const cachePolicyName = `OutreachRSCCachePolicy_${config.env}`;
+      let cachePolicyId = null;
+
+      // Check if RSC-aware cache policy already exists
+      console.log('   🔍 Checking for existing RSC cache policy...');
+      const listPoliciesOutput = execSync(
+        'aws cloudfront list-cache-policies --type custom --output json',
+        { encoding: 'utf8' }
+      );
+      const policies = JSON.parse(listPoliciesOutput);
+      const existingPolicy = policies.CachePolicyList?.Items?.find(
+        item => item.CachePolicy.CachePolicyConfig.Name === cachePolicyName
+      );
+
+      if (existingPolicy) {
+        cachePolicyId = existingPolicy.CachePolicy.Id;
+        console.log(`   ✅ Found existing cache policy: ${cachePolicyId}`);
+      } else {
+        // Create new RSC-aware cache policy
+        console.log('   🆕 Creating new RSC-aware cache policy...');
+        const cachePolicyConfig = {
+          Name: cachePolicyName,
+          Comment: 'Cache policy for Outreach Next.js app with RSC header support to prevent caching empty prefetch responses',
+          DefaultTTL: 86400,
+          MaxTTL: 31536000,
+          MinTTL: 0,
+          ParametersInCacheKeyAndForwardedToOrigin: {
+            EnableAcceptEncodingGzip: true,
+            EnableAcceptEncodingBrotli: true,
+            CookiesConfig: {
+              CookieBehavior: 'all'
+            },
+            HeadersConfig: {
+              HeaderBehavior: 'whitelist',
+              Headers: {
+                Quantity: 5,
+                Items: [
+                  'RSC',
+                  'Next-Router-Prefetch',
+                  'Next-Router-State-Tree',
+                  'Next-URL',
+                  'x-middleware-prefetch'
+                ]
+              }
+            },
+            QueryStringsConfig: {
+              QueryStringBehavior: 'whitelist',
+              QueryStrings: {
+                Quantity: 1,
+                Items: ['rsc']
+              }
+            }
+          }
+        };
+
+        const tempPolicyPath = path.join(os.tmpdir(), `cache-policy-${Date.now()}.json`);
+        fs.writeFileSync(tempPolicyPath, JSON.stringify(cachePolicyConfig));
+
+        const createPolicyOutput = execSync(
+          `aws cloudfront create-cache-policy --cache-policy-config file://${tempPolicyPath} --output json`,
+          { encoding: 'utf8' }
+        );
+        const createdPolicy = JSON.parse(createPolicyOutput);
+        cachePolicyId = createdPolicy.CachePolicy.Id;
+
+        fs.unlinkSync(tempPolicyPath);
+        console.log(`   ✅ Created cache policy: ${cachePolicyId}`);
+      }
+
       // Get current distribution config
+      console.log('   🔍 Checking distribution cache behavior...');
       const cfConfigOutput = execSync(
         `aws cloudfront get-distribution-config \
           --id ${config.outreachCloudfrontDistribution} \
@@ -492,26 +562,22 @@ try {
       const etag = cfConfig.ETag;
       const distConfig = cfConfig.DistributionConfig;
 
-      // Check if Headers is set to forward all ("*")
-      const forwardedHeaders = distConfig.DefaultCacheBehavior?.ForwardedValues?.Headers;
-      if (forwardedHeaders?.Items?.includes('*')) {
-        console.log('   ⚠️  CloudFront is forwarding ALL headers (including Host)');
-        console.log('   🔧 Updating to forward specific headers only...');
+      // Check if distribution is using legacy ForwardedValues or already has correct cache policy
+      const currentCacheBehavior = distConfig.DefaultCacheBehavior;
+      const needsUpdate = currentCacheBehavior.ForwardedValues || 
+                         currentCacheBehavior.CachePolicyId !== cachePolicyId;
 
-        // Update to forward specific headers (NOT Host - Lambda URLs reject mismatched Host)
-        distConfig.DefaultCacheBehavior.ForwardedValues.Headers = {
-          Quantity: 8,
-          Items: [
-            'Accept',
-            'Accept-Language', 
-            'Authorization',
-            'Content-Type',
-            'Origin',
-            'Referer',
-            'X-Forwarded-Host',
-            'X-Requested-With'
-          ]
-        };
+      if (needsUpdate) {
+        console.log('   🔧 Updating distribution to use RSC-aware cache policy...');
+
+        // Replace legacy ForwardedValues with modern cache policy + origin request policy
+        delete currentCacheBehavior.ForwardedValues;
+        delete currentCacheBehavior.MinTTL;
+        delete currentCacheBehavior.DefaultTTL;
+        delete currentCacheBehavior.MaxTTL;
+        
+        currentCacheBehavior.CachePolicyId = cachePolicyId;
+        currentCacheBehavior.OriginRequestPolicyId = 'b689b0a8-53d0-40ab-baf2-68738e2966ac'; // AllViewerExceptHostHeader
 
         // Write updated config to temp file
         const tempCfConfigPath = path.join(os.tmpdir(), `cf-config-${Date.now()}.json`);
@@ -525,17 +591,15 @@ try {
           { stdio: 'inherit' }
         );
 
-        // Clean up temp file
         fs.unlinkSync(tempCfConfigPath);
-
-        console.log('   ✅ CloudFront headers configuration updated');
+        console.log('   ✅ CloudFront distribution updated with RSC cache policy');
         console.log('   ⏳ Note: CloudFront changes may take a few minutes to propagate');
       } else {
-        console.log('   ✅ CloudFront headers configuration is correct');
+        console.log('   ✅ CloudFront already using correct RSC cache policy');
       }
       console.log('');
     } catch (error) {
-      console.log(`   ⚠️  Warning: Could not check/update CloudFront config: ${error.message}`);
+      console.log(`   ⚠️  Warning: Could not configure CloudFront cache policy: ${error.message}`);
       console.log('');
     }
   }

@@ -1,0 +1,36 @@
+{
+  "Name": "OutreachRSCCachePolicy_develop",
+  "Comment": "Cache policy for Outreach Next.js app with RSC header support to prevent caching empty prefetch responses",
+  "DefaultTTL": 86400,
+  "MaxTTL": 31536000,
+  "MinTTL": 0,
+  "ParametersInCacheKeyAndForwardedToOrigin": {
+    "EnableAcceptEncodingGzip": true,
+    "EnableAcceptEncodingBrotli": true,
+    "CookiesConfig": {
+      "CookieBehavior": "all"
+    },
+    "HeadersConfig": {
+      "HeaderBehavior": "whitelist",
+      "Headers": {
+        "Quantity": 5,
+        "Items": [
+          "RSC",
+          "Next-Router-Prefetch",
+          "Next-Router-State-Tree",
+          "Next-URL",
+          "x-middleware-prefetch"
+        ]
+      }
+    },
+    "QueryStringsConfig": {
+      "QueryStringBehavior": "whitelist",
+      "QueryStrings": {
+        "Quantity": 1,
+        "Items": [
+          "rsc"
+        ]
+      }
+    }
+  }
+}
