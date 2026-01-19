@@ -54,7 +54,7 @@ export interface UseMessagesReturn {
 // =============================================================================
 
 const API_BASE_PATH = "/outreach/api/outreach";
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 20;
 const WS_URL =
   process.env.NEXT_PUBLIC_WS_API_URL ||
   "wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev";
@@ -442,8 +442,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       dispatch({ type: "SET_MESSAGES", payload: queryData.data });
     }
 
-    setHasMore(queryData.pagination.hasMore);
-    setOffset(queryData.data.length);
+    // For reverse pagination (starting from bottom):
+    // hasMore is true if we are not at the beginning (offset > 0)
+    setHasMore(queryData.pagination.offset > 0);
+    setOffset(queryData.pagination.offset);
   }, [queryData]);
 
   /**
@@ -453,16 +455,41 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     if (!hasMore || isLoading) return;
 
     try {
+      // Calculate previous page offset
+      // If current offset is 50 and page size is 20, new offset is 30
+      // If current offset is 10 and page size is 20, new offset is 0
+      const newOffset = Math.max(0, offset - DEFAULT_PAGE_SIZE);
+
+      // Calculate actual limit to fetch
+      // Usually DEFAULT_PAGE_SIZE, but if we're near the start, it might be less
+      // e.g. offset was 10, newOffset is 0, we need 10 items
+      // But standard API behavior usually handles limit > remaining items gracefully
+      // keeping it simple with DEFAULT_PAGE_SIZE is usually fine if API is robust,
+      // but to be precise:
+      // We want to fetch the range [newOffset, offset)
+      // So limit should be (offset - newOffset) to avoid overlap if we want to be exact?
+      // Actually standard API: offset=30, limit=20 returns [30, 50).
+      // We currently have [50, 70).
+      // So fetching offset=30, limit=20 gives us exactly the previous page.
+      // If offset=10, limit=20. Returns [10, 30).
+      // If offset=10. newOffset=0. limit=20?
+      // Fetch offset=0, limit=20. Returns [0, 20).
+      // We have [10, ...]. Overlap of [10, 20).
+      // So valid limit is (offset - newOffset) ONLY if API guarantees strict ordering.
+      // Let's use computed limit to avoid overlap.
+      const fetchLimit = offset - newOffset;
+
       const response = await fetchMessagesFromApi(
         conversationId,
-        offset,
-        DEFAULT_PAGE_SIZE,
+        newOffset,
+        fetchLimit,
       );
+
       if (!isMountedRef.current) return;
 
       dispatch({ type: "PREPEND_MESSAGES", payload: response.data });
-      setOffset((prev) => prev + response.data.length);
-      setHasMore(response.pagination.hasMore);
+      setOffset(newOffset);
+      setHasMore(newOffset > 0);
     } catch (err) {
       console.error("Failed to load more messages:", err);
     }
