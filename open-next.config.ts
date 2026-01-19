@@ -22,6 +22,10 @@ const config = {
       // Include source maps in the build for production debugging
       // Since minify is false, esbuild will preserve source maps
       generateDockerfile: false,
+      
+      // Disable caching to prevent stale content issues
+      incrementalCache: "dummy",
+      tagCache: "dummy",
     },
   },
   

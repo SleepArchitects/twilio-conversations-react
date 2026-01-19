@@ -36,7 +36,7 @@ const nextConfig = {
         headers: [
           {
             key: "Cache-Control",
-            value: "no-store, no-cache, must-revalidate, proxy-revalidate",
+            value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
           },
           {
             key: "Pragma",
@@ -46,10 +46,26 @@ const nextConfig = {
             key: "Expires",
             value: "0",
           },
+          {
+            key: "Surrogate-Control",
+            value: "no-store",
+          },
         ],
       },
     ];
   },
+
+  // Disable experimental features that might cause caching issues
+  experimental: {
+    ppr: false,
+    // Disable partial prerendering and streaming
+    serverActions: {
+      bodySizeLimit: '2mb',
+    },
+  },
+
+  // Force static optimization off to prevent caching issues
+  reactStrictMode: true,
 
   // Webpack configuration to handle optional ws dependencies and Web Workers
   webpack: (config, { isServer }) => {

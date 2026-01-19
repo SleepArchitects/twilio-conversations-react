@@ -1,8 +1,8 @@
 {
   "Name": "OutreachRSCCachePolicy_develop",
-  "Comment": "Cache policy for Outreach Next.js app with RSC header support to prevent caching empty prefetch responses",
-  "DefaultTTL": 86400,
-  "MaxTTL": 31536000,
+  "Comment": "Cache policy for Outreach Next.js app - no caching to prevent stale content",
+  "DefaultTTL": 0,
+  "MaxTTL": 0,
   "MinTTL": 0,
   "ParametersInCacheKeyAndForwardedToOrigin": {
     "EnableAcceptEncodingGzip": true,
