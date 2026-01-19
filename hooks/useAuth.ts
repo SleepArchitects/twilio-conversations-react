@@ -170,10 +170,15 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
         // Mark as tracked immediately to prevent duplicate calls
         sessionStorage.setItem(sessionKey, "true");
 
-        const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+        // Call SleepConnect's login tracking API (not Outreach's)
+        // This must use the full SleepConnect URL to reach the correct endpoint
+        const sleepConnectUrl = process.env.NEXT_PUBLIC_SLEEPCONNECT_URL || "";
+        const trackingUrl = sleepConnectUrl
+          ? `${sleepConnectUrl}/api/track-login`
+          : "/api/track-login"; // fallback to relative path in dev
 
         // Call login tracking API (fire and forget)
-        fetch(`${basePath}/api/track-login`, {
+        fetch(trackingUrl, {
           method: "POST",
           credentials: "include",
         })
