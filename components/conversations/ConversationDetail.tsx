@@ -373,42 +373,84 @@ export function ConversationDetail({
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const messageListRef = React.useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
-  const prevMessageCountRef = React.useRef(messages.length);
+  const scrollRestorationRef = React.useRef<number | null>(null);
+  const lastMessageIdRef = React.useRef<string | null>(null);
 
-  // Auto-scroll to bottom on new messages
-  React.useEffect(() => {
-    const isNewMessage = messages.length > prevMessageCountRef.current;
-    prevMessageCountRef.current = messages.length;
+  // Handle scroll restoration when loading older messages
+  // We use useLayoutEffect to adjust the scroll position before the browser paints
+  // This prevents the visual "jump" when new messages are added to the top
+  React.useLayoutEffect(() => {
+    // If we have a stored scroll height, it means we loaded more messages
+    if (scrollRestorationRef.current !== null && messageListRef.current) {
+      const newScrollHeight = messageListRef.current.scrollHeight;
+      const scrollDiff = newScrollHeight - scrollRestorationRef.current;
 
-    // Only auto-scroll for new messages, not when loading older ones
-    if (isNewMessage && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      // Adjust scroll top by the difference in height
+      // This keeps the user's view anchored to the same messages
+      if (scrollDiff > 0) {
+        messageListRef.current.scrollTop += scrollDiff;
+      }
+
+      scrollRestorationRef.current = null;
     }
-  }, [messages.length]);
+  }, [messages]);
+
+  // Auto-scroll to bottom on NEW messages only
+  React.useEffect(() => {
+    // Get the last message ID
+    const lastMessage = messages[messages.length - 1];
+    const lastMessageId = lastMessage?.id;
+
+    // Check if the last message has changed (new message added to bottom)
+    // We ignore updates where the last message is the same (e.g. loading history)
+    const isNewMessageAtBottom = lastMessageId !== lastMessageIdRef.current;
+
+    // Update ref for next comparison
+    lastMessageIdRef.current = lastMessageId || null;
+
+    // Scroll to bottom if it's a new message at the bottom
+    if (isNewMessageAtBottom && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    } else if (
+      !isLoading &&
+      messages.length > 0 &&
+      !scrollRestorationRef.current
+    ) {
+      // Initial load scroll
+      // However, we need to be careful not to override scroll restoration.
+      // If scrollRestorationRef was just processed in useLayoutEffect,
+      // we shouldn't scroll to bottom.
+      // But useLayoutEffect runs before useEffect.
+      // So checking if we JUST restored scroll is tricky unless we use a flag.
+      // Actually, "isNewMessageAtBottom" handles the dynamic updates.
+      // This block is for initial mount.
+      // But useEffect runs after every render.
+      // We only want this on INITIAL load or when we are empty->not-empty.
+    }
+  }, [messages.length, messages]); // Depend on messages to catch ID changes
 
   // Initial scroll to bottom on mount
   React.useEffect(() => {
     if (!isLoading && messages.length > 0 && messagesEndRef.current) {
+      // Only scroll on initial load (when we haven't loaded more)
       messagesEndRef.current.scrollIntoView({ behavior: "auto" });
     }
-  }, [isLoading, messages.length]);
+    // We intentionally only want this to run when loading finishes initially
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   // Handle load more with scroll position preservation
   const handleLoadMore = React.useCallback(async () => {
     if (isLoadingMore || !hasMore) return;
 
-    const messageList = messageListRef.current;
-    const previousScrollHeight = messageList?.scrollHeight ?? 0;
+    // Capture current scroll height before loading
+    if (messageListRef.current) {
+      scrollRestorationRef.current = messageListRef.current.scrollHeight;
+    }
 
     setIsLoadingMore(true);
     try {
       await loadMore();
-
-      // Restore scroll position after loading older messages
-      if (messageList) {
-        const newScrollHeight = messageList.scrollHeight;
-        messageList.scrollTop = newScrollHeight - previousScrollHeight;
-      }
     } finally {
       setIsLoadingMore(false);
     }
