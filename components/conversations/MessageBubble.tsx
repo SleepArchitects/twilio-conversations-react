@@ -191,7 +191,7 @@ export function MessageBubble({
   return (
     <article
       className={cn(
-        "flex w-full",
+        "flex w-full animate-fade-in-up",
         isOutbound ? "justify-end" : "justify-start",
         className,
       )}
