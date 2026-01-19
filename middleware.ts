@@ -83,11 +83,15 @@ export async function middleware(request: NextRequest) {
   
   const response = NextResponse.next();
   
-  // Prevent browser from caching authenticated pages
-  // This ensures fresh auth checks on each visit
-  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  // Force no caching - override any headers set by Next.js/OpenNext
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
   response.headers.set('Pragma', 'no-cache');
   response.headers.set('Expires', '0');
+  response.headers.set('Surrogate-Control', 'no-store');
+  
+  // Remove any existing cache headers that might conflict
+  response.headers.delete('s-maxage');
+  response.headers.delete('stale-while-revalidate');
   
   return response;
 }
