@@ -50,13 +50,21 @@ function errorResponse(
 /**
  * Get headers for Lambda API calls with user context
  * NOTE: AWS API Gateway converts headers to lowercase, so we use lowercase here
+ * SAX users get an admin header to bypass tenant filtering
  */
 function getLambdaHeaders(userContext: UserContext): Record<string, string> {
-  return {
+  const headers: Record<string, string> = {
     "x-tenant-id": userContext.tenantId,
     "x-practice-id": userContext.practiceId,
     "x-coordinator-sax-id": String(userContext.saxId),
   };
+
+  // SAX users get admin header to bypass tenant filtering on Lambda
+  if (userContext.isSAXUser) {
+    headers["x-sax-admin"] = "true";
+  }
+
+  return headers;
 }
 
 // =============================================================================
@@ -67,6 +75,7 @@ function getLambdaHeaders(userContext: UserContext): Record<string, string> {
  * GET /api/outreach/conversations/[conversationId]
  *
  * Get a single conversation by ID.
+ * SAX users can access any conversation across all tenants.
  *
  * @returns { data: Conversation }
  */
@@ -76,19 +85,23 @@ async function handleGet(
   conversationId: string,
 ): Promise<NextResponse> {
   try {
-    // Call Lambda API to get conversation (REQUIRED)
-    // Use params option to properly build query string (don't append to path)
-    const queryParams = {
+    // Build query params - SAX users don't filter by tenant/practice/coordinator
+    const queryParams: Record<string, string> = {
       id: conversationId,
-      tenant_id: userContext.tenantId,
-      practice_id: userContext.practiceId,
-      coordinator_sax_id: String(userContext.saxId),
     };
+
+    if (!userContext.isSAXUser) {
+      // Regular users: include tenant/practice/coordinator filters
+      queryParams.tenant_id = userContext.tenantId;
+      queryParams.practice_id = userContext.practiceId;
+      queryParams.coordinator_sax_id = String(userContext.saxId);
+    }
 
     console.log("[GET CONVERSATION] User context:", {
       saxId: userContext.saxId,
       tenantId: userContext.tenantId,
       practiceId: userContext.practiceId,
+      isSAXUser: userContext.isSAXUser,
     });
     console.log("[GET CONVERSATION] Query params:", queryParams);
     console.log(
