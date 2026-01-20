@@ -2,11 +2,18 @@
 
 import * as React from "react";
 import { HiTemplate, HiChevronDown, HiChevronUp } from "react-icons/hi";
+import { Tooltip } from "flowbite-react";
 import { cn } from "@/lib/utils";
 import { TemplateSelector } from "@/components/templates/TemplateSelector";
 import { TemplatePreview } from "@/components/templates/TemplatePreview";
 import { QuickTemplateButton } from "@/components/templates/QuickTemplateButton";
 import { useTemplates, useFrequentTemplates } from "@/hooks/useTemplates";
+import {
+  EmojiPicker,
+  type EmojiSelectData,
+} from "@/components/conversations/EmojiPicker";
+import { EmojiPickerButton } from "@/components/conversations/EmojiPickerButton";
+import { insertEmojiAtCursor, addToRecentEmojis } from "@/lib/emoji";
 import {
   detectUnresolvedVariables,
   renderTemplate,
@@ -152,6 +159,7 @@ export function MessageComposer({
   const [message, setMessage] = React.useState("");
   const [isSending, setIsSending] = React.useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = React.useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = React.useState(false);
   const [showVariablePrompt, setShowVariablePrompt] = React.useState(false);
   const [pendingSend, setPendingSend] = React.useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = React.useState<
@@ -164,6 +172,7 @@ export function MessageComposer({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const modalRef = React.useRef<HTMLDivElement>(null);
   const variablePromptRef = React.useRef<HTMLDivElement>(null);
+  const emojiPickerRef = React.useRef<HTMLDivElement>(null);
 
   // Template hooks
   const {
@@ -255,6 +264,21 @@ export function MessageComposer({
   }, [isSendDisabled, message, onSend, selectTemplate, selectedTemplate]);
 
   /**
+   * Handle emoji selection
+   */
+  const handleEmojiSelect = React.useCallback((emojiData: EmojiSelectData) => {
+    if (textareaRef.current) {
+      insertEmojiAtCursor(textareaRef.current, emojiData.emoji);
+      // Update local state since insertEmojiAtCursor modifies the DOM element directly
+      setMessage(textareaRef.current.value);
+      addToRecentEmojis(emojiData.emoji);
+    }
+    // Keep picker open for multiple insertions, or close it?
+    // Usually, it's better to keep it open for multiple emojis but close on click outside.
+    // However, some UX patterns close it. Let's keep it open for now as it's more flexible.
+  }, []);
+
+  /**
    * Handle template selection
    */
   const handleTemplateSelect = React.useCallback(
@@ -311,6 +335,28 @@ export function MessageComposer({
     },
     [],
   );
+
+  /**
+   * Close emoji picker on click outside
+   */
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    if (showEmojiPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showEmojiPicker]);
 
   /**
    * Close variable prompt modal on backdrop click
@@ -451,27 +497,52 @@ export function MessageComposer({
             )}
 
           {/* Template Selector Button */}
-          <button
-            type="button"
-            onClick={() => setShowTemplateSelector(true)}
-            disabled={disabled || isSending}
-            aria-label="Select template"
-            className={cn(
-              "flex-shrink-0 inline-flex items-center justify-center",
-              "h-11 w-11 rounded-lg",
-              "transition-all duration-200",
-              "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
-              disabled || isSending
-                ? "bg-gray-700 text-gray-500 cursor-not-allowed opacity-50"
-                : [
-                    "bg-gray-800 text-gray-300 border border-gray-700",
-                    "hover:bg-gray-700 hover:text-white",
-                    "focus:ring-purple-500",
-                  ],
-            )}
-          >
-            <HiTemplate className="h-5 w-5" aria-hidden={true} />
-          </button>
+          <Tooltip content="Select message template" placement="top">
+            <button
+              type="button"
+              onClick={() => setShowTemplateSelector(true)}
+              disabled={disabled || isSending}
+              aria-label="Select template"
+              className={cn(
+                "flex-shrink-0 inline-flex items-center justify-center",
+                "h-11 w-11 rounded-lg",
+                "transition-all duration-200",
+                "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
+                disabled || isSending
+                  ? "bg-gray-700 text-gray-500 cursor-not-allowed opacity-50"
+                  : [
+                      "bg-gray-800 text-gray-300 border border-gray-700",
+                      "hover:bg-gray-700 hover:text-white",
+                      "focus:ring-purple-500",
+                    ],
+              )}
+            >
+              <HiTemplate className="h-5 w-5" aria-hidden={true} />
+            </button>
+          </Tooltip>
+
+          {/* Emoji Picker Button & Popup */}
+          <Tooltip content="Add emoji" placement="top">
+            <div className="relative flex-shrink-0">
+              <EmojiPickerButton
+                isOpen={showEmojiPicker}
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                disabled={disabled || isSending}
+                className="h-11 w-11 rounded-lg bg-gray-800 border border-gray-700 hover:bg-gray-700"
+              />
+              {showEmojiPicker && (
+                <div
+                  ref={emojiPickerRef}
+                  className="absolute bottom-full left-0 mb-2 z-50"
+                >
+                  <EmojiPicker
+                    onEmojiSelect={handleEmojiSelect}
+                    onClose={() => setShowEmojiPicker(false)}
+                  />
+                </div>
+              )}
+            </div>
+          </Tooltip>
 
           <div className="relative flex-1 flex items-end">
             <textarea
@@ -505,38 +576,43 @@ export function MessageComposer({
           </div>
 
           {/* Send button */}
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={isSendDisabled}
-            aria-label={isSending ? "Sending message" : "Send message"}
-            className={cn(
-              "flex-shrink-0 inline-flex items-center justify-center",
-              "h-11 w-11 rounded-lg",
-              "transition-all duration-200",
-              "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
-              // Enabled state: purple/blue gradient
-              !isSendDisabled && [
-                "bg-gradient-to-r from-purple-600 to-blue-600",
-                "hover:from-purple-500 hover:to-blue-500",
-                "text-white",
-                "focus:ring-purple-500",
-                "shadow-lg shadow-purple-500/25",
-              ],
-              // Disabled state: gray
-              isSendDisabled && [
-                "bg-gray-700",
-                "text-gray-500",
-                "cursor-not-allowed",
-              ],
-            )}
+          <Tooltip
+            content={isSending ? "Sending message" : "Send message"}
+            placement="top"
           >
-            {isSending ? (
-              <SpinnerIcon aria-hidden={true} />
-            ) : (
-              <SendIcon aria-hidden={true} />
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={isSendDisabled}
+              aria-label={isSending ? "Sending message" : "Send message"}
+              className={cn(
+                "flex-shrink-0 inline-flex items-center justify-center",
+                "h-11 w-11 rounded-lg",
+                "transition-all duration-200",
+                "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900",
+                // Enabled state: purple/blue gradient
+                !isSendDisabled && [
+                  "bg-gradient-to-r from-purple-600 to-blue-600",
+                  "hover:from-purple-500 hover:to-blue-500",
+                  "text-white",
+                  "focus:ring-purple-500",
+                  "shadow-lg shadow-purple-500/25",
+                ],
+                // Disabled state: gray
+                isSendDisabled && [
+                  "bg-gray-700",
+                  "text-gray-500",
+                  "cursor-not-allowed",
+                ],
+              )}
+            >
+              {isSending ? (
+                <SpinnerIcon aria-hidden={true} />
+              ) : (
+                <SendIcon aria-hidden={true} />
+              )}
+            </button>
+          </Tooltip>
         </div>
 
         {/* Status bar: character count and segment info */}

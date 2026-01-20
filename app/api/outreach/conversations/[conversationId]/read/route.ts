@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
-import { type UserContext, withUserContext } from "@/lib/auth";
+import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,13 +52,6 @@ function getLambdaHeaders(userContext: UserContext): Record<string, string> {
   };
 }
 
-/**
- * Check if running in mock mode (for local development without Lambda backend)
- */
-function isMockMode(): boolean {
-  return process.env.DISABLE_AUTH === "true" && !process.env.API_BASE_URL;
-}
-
 // =============================================================================
 // POST Handler - Mark Conversation as Read
 // =============================================================================
@@ -76,10 +69,11 @@ async function handlePost(
   conversationId: string,
 ): Promise<NextResponse> {
   try {
-    // Mock mode for local development without Lambda backend
-    if (isMockMode()) {
-      console.log(`[MOCK] Marking conversation ${conversationId} as read`);
-      return NextResponse.json({ success: true }, { status: 200 });
+    // Get access token for Authorization header (REQUIRED)
+    const accessToken = await getAccessToken();
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
     }
 
     // Call Lambda API to mark conversation as read
@@ -91,7 +85,7 @@ async function handlePost(
         updated_by: String(userContext.saxId),
       },
       {
-        headers: getLambdaHeaders(userContext),
+        headers,
       },
     );
 

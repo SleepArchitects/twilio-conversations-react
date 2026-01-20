@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Button } from "flowbite-react";
+import { Button, Tooltip } from "flowbite-react";
 import { HiTemplate } from "react-icons/hi";
 import { ConversationList } from "@/components/conversations/ConversationList";
 import {
@@ -110,18 +110,20 @@ export default function ConversationsPage(): React.ReactElement {
   // ==========================================================================
 
   return (
-    <div className="flex flex-col bg-gray-900">
+    <div className="flex flex-col h-full bg-gray-900">
       <PageHeader
         title="SMS Conversations"
         subtitle="Manage patient conversations"
       >
         {/* Templates Link */}
-        <Link href="/templates">
-          <Button color="gray" size="sm">
-            <HiTemplate className="mr-2 h-4 w-4" />
-            Templates
-          </Button>
-        </Link>
+        <Tooltip content="Manage message templates" placement="bottom">
+          <Link href="/templates">
+            <Button color="gray" size="sm">
+              <HiTemplate className="mr-2 h-4 w-4" />
+              Templates
+            </Button>
+          </Link>
+        </Tooltip>
 
         {/* Status filter - FR-014c */}
         <ConversationFilter
@@ -131,14 +133,14 @@ export default function ConversationsPage(): React.ReactElement {
       </PageHeader>
 
       {/* Main Content - ConversationList handles its own data fetching */}
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden flex">
         <ConversationList
           selectedConversationId={selectedConversationId}
           onConversationSelect={handleConversationSelect}
           onNewConversation={handleNewConversation}
           filterStatus={filterStatus}
           searchQuery={searchQuery}
-          className="h-full"
+          className="h-full w-full flex-1"
         />
       </main>
 

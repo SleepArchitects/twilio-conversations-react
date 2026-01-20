@@ -11,7 +11,9 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
   try {
     const baseUrl =
-      process.env.NEXT_PUBLIC_SLEEPCONNECT_URL || "http://localhost:3000";
+      process.env.NEXT_PUBLIC_SLEEPCONNECT_URL ||
+      process.env.NEXT_PUBLIC_APP_BASE_URL ||
+      "http://localhost:3000";
     const tokenUrl = `${baseUrl}/api/auth/token`;
 
     console.log("[Proxy /api/auth/token] Forwarding to:", tokenUrl);

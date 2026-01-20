@@ -1,8 +1,43 @@
 # Multi-Zone Deployment Guide: SMS Outreach Integration
 
-**Date**: December 16, 2025  
-**Status**: Ready for Implementation  
-**Environment**: Development → Production
+**Date**: December 22, 2025  
+**Status**: Develop Deployed with Custom Domains; Staging/Production Ready for Implementation  
+**Environment**: Development → Staging → Production
+
+---
+
+## 🎯 Custom Domain Architecture (IMPLEMENTED)
+
+**Status**: ✅ Custom domains are the standard deployment method for all environments.
+
+### Why Custom Domains?
+- Lambda Function URLs can change if the function is recreated
+- Custom domains (e.g., `outreach-dev.mydreamconnect.com`) remain stable
+- `OUTREACH_APP_URL` becomes a constant per environment
+- Deployment scripts don't need to query/update URLs
+- Professional, consistent domain structure
+
+### Implemented Domains (Develop - Dec 19, 2025)
+
+**UI (CloudFront → Lambda)**:
+- `https://outreach-dev.mydreamconnect.com` → CloudFront E8BMOBRWCCCO2
+
+**REST API (API Gateway)**:
+- `https://outreach-api-dev.mydreamconnect.com`
+
+**WebSocket (API Gateway)**:
+- `wss://outreach-ws-dev.mydreamconnect.com`
+
+**Certificate**: Single ACM cert with SANs covering all 3 subdomains  
+**ARN**: `arn:aws:acm:us-east-1:597088017323:certificate/78d03efe-1b91-4f88-ac6c-a0a3398c061d`
+
+### Setup Guide for Staging/Production
+
+See the sleepconnect repository: [`OUTREACH-CUSTOM-DOMAIN-SETUP.md`](../sleepconnect/OUTREACH-CUSTOM-DOMAIN-SETUP.md)
+
+This creates CloudFront + ACM + API Gateway custom domains + Route53 for:
+- **Staging**: `outreach-staging.mydreamconnect.com`, `outreach-api-staging.mydreamconnect.com`, `outreach-ws-staging.mydreamconnect.com`
+- **Production**: `outreach.mydreamconnect.com`, `outreach-api.mydreamconnect.com`, `outreach-ws.mydreamconnect.com`
 
 ---
 
@@ -11,7 +46,7 @@
 ### ✅ What's Already Configured
 
 #### 1. **SleepConnect Multi-Zone Rewrites** (Already Implemented)
-- **Location**: `/home/vallenzuela/code/SAX/sleepconnect/next.config.js`
+- **Location**: `~/code/SAX/sleepconnect/next.config.js`
 - **Configuration**:
   ```javascript
   async rewrites() {
@@ -28,20 +63,33 @@
   ```
 
 #### 2. **Outreach App Configuration** (Already Set)
-- **Location**: `/home/vallenzuela/code/SAX/twilio-conversations-react/next.config.mjs`
+- **Location**: `~/code/SAX/twilio-conversations-react/next.config.mjs`
 - **Settings**:
   - `basePath: "/outreach"`
   - `assetPrefix: "/outreach-static"` (production) or `"/outreach"` (dev)
   - `output: "standalone"`
 
-#### 3. **AWS Infrastructure** (Already Deployed)
-- **REST API**: `0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev`
-- **WebSocket API**: `vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev`
-- **Lambda Functions**: 18 functions deployed (see `deploy-all.sh`)
-- **Database**: RDS PostgreSQL `SAXDBDEV` at `saxdb-dev.cyz24s0mmh72.us-east-1.rds.amazonaws.com`
+#### 3. **AWS Infrastructure** (Custom Domains Configured for Develop)
+
+**Develop Environment (✅ Deployed):**
+- **UI**: `https://outreach-dev.mydreamconnect.com` (CloudFront E8BMOBRWCCCO2)
+- **REST API**: `https://outreach-api-dev.mydreamconnect.com`
+- **WebSocket**: `wss://outreach-ws-dev.mydreamconnect.com`
+- **Lambda**: `sax-lambda-us-east-1-0x-d-outreach-server_develop`
+- **Assets S3**: `sax-nextjs-us-east-1-develop-outreach-assets`
+
+**Staging Environment (⚠️ Pending Setup):**
+- **Target UI**: `https://outreach-staging.mydreamconnect.com`
+- **Target REST API**: `https://outreach-api-staging.mydreamconnect.com`
+- **Target WebSocket**: `wss://outreach-ws-staging.mydreamconnect.com`
+
+**Production Environment (⚠️ Pending Setup):**
+- **Target UI**: `https://outreach.mydreamconnect.com`
+- **Target REST API**: `https://outreach-api.mydreamconnect.com`
+- **Target WebSocket**: `wss://outreach-ws.mydreamconnect.com`
 
 #### 4. **Environment File** (Just Created)
-- **Location**: `/home/vallenzuela/code/SAX/twilio-conversations-react/.env.local`
+- **Location**: `~/code/SAX/twilio-conversations-react/.env.local`
 - **Configured for**: Local development with localhost:3001 (outreach) and localhost:3000 (sleepconnect)
 
 ---
@@ -76,7 +124,36 @@
 ### Production Multi-Zone Setup
 ```
 User: https://dev.mydreamconnect.com/outreach/conversations
-                 │
+                 ↓
+┌────────────────────────────────────────────────────────────┐
+│ SleepConnect (CloudFront E2CJ0SW11QUMP8)                         │
+│ - Receives request at /outreach/conversations                    │
+│ - Rewrites to https://outreach-dev.mydreamconnect.com/outreach   │
+│ - Forwards x-sax-user-context cookie with JWT                   │
+└──────────────────────────────┬─────────────────────────────┘
+                 ↓
+┌────────────────────────────────────────────────────────────┐
+│ Outreach CloudFront (outreach-dev.mydreamconnect.com)            │
+│ - Custom domain (stable URL)                                     │
+│ - Origin: Lambda Function URL                                    │
+│ - basePath: /outreach                                            │
+│ - assetPrefix: /outreach-static                                  │
+└──────────────────────────────┬─────────────────────────────┘
+                 ↓
+┌────────────────────────────────────────────────────────────┐
+│ Outreach Lambda                                                  │
+│ - Validates JWT from x-sax-user-context cookie                  │
+│ - Extracts user/tenant info                                      │
+│ - Proxies API calls with auth headers                           │
+└──────────────────────────────┬─────────────────────────────┘
+                 ↓
+┌────────────────────────────────────────────────────────────┐
+│ API Gateway (Custom Domains)                                     │
+│ - REST: https://outreach-api-dev.mydreamconnect.com             │
+│ - WebSocket: wss://outreach-ws-dev.mydreamconnect.com           │
+│ - Lambda functions process requests                             │
+└────────────────────────────────────────────────────────────┘
+```
                  ▼
 ┌─────────────────────────────────────────────────┐
 │ SleepConnect (dev.mydreamconnect.com)           │
@@ -111,7 +188,7 @@ User: https://dev.mydreamconnect.com/outreach/conversations
 
 #### Step 1.1: Verify Environment Variables
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 # Check .env.local exists and has correct values
 cat .env.local | grep -E "APP_BASE_URL|SLEEPCONNECT_URL|API_BASE_URL"
@@ -126,14 +203,14 @@ API_BASE_URL=https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev
 
 #### Step 1.2: Start SleepConnect (Terminal 1)
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 npm run dev
 # Should start on port 3000
 ```
 
 #### Step 1.3: Start Outreach App (Terminal 2)
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 npm run dev -- -p 3001
 # Should start on port 3001
 ```
@@ -259,19 +336,22 @@ wscat -c wss://outreach-api.mydreamconnect.com
 Create `.env.production` with production values:
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 cat > .env.production <<'EOF'
 # Production Environment Variables
 NODE_ENV=production
 
-# Authentication
-DISABLE_AUTH=false
+# Authentication (MANDATORY)
+# Authentication bypass flags are deprecated and have been removed.
+# Outreach must be deployed behind the SleepConnect multi-zone proxy which
+# injects and forwards the signed `x-sax-user-context` JWT cookie.
+# MULTI_ZONE_MODE must be enabled and Auth0 secrets must match SleepConnect.
 MULTI_ZONE_MODE=true
 AUTH0_DOMAIN=sleeparchitects.us.auth0.com
 AUTH0_CLIENT_ID=your-production-client-id
 AUTH0_CLIENT_SECRET=your-production-client-secret
-AUTH0_BASE_URL=https://dev.mydreamconnect.com
+AUTH0_BASE_URL=https://dev.mydreamconnect.com/outreach
 
 # Application URLs
 NEXT_PUBLIC_APP_BASE_URL=https://outreach.mydreamconnect.com
@@ -391,11 +471,10 @@ wscat -c wss://outreach-api.mydreamconnect.com
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `DISABLE_AUTH` | Disable auth (dev only) | `false` |
-| `MULTI_ZONE_MODE` | Enable multi-zone | `true` |
-| `AUTH0_CLIENT_SECRET` | JWT signing secret | `<secret>` |
+| `MULTI_ZONE_MODE` | Enable multi-zone; REQUIRED — the app must run behind SleepConnect which provides the signed `x-sax-user-context` JWT cookie | `true` |
+| `AUTH0_CLIENT_SECRET` | JWT signing secret (must match SleepConnect) | `<secret>` |
 | `NEXT_PUBLIC_APP_BASE_URL` | This app's URL | `https://outreach.mydreamconnect.com` |
-| `NEXT_PUBLIC_SLEEPCONNECT_URL` | SleepConnect URL | `https://dev.mydreamconnect.com` |
+| `NEXT_PUBLIC_SLEEPCONNECT_URL` | SleepConnect URL (proxy shell) | `https://dev.mydreamconnect.com` |
 | `API_BASE_URL` | Backend API | `https://outreach-api.mydreamconnect.com` |
 | `NEXT_PUBLIC_WS_API_URL` | WebSocket API | `wss://outreach-api.mydreamconnect.com` |
 
@@ -519,13 +598,13 @@ aws lambda get-function-configuration \
 
 ### Documentation
 - **Deployment Handover**: `DEPLOYMENT-HANDOVER.md`
-- **SLA Implementation**: `/home/vallenzuela/code/SAX/sleepconnect/lambdas/lambda-sms-outreach/SLA-IMPLEMENTATION-COMPLETE.md`
-- **Lambda Deploy Scripts**: `/home/vallenzuela/code/SAX/sleepconnect/lambdas/lambda-sms-outreach/`
+- **SLA Implementation**: `~/code/SAX/sleepconnect/lambdas/lambda-sms-outreach/SLA-IMPLEMENTATION-COMPLETE.md`
+- **Lambda Deploy Scripts**: `~/code/SAX/sleepconnect/lambdas/lambda-sms-outreach/`
 
 ### Key Files
-- **Outreach Config**: `/home/vallenzuela/code/SAX/twilio-conversations-react/next.config.mjs`
-- **SleepConnect Config**: `/home/vallenzuela/code/SAX/sleepconnect/next.config.js`
-- **Middleware**: `/home/vallenzuela/code/SAX/twilio-conversations-react/middleware.ts`
+- **Outreach Config**: `~/code/SAX/twilio-conversations-react/next.config.mjs`
+- **SleepConnect Config**: `~/code/SAX/sleepconnect/next.config.js`
+- **Middleware**: `~/code/SAX/twilio-conversations-react/middleware.ts`
 
 ---
 

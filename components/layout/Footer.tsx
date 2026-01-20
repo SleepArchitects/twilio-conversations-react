@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getBuildInfo, type BuildInfo } from "@/lib/buildInfo";
 
@@ -19,17 +18,26 @@ export default function Footer() {
           © {currentYear} Sleep Architects. All rights reserved.
         </span>
         <div className="mt-2 space-x-4 text-sm text-gray-500 dark:text-gray-400">
-          <Link className="hover:underline" href="/legal/privacy">
+          <a
+            className="hover:underline"
+            href="https://dev.mydreamconnect.com/legal/privacy"
+          >
             Privacy
-          </Link>
+          </a>
           <span>|</span>
-          <Link className="hover:underline" href="/legal">
+          <a
+            className="hover:underline"
+            href="https://dev.mydreamconnect.com/legal"
+          >
             Legal
-          </Link>
+          </a>
           <span>|</span>
-          <Link className="hover:underline" href="/legal/terms">
+          <a
+            className="hover:underline"
+            href="https://dev.mydreamconnect.com/legal/terms"
+          >
             Terms
-          </Link>
+          </a>
         </div>
         {buildInfo && (
           <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">

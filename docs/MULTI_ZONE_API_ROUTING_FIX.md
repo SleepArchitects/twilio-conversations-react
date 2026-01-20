@@ -87,7 +87,7 @@ This meant:
 
 ### Changed Configuration
 
-**File:** `/home/vallenzuela/code/SAX/sleepconnect/next.config.js`
+**File:** `~/code/SAX/sleepconnect/next.config.js`
 
 ```javascript
 async rewrites() {

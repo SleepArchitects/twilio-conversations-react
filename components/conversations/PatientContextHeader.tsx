@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "flowbite-react";
 import { formatPatientDob, formatPatientName } from "@/lib/format";
 
 // =============================================================================
@@ -17,6 +18,10 @@ export interface PatientContextHeaderProps {
   lastName: string | null;
   /** Patient's date of birth (ISO 8601) */
   dateOfBirth: string | null;
+  /** Practice name */
+  practiceName?: string | null;
+  /** Tenant name */
+  tenantName?: string | null;
   /** Optional className for styling */
   className?: string;
 }
@@ -103,9 +108,12 @@ export function PatientContextHeader({
   firstName,
   lastName,
   dateOfBirth,
+  practiceName,
+  tenantName,
   className,
 }: PatientContextHeaderProps) {
   const patientName = formatPatientName(firstName, lastName);
+  const displayPracticeName = practiceName || tenantName;
 
   // Format DOB for display
   let formattedDob: string | null = null;
@@ -141,7 +149,11 @@ export function PatientContextHeader({
             <p className="text-sm font-medium text-white truncate">
               {patientName}
             </p>
-            <p className="text-xs text-gray-400">Patient</p>
+            {displayPracticeName && (
+              <p className="text-xs text-gray-400 truncate">
+                {displayPracticeName}
+              </p>
+            )}
           </div>
         </div>
 
@@ -167,19 +179,27 @@ export function PatientContextHeader({
       </div>
 
       {/* Profile Link - Cross-Zone Navigation */}
-      <a
-        href={profileUrl}
-        className={cn(
-          "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium",
-          "text-blue-300 bg-blue-900/30 border border-blue-700/50",
-          "hover:bg-blue-900/50 hover:border-blue-600/50 hover:text-blue-200",
-          "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900",
-          "transition-all flex-shrink-0",
-        )}
+      <Tooltip
+        content="View patient profile in SleepConnect"
+        placement="bottom"
       >
-        View Profile
-        <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" aria-hidden="true" />
-      </a>
+        <a
+          href={profileUrl}
+          className={cn(
+            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium",
+            "text-blue-300 bg-blue-900/30 border border-blue-700/50",
+            "hover:bg-blue-900/50 hover:border-blue-600/50 hover:text-blue-200",
+            "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900",
+            "transition-all flex-shrink-0",
+          )}
+        >
+          View Profile
+          <ArrowTopRightOnSquareIcon
+            className="h-3.5 w-3.5"
+            aria-hidden="true"
+          />
+        </a>
+      </Tooltip>
     </div>
   );
 }

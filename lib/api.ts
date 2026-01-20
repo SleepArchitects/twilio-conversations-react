@@ -4,12 +4,12 @@
  */
 
 // For server-side Lambda API calls, use the backend API URL
-// For client-side calls to local Next.js API routes, use the app base URL
+// For client-side calls, we always use relative paths to our local Next.js proxy routes
+// to avoid CORS issues and leverage the server-side auth context.
 const API_BASE_URL =
-  process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
-
-// Get the basePath from Next.js config (set at build time via NEXT_PUBLIC_BASE_PATH)
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  typeof window === "undefined"
+    ? process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
+    : "";
 
 /**
  * Custom error class for API errors
@@ -64,51 +64,49 @@ export function buildPath(...segments: (string | number)[]): string {
     .join("/");
 }
 
-/**
- * Build URL with query parameters
- */
-function buildUrl(
+function isClientSideApiRoute(path: string): boolean {
+  return typeof window !== "undefined" && path.startsWith("/api/");
+}
+
+function buildRelativeUrlForProxy(
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
 ): string {
-  // For relative paths to internal API routes (starting with /api/), prepend the basePath
-  // This is for client-side calls to Next.js API routes
-  // Don't apply if:
-  // - Path already starts with BASE_PATH
-  // - This is a server-side call (API routes don't need basePath on server)
-  let fullPath = path;
-  if (
-    typeof window !== "undefined" &&
-    path.startsWith("/api/") &&
-    !path.startsWith(BASE_PATH)
-  ) {
-    fullPath = `${BASE_PATH}${path}`;
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const fullPath = basePath ? `${basePath}${path}` : path;
+  const url = new URL(fullPath, window.location.origin);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        url.searchParams.append(key, String(value));
+      }
+    });
   }
+  return url.pathname + url.search;
+}
 
-  // Determine the base URL
+function buildFullUrlForDirectCall(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>,
+): string {
   const baseUrl =
     API_BASE_URL ||
     (typeof window !== "undefined"
       ? window.location.origin
       : "http://localhost:3001");
 
-  // If API_BASE_URL has a path component (e.g., /dev), we need to preserve it
-  // and append our path to it rather than replacing it
   let finalUrl: string;
   if (API_BASE_URL) {
     const base = new URL(API_BASE_URL);
-    // Remove trailing slash from base pathname, add leading slash to path if missing
     const basePath = base.pathname.replace(/\/$/, "");
-    const pathSegment = fullPath.startsWith("/") ? fullPath : `/${fullPath}`;
-    // Combine base path with our path
+    const pathSegment = path.startsWith("/") ? path : `/${path}`;
     base.pathname = `${basePath}${pathSegment}`;
     finalUrl = base.toString();
   } else {
-    const url = new URL(fullPath, baseUrl);
+    const url = new URL(path, baseUrl);
     finalUrl = url.toString();
   }
 
-  // Parse the final URL to add query params
   const url = new URL(finalUrl);
 
   if (params) {
@@ -120,6 +118,16 @@ function buildUrl(
   }
 
   return url.toString();
+}
+
+function buildUrl(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>,
+): string {
+  if (isClientSideApiRoute(path)) {
+    return buildRelativeUrlForProxy(path, params);
+  }
+  return buildFullUrlForDirectCall(path, params);
 }
 
 /**
@@ -187,35 +195,65 @@ async function request<T>(
 
   console.log("[API] Request:", method, url);
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
-    ...customHeaders,
+    ...(customHeaders as Record<string, string>),
   };
+
+  // Log custom headers being passed in
+  if (customHeaders) {
+    console.log("[API] Custom headers received:", Object.keys(customHeaders));
+    if ((customHeaders as Record<string, string>)["Authorization"]) {
+      console.log("[API] Authorization header present in custom headers: YES");
+      const authHeader = (customHeaders as Record<string, string>)[
+        "Authorization"
+      ];
+      console.log(
+        "[API] Authorization header value (first 20 chars):",
+        authHeader?.substring(0, 20),
+      );
+    } else {
+      console.log("[API] Authorization header present in custom headers: NO");
+    }
+  }
 
   // Add user context headers from the SleepConnect-issued JWT cookie
   // Lambdas expect tenant/practice/coordinator identifiers either as headers or query params
   if (typeof window !== "undefined") {
     const userContext = getCookie("x-sax-user-context");
     if (userContext) {
-      (headers as Record<string, string>)["x-sax-user-context"] = userContext;
+      headers["x-sax-user-context"] = userContext;
       const claims = decodeJwtPayload(userContext);
       if (claims) {
         const saxId = (claims as any).sax_id || (claims as any).saxId;
         const tenantId = (claims as any).tenant_id || (claims as any).tenantId;
         const practiceId =
           (claims as any).practice_id || (claims as any).practiceId;
-        if (saxId)
-          (headers as Record<string, string>)["x-coordinator-sax-id"] =
-            String(saxId);
-        if (tenantId)
-          (headers as Record<string, string>)["x-tenant-id"] = String(tenantId);
-        if (practiceId)
-          (headers as Record<string, string>)["x-practice-id"] =
-            String(practiceId);
+        if (saxId) headers["x-coordinator-sax-id"] = String(saxId);
+        if (tenantId) headers["x-tenant-id"] = String(tenantId);
+        if (practiceId) headers["x-practice-id"] = String(practiceId);
       }
       console.log("[API] Added user context headers from cookie");
     }
+  }
+
+  // Log final headers before sending request
+  console.log("[API] Final headers being sent:", Object.keys(headers));
+  if (headers["Authorization"]) {
+    console.log("[API] Authorization header in final headers: YES");
+    console.log(
+      "[API] Authorization header value (first 20 chars):",
+      headers["Authorization"]?.substring(0, 20),
+    );
+  } else if (headers["authorization"]) {
+    console.log("[API] authorization header (lowercase) in final headers: YES");
+    console.log(
+      "[API] authorization header value (first 20 chars):",
+      headers["authorization"]?.substring(0, 20),
+    );
+  } else {
+    console.log("[API] Authorization header in final headers: NO");
   }
 
   const config: RequestInit = {

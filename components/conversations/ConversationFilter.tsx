@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "flowbite-react";
 
 // =============================================================================
 // Types & Interfaces
@@ -60,23 +61,27 @@ export function ConversationFilter({
       aria-label="Conversation filters"
     >
       {FILTER_OPTIONS.map((option) => (
-        <button
+        <Tooltip
           key={option.value}
-          type="button"
-          role="tab"
-          aria-selected={value === option.value}
-          aria-controls="conversation-list"
-          onClick={() => onChange(option.value)}
-          className={cn(
-            "rounded-md px-4 py-2 text-sm font-medium transition-all duration-200",
-            "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900",
-            value === option.value
-              ? "bg-blue-600 text-white shadow-sm"
-              : "text-gray-400 hover:bg-gray-700 hover:text-white",
-          )}
+          content={`Show ${option.label.toLowerCase()} conversations`}
         >
-          {option.label}
-        </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={value === option.value}
+            aria-controls="conversation-list"
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded-md px-4 py-2 text-sm font-medium transition-all duration-200",
+              "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900",
+              value === option.value
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-gray-400 hover:bg-gray-700 hover:text-white",
+            )}
+          >
+            {option.label}
+          </button>
+        </Tooltip>
       ))}
     </div>
   );

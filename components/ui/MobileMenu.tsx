@@ -106,11 +106,7 @@ export default function MobileMenu({
       >
         {/* Mobile actions */}
         <div className="flex items-center justify-center border-b border-gray-200 p-4 dark:border-gray-700">
-          <UserDropdown
-            isMobile={true}
-            user={currentUser}
-            profileImageUrl={profileImageUrl}
-          />
+          <UserDropdown user={currentUser} profileImageUrl={profileImageUrl} />
         </div>
 
         {/* Mobile navigation links */}

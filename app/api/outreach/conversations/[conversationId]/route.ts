@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
-import { type UserContext, withUserContext } from "@/lib/auth";
-import type { Conversation, ConversationStatus, SlaStatus } from "@/types/sms";
+import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
+import type { Conversation } from "@/types/sms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -59,70 +59,6 @@ function getLambdaHeaders(userContext: UserContext): Record<string, string> {
   };
 }
 
-/**
- * Check if running in mock mode (for local development without Lambda backend)
- */
-function isMockMode(): boolean {
-  return process.env.DISABLE_AUTH === "true" && !process.env.API_BASE_URL;
-}
-
-/**
- * Mock conversations data for local development
- */
-function getMockConversation(conversationId: string): Conversation | null {
-  const now = new Date().toISOString();
-  const yesterday = new Date(Date.now() - 86400000).toISOString();
-  const twoDaysAgo = new Date(Date.now() - 172800000).toISOString();
-  const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
-
-  const mockConversations: Record<string, Conversation> = {
-    "mock-conv-1": {
-      id: "mock-conv-1",
-      twilioSid: "CH00000000000000000000000000000001",
-      tenantId: "dev-tenant",
-      practiceId: "dev-practice",
-      coordinatorSaxId: 1,
-      patientPhone: "+15551234567",
-      friendlyName: "John Doe (Test Practice)",
-      status: "active" as ConversationStatus,
-      slaStatus: "ok" as SlaStatus,
-      unreadCount: 2,
-      lastMessageAt: now,
-      lastMessagePreview: "This is a test message",
-      createdOn: yesterday,
-      createdBy: 1,
-      updatedOn: now,
-      updatedBy: 1,
-      archivedOn: null,
-      archivedBy: null,
-      active: true,
-    },
-    "mock-conv-2": {
-      id: "mock-conv-2",
-      twilioSid: "CH00000000000000000000000000000002",
-      tenantId: "dev-tenant",
-      practiceId: "dev-practice",
-      coordinatorSaxId: 1,
-      patientPhone: "+15559876543",
-      friendlyName: "Jane Smith (Test Practice)",
-      status: "active" as ConversationStatus,
-      slaStatus: "warning" as SlaStatus,
-      unreadCount: 0,
-      lastMessageAt: oneHourAgo,
-      lastMessagePreview: "Thanks for the reminder!",
-      createdOn: twoDaysAgo,
-      createdBy: 1,
-      updatedOn: oneHourAgo,
-      updatedBy: 1,
-      archivedOn: null,
-      archivedBy: null,
-      active: true,
-    },
-  };
-
-  return mockConversations[conversationId] || null;
-}
-
 // =============================================================================
 // GET Handler - Get Single Conversation
 // =============================================================================
@@ -140,19 +76,7 @@ async function handleGet(
   conversationId: string,
 ): Promise<NextResponse> {
   try {
-    // Mock mode for local development without Lambda backend
-    if (isMockMode()) {
-      console.log(`[MOCK] Returning mock conversation for ${conversationId}`);
-      const mockConversation = getMockConversation(conversationId);
-
-      if (!mockConversation) {
-        return errorResponse("NOT_FOUND", "Conversation not found", 404);
-      }
-
-      return NextResponse.json({ data: mockConversation }, { status: 200 });
-    }
-
-    // Call Lambda API to get conversation
+    // Call Lambda API to get conversation (REQUIRED)
     // Use params option to properly build query string (don't append to path)
     const queryParams = {
       id: conversationId,
@@ -172,11 +96,18 @@ async function handleGet(
       process.env.API_BASE_URL,
     );
 
+    // Get access token for Authorization header
+    const accessToken = await getAccessToken();
+    const headers: Record<string, string> = getLambdaHeaders(userContext);
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     const response = await api.get<LambdaConversationResponse>(
       buildPath(LAMBDA_API_BASE, "conversations", conversationId),
       {
         params: queryParams,
-        headers: getLambdaHeaders(userContext),
+        headers,
       },
     );
 

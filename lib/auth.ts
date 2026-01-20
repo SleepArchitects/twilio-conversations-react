@@ -28,28 +28,6 @@ export interface UserContext {
 }
 
 /**
- * Check if auth is disabled for development
- */
-function isAuthDisabled(): boolean {
-  return process.env.DISABLE_AUTH === "true";
-}
-
-/**
- * Mock user for development when auth is disabled
- * Uses real default tenant/practice IDs from sleepconnect/constants/index.ts
- */
-function getMockUser(): SaxClaims {
-  return {
-    sax_id: 1,
-    tenant_id: "00000000-0000-0000-0000-000000000001",
-    practice_id: "00000000-0000-0000-0000-000000000020",
-    email: "dev@example.com",
-    name: "Dev User",
-    sub: "1",
-  };
-}
-
-/**
  * Check if running in multi-zone mode (behind SleepConnect proxy)
  */
 function isMultiZoneMode(): boolean {
@@ -144,13 +122,8 @@ async function getUserFromForwardedCookie(): Promise<SaxClaims | null> {
  */
 export async function getSession(): Promise<{ user: SaxClaims } | null> {
   // console.debug("[AUTH] getSession called");
-  // Dev mode: return mock user when auth is disabled
-  if (isAuthDisabled()) {
-    // console.debug("[AUTH] Auth disabled - using mock user");
-    return { user: getMockUser() };
-  }
 
-  // Multi-zone mode: read from forwarded cookie
+  // Multi-zone mode: read from forwarded cookie (REQUIRED)
   if (isMultiZoneMode()) {
     // console.debug("[AUTH] Multi-zone mode - looking for forwarded cookie");
     const user = await getUserFromForwardedCookie();
@@ -158,12 +131,11 @@ export async function getSession(): Promise<{ user: SaxClaims } | null> {
       // console.debug("[AUTH] Found user from forwarded cookie:", user.sax_id);
       return { user };
     }
-    // Fallback to mock user so local/missing headers don't block UI in dev
-    console
-      .debug
-      // "[AUTH] Multi-zone mode but no user context found - using mock user",
-      ();
-    return { user: getMockUser() };
+    // No user context found in multi-zone mode - return null (unauthenticated)
+    console.debug(
+      "[AUTH] Multi-zone mode but no user context found - returning null",
+    );
+    return null;
   }
 
   // Standalone mode: use Auth0 session
@@ -190,24 +162,18 @@ export function withApiAuthRequired(
 ) => Promise<NextResponse> {
   return async (req: NextRequest, routeContext?: Record<string, unknown>) => {
     // console.debug("[AUTH] withApiAuthRequired - starting");
-    // Dev mode: bypass auth when disabled
-    if (isAuthDisabled()) {
-      // console.debug("[AUTH] Auth disabled - bypassing authentication");
-      return handler(req, routeContext);
-    }
 
-    // Multi-zone mode: validate forwarded cookie
+    // Multi-zone mode: validate forwarded cookie (REQUIRED)
     if (isMultiZoneMode()) {
       // console.debug("[AUTH] Multi-zone mode - checking forwarded cookie");
-      const user = getUserFromForwardedCookie();
+      const user = await getUserFromForwardedCookie();
       if (!user) {
-        console
-          .debug
-          // "[AUTH] Multi-zone: missing user context - allowing with mock user",
-          ();
-      } else {
-        // console.debug("[AUTH] Multi-zone: found user context:", user.sax_id);
+        console.debug(
+          "[AUTH] Multi-zone: missing user context - returning 401",
+        );
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
+      // console.debug("[AUTH] Multi-zone: found user context:", user.sax_id);
       return handler(req, routeContext);
     }
 
@@ -269,6 +235,71 @@ export async function getUserContext(): Promise<UserContext | null> {
       practiceId: user.practice_id,
     };
   } catch {
+    return null;
+  }
+}
+
+/**
+ * Get Auth0 access token for calling backend APIs
+ * In multi-zone mode, this fetches the token from SleepConnect's token endpoint
+ */
+export async function getAccessToken(): Promise<string | null> {
+  try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SLEEPCONNECT_URL ||
+      process.env.NEXT_PUBLIC_APP_BASE_URL ||
+      "http://localhost:3000";
+    const tokenUrl = `${baseUrl}/api/auth/token`;
+
+    console.log("[AUTH] getAccessToken - fetching from:", tokenUrl);
+
+    const headersList = headers();
+    const cookieHeader = headersList.get("cookie") || "";
+    console.log(
+      "[AUTH] getAccessToken - cookie header length:",
+      cookieHeader.length,
+    );
+
+    const response = await fetch(tokenUrl, {
+      method: "GET",
+      headers: {
+        cookie: cookieHeader,
+      },
+    });
+
+    console.log("[AUTH] getAccessToken - response status:", response.status);
+    console.log("[AUTH] getAccessToken - response ok:", response.ok);
+
+    if (!response.ok) {
+      console.log("[AUTH] getAccessToken - response not ok, returning null");
+      return null;
+    }
+
+    const data = await response.json();
+    console.log(
+      "[AUTH] getAccessToken - response data keys:",
+      Object.keys(data),
+    );
+
+    // SleepConnect returns 'accessToken' (camelCase), not 'access_token' (snake_case)
+    const token = data.accessToken || data.access_token;
+    console.log("[AUTH] getAccessToken - token present:", !!token);
+
+    if (token) {
+      console.log(
+        "[AUTH] getAccessToken - token (first 20 chars):",
+        token.substring(0, 20),
+      );
+    } else {
+      console.log(
+        "[AUTH] getAccessToken - WARNING: No token in response data:",
+        JSON.stringify(data),
+      );
+    }
+
+    return token || null;
+  } catch (error) {
+    console.error("[AUTH] Error fetching access token:", error);
     return null;
   }
 }

@@ -15,8 +15,8 @@ Before starting, verify you have:
 - [ ] Node.js 20+ installed (`node --version`)
 - [ ] Access to Route 53 hosted zones
 - [ ] Both repositories cloned:
-  - `/home/vallenzuela/code/SAX/sleepconnect`
-  - `/home/vallenzuela/code/SAX/twilio-conversations-react`
+  - `~/code/SAX/sleepconnect`
+  - `~/code/SAX/twilio-conversations-react`
 
 ---
 
@@ -766,7 +766,7 @@ echo "💾 Save this configuration file for future deployments"
 ### Step 14: Update deploy-outreach.cjs with Infrastructure IDs
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 # Display current script to verify placeholders
 echo "Current deployment script configuration:"
@@ -828,7 +828,7 @@ console.log(JSON.stringify(config.ENVIRONMENTS?.${ENV} || 'Not found', null, 2))
 ### Step 16: Install Dependencies
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 echo "Installing dependencies..."
 npm install
@@ -862,7 +862,7 @@ echo "✅ Environment variables configured"
 ### Step 18: Run Deployment Script
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 echo "Starting deployment to $ENV..."
 echo ""
@@ -931,7 +931,7 @@ Testing Lambda function URL...
 ### Step 20: Update SleepConnect Environment Variables
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 echo "Updating SleepConnect environment configuration..."
 
@@ -974,7 +974,7 @@ OUTREACH_API_URL=https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev
 ### Step 21: Verify SleepConnect next.config.js Rewrites
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 echo "Verifying SleepConnect rewrites configuration..."
 
@@ -1006,14 +1006,14 @@ fi
 ### Step 22: Verify Shared JWT Secret
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 echo "Verifying AUTH0_CLIENT_SECRET is set..."
 
 if grep -q "AUTH0_CLIENT_SECRET" .env.local; then
   SLEEPCONNECT_SECRET=$(grep "AUTH0_CLIENT_SECRET" .env.local | cut -d'=' -f2 | tr -d '"' | tr -d "'" | head -1)
   
-  cd /home/vallenzuela/code/SAX/twilio-conversations-react
+  cd ~/code/SAX/twilio-conversations-react
   OUTREACH_SECRET=$(grep "AUTH0_CLIENT_SECRET" .env.local | cut -d'=' -f2 | tr -d '"' | tr -d "'" | head -1)
   
   if [ "$SLEEPCONNECT_SECRET" = "$OUTREACH_SECRET" ]; then
@@ -1040,7 +1040,7 @@ fi
 ### Step 23: Deploy SleepConnect
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 echo "Deploying SleepConnect with updated configuration..."
 echo ""
@@ -1259,7 +1259,7 @@ aws s3 ls s3://$S3_BUCKET/outreach-static/
 aws logs tail /aws/lambda/$LAMBDA_FUNCTION --since 10m
 
 # Check SleepConnect rewrites
-grep -A 10 "async rewrites" /home/vallenzuela/code/SAX/sleepconnect/next.config.js
+grep -A 10 "async rewrites" ~/code/SAX/sleepconnect/next.config.js
 
 # Verify JWT secrets match
 diff <(grep AUTH0_CLIENT_SECRET ~/code/SAX/sleepconnect/.env.local) \

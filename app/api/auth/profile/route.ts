@@ -8,12 +8,7 @@ import { verifyUserContextToken } from "@/lib/jwt-utils";
  * This cookie is set by SleepConnect's middleware and contains user session data.
  */
 export async function GET(request: NextRequest) {
-  // In dev mode with disabled auth, return null (no user)
-  if (process.env.DISABLE_AUTH === "true") {
-    return NextResponse.json(null, { status: 200 });
-  }
-
-  // Get the user context JWT from the cookie
+  // Get the user context JWT from the cookie (REQUIRED)
   const userContextCookie = request.cookies.get("x-sax-user-context");
 
   if (!userContextCookie?.value) {

@@ -1,4 +1,5 @@
 # SMS Outreach Production Deployment Plan
+
 ## Multi-Zone Integration with SleepConnect
 
 **Date**: December 16, 2025  
@@ -11,6 +12,7 @@
 ## 📋 Overview
 
 Deploy SMS Outreach app to work in multi-zone mode with SleepConnect:
+
 - **Standalone URL**: `https://outreach.mydreamconnect.com` (independent access)
 - **Integrated URL**: `https://dev.mydreamconnect.com/outreach/*` (proxied through SleepConnect)
 
@@ -59,6 +61,7 @@ aws lambda create-function \
 ```
 
 **Create Lambda Function URL**:
+
 ```bash
 aws lambda create-function-url-config \
   --function-name sax-lambda-us-east-1-0x-d-outreach-server_develop \
@@ -86,6 +89,7 @@ aws s3api put-public-access-block \
 #### Step 1.3: Create CloudFront Distribution for Outreach
 
 **Create Origin Access Control (OAC)**:
+
 ```bash
 aws cloudfront create-origin-access-control \
   --origin-access-control-config '{
@@ -100,6 +104,7 @@ aws cloudfront create-origin-access-control \
 ```
 
 **Create CloudFront Distribution** (use script at `twilio-conversations-react/scripts/setup-cloudfront-outreach.sh`):
+
 ```json
 {
   "Comment": "Develop Outreach Zone - Multi-Zone with SleepConnect",
@@ -383,6 +388,7 @@ try {
 ```
 
 Make it executable:
+
 ```bash
 chmod +x twilio-conversations-react/scripts/deploy-outreach.cjs
 ```
@@ -466,12 +472,11 @@ echo "⏳ Deployment will take 2-3 minutes..."
 
 NODE_ENV=production
 
-# Authentication
-DISABLE_AUTH=false
+# Authentication (MANDATORY)
 MULTI_ZONE_MODE=true
-AUTH0_DOMAIN=sleeparchitects.us.auth0.com
-AUTH0_CLIENT_ID=iqRhDVq86hZsgVfzTuZ6rXZV0SlvaNj6
-AUTH0_CLIENT_SECRET=cGNipVA1VKNz-1zK3uQVOpj8KKoWIpRWBfeQ4x40EsQqkHToEh-kmIIT9AlBVl_f
+AUTH0_DOMAIN=your-tenant.auth0.com
+AUTH0_CLIENT_ID=your-auth0-client-id
+AUTH0_CLIENT_SECRET=your-auth0-client-secret
 AUTH0_BASE_URL=https://dev.mydreamconnect.com
 
 # Application URLs
@@ -506,7 +511,7 @@ NEXT_PUBLIC_SHOW_BANNER=false
 #### Step 5.1: Test Build Locally
 
 ```bash
-cd /home/vallenzuela/code/SAX/twilio-conversations-react
+cd ~/code/SAX/twilio-conversations-react
 
 # Install dependencies
 npm install
@@ -537,7 +542,7 @@ node scripts/deploy-outreach.cjs develop
 #### Step 5.3: Update SleepConnect CloudFront
 
 ```bash
-cd /home/vallenzuela/code/SAX/sleepconnect
+cd ~/code/SAX/sleepconnect
 
 # Run the add-outreach-origin script
 bash scripts/add-outreach-origin.sh
@@ -633,6 +638,7 @@ sleepconnect/
 **Cause**: S3 bucket policy not allowing CloudFront OAC
 
 **Solution**:
+
 ```bash
 # Re-apply bucket policy
 bash twilio-conversations-react/scripts/setup-cloudfront-outreach.sh
@@ -643,6 +649,7 @@ bash twilio-conversations-react/scripts/setup-cloudfront-outreach.sh
 **Cause**: SleepConnect CloudFront not configured to proxy
 
 **Solution**:
+
 ```bash
 # Add origin and cache behavior
 bash sleepconnect/scripts/add-outreach-origin.sh
@@ -656,6 +663,7 @@ curl -I https://dev.mydreamconnect.com/outreach
 **Cause**: JWT cookie not being forwarded
 
 **Solution**:
+
 1. Check middleware in both apps
 2. Verify cookie domain is `.mydreamconnect.com`
 3. Ensure `MULTI_ZONE_MODE=true` in Outreach .env
@@ -665,12 +673,14 @@ curl -I https://dev.mydreamconnect.com/outreach
 ## 📝 Deployment Checklist
 
 ### Pre-Deployment
+
 - [ ] All Lambda functions deployed (sms-outreach)
 - [ ] API Gateway endpoints working
 - [ ] Database migrations applied
 - [ ] Environment variables configured
 
 ### Infrastructure Setup
+
 - [ ] Lambda function created
 - [ ] Lambda URL generated
 - [ ] S3 bucket created
@@ -680,6 +690,7 @@ curl -I https://dev.mydreamconnect.com/outreach
 - [ ] S3 bucket policy updated
 
 ### Code Deployment
+
 - [ ] Deploy script created (`deploy-outreach.cjs`)
 - [ ] Build successful (`npm run build`)
 - [ ] OpenNext build successful
@@ -688,12 +699,14 @@ curl -I https://dev.mydreamconnect.com/outreach
 - [ ] CloudFront invalidated
 
 ### Integration
+
 - [ ] SleepConnect CloudFront updated
 - [ ] Origin added for Outreach
 - [ ] Cache behavior added for `/outreach/*`
 - [ ] CloudFront deployment complete (wait 2-3 min)
 
 ### Testing
+
 - [ ] Standalone access works (`outreach.mydreamconnect.com`)
 - [ ] Multi-zone access works (`dev.mydreamconnect.com/outreach`)
 - [ ] Authentication flow working
@@ -703,6 +716,7 @@ curl -I https://dev.mydreamconnect.com/outreach
 - [ ] SLA monitoring functional
 
 ### Post-Deployment
+
 - [ ] Monitor CloudWatch logs
 - [ ] Check error rates
 - [ ] Verify performance metrics
@@ -716,6 +730,7 @@ curl -I https://dev.mydreamconnect.com/outreach
 ### Multi-Zone Architecture
 
 Multi-zone allows you to compose multiple Next.js applications under a single domain:
+
 - Each "zone" is an independent Next.js app
 - Zones are connected via CloudFront path-based routing
 - Each zone has its own Lambda function and S3 bucket

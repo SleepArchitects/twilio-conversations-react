@@ -191,7 +191,7 @@ export function MessageBubble({
   return (
     <article
       className={cn(
-        "flex w-full",
+        "flex w-full animate-fade-in-up",
         isOutbound ? "justify-end" : "justify-start",
         className,
       )}
@@ -216,8 +216,8 @@ export function MessageBubble({
           {displaySender}
         </div>
 
-        {/* Message body */}
-        <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
+        {/* Message body - Emojis render natively using browser fonts */}
+        <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-pretty">
           {message.body}
         </p>
 
