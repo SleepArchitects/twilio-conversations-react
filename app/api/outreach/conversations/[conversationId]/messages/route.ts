@@ -107,6 +107,7 @@ function transformMessage(
 
 /**
  * Validate that the conversation belongs to the user's tenant and is owned by them
+ * SAX users bypass tenant/practice/coordinator checks and can access any conversation
  */
 async function validateConversationAccess(
   conversationId: string,
@@ -120,19 +121,36 @@ async function validateConversationAccess(
       "x-practice-id": userContext.practiceId,
       "x-coordinator-sax-id": String(userContext.saxId),
     };
+
+    // SAX users get admin header to bypass tenant filtering on Lambda
+    if (userContext.isSAXUser) {
+      headers["x-sax-admin"] = "true";
+      console.log(
+        "[validateConversationAccess] SAX admin access for conversation:",
+        conversationId,
+      );
+    }
+
     if (accessToken) {
       headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
+    // For SAX users, don't filter by tenant/practice/coordinator
+    const params: Record<string, string> = {
+      id: conversationId,
+    };
+
+    if (!userContext.isSAXUser) {
+      // Regular users: include tenant/practice/coordinator filters
+      params.tenant_id = userContext.tenantId;
+      params.practice_id = userContext.practiceId;
+      params.coordinator_sax_id = String(userContext.saxId);
     }
 
     const response = await api.get<LambdaConversationResponse>(
       buildPath(LAMBDA_API_BASE, "conversations", conversationId),
       {
-        params: {
-          id: conversationId,
-          tenant_id: userContext.tenantId,
-          practice_id: userContext.practiceId,
-          coordinator_sax_id: String(userContext.saxId),
-        },
+        params,
         headers,
       },
     );
@@ -147,6 +165,14 @@ async function validateConversationAccess(
         response,
       );
       return null;
+    }
+
+    // SAX users bypass tenant/practice/coordinator checks
+    if (userContext.isSAXUser) {
+      console.log(
+        "[validateConversationAccess] SAX user - bypassing ownership checks",
+      );
+      return conversation;
     }
 
     // Verify tenant and practice match

@@ -193,14 +193,22 @@ function toConversationSummary(conv: Conversation): ConversationSummary {
 /**
  * Get headers for Lambda API calls with user context
  * Note: Headers are sent in lowercase to match what API Gateway forwards to Lambda
+ * SAX users get an admin header to bypass tenant filtering
  */
 function getLambdaHeaders(userContext: UserContext): Record<string, string> {
-  return {
+  const headers: Record<string, string> = {
     "x-tenant-id": userContext.tenantId,
     "x-practice-id": userContext.practiceId,
     "x-sax-id": String(userContext.saxId),
     "x-coordinator-sax-id": String(userContext.saxId),
   };
+
+  // SAX users get admin header to bypass tenant filtering on Lambda
+  if (userContext.isSAXUser) {
+    headers["x-sax-admin"] = "true";
+  }
+
+  return headers;
 }
 
 /**
@@ -317,13 +325,22 @@ async function handleGet(
     }
 
     // Build query parameters for Lambda API
+    // SAX users don't filter by tenant/practice/coordinator - they see all conversations
     const queryParams: Record<string, string | number | undefined> = {
-      tenant_id: userContext.tenantId,
-      practice_id: userContext.practiceId,
-      coordinator_sax_id: userContext.saxId,
       limit,
       offset,
     };
+
+    if (!userContext.isSAXUser) {
+      // Regular users: include tenant/practice/coordinator filters
+      queryParams.tenant_id = userContext.tenantId;
+      queryParams.practice_id = userContext.practiceId;
+      queryParams.coordinator_sax_id = userContext.saxId;
+    } else {
+      console.log(
+        "[CONVERSATIONS API] SAX admin access - showing all conversations",
+      );
+    }
 
     // Handle filterStatus parameter (FR-014c)
     // Map filterStatus to appropriate Lambda API parameters

@@ -3,9 +3,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers, cookies } from "next/headers";
 import { verifyUserContextToken } from "./jwt-utils";
 
+/**
+ * The role name that identifies SAX employees/staff
+ * We look this up dynamically from the roles API instead of hardcoding the ID
+ */
+export const SAX_ROLE_NAME = "Sax";
+
 // Re-export types
 export type Session = unknown;
 export type Claims = Record<string, unknown>;
+
+/**
+ * Cache for user roles to avoid repeated API calls
+ * Key: saxId, Value: { roles: string[], timestamp: number }
+ */
+const userRolesCache = new Map<
+  number,
+  { roles: string[]; isSAXUser: boolean; timestamp: number }
+>();
+
+/**
+ * Cache for all roles (to look up role names)
+ */
+let allRolesCache: { roles: Role[]; timestamp: number } | null = null;
+
+/**
+ * Cache TTL in milliseconds (5 minutes)
+ */
+const ROLES_CACHE_TTL = 5 * 60 * 1000;
 
 /**
  * Extended claims with SAX-specific fields from Auth0 token
@@ -25,6 +50,8 @@ export interface UserContext {
   saxId: number;
   tenantId: string;
   practiceId: string;
+  /** True if user has SAX role - grants admin access across all tenants */
+  isSAXUser: boolean;
 }
 
 /**
@@ -229,10 +256,15 @@ export async function getUserContext(): Promise<UserContext | null> {
     const session = await getSession();
     if (!session?.user) return null;
     const user = session.user as SaxClaims;
+
+    // Check if user has SAX role (cached, 5 min TTL)
+    const { isSAXUser } = await fetchUserRolesServerSide(user.sax_id);
+
     return {
       saxId: user.sax_id,
       tenantId: user.tenant_id,
       practiceId: user.practice_id,
+      isSAXUser,
     };
   } catch {
     return null;
@@ -305,6 +337,176 @@ export async function getAccessToken(): Promise<string | null> {
 }
 
 /**
+ * User role interface matching the SleepConnect API response
+ */
+interface UserRole {
+  sax_id: string;
+  role_id: string;
+  active: boolean;
+}
+
+/**
+ * Role interface matching the SleepConnect API response
+ */
+interface Role {
+  role_id: string;
+  name: string;
+  active: boolean;
+}
+
+/**
+ * Fetch all roles from SleepConnect API (cached)
+ * Used to look up SAX role ID by name
+ */
+async function fetchAllRolesServerSide(): Promise<Role[]> {
+  // Check cache first
+  if (allRolesCache && Date.now() - allRolesCache.timestamp < ROLES_CACHE_TTL) {
+    console.debug("[AUTH] Using cached all roles");
+    return allRolesCache.roles;
+  }
+
+  try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SLEEPCONNECT_URL ||
+      process.env.NEXT_PUBLIC_APP_BASE_URL ||
+      "http://localhost:3000";
+
+    const rolesUrl = `${baseUrl}/api/roles`;
+    console.debug("[AUTH] Fetching all roles from:", rolesUrl);
+
+    const headersList = headers();
+    const cookieHeader = headersList.get("cookie") || "";
+
+    const response = await fetch(rolesUrl, {
+      method: "GET",
+      headers: {
+        cookie: cookieHeader,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(
+        "[AUTH] Failed to fetch all roles, status:",
+        response.status,
+      );
+      return [];
+    }
+
+    const roles: Role[] = await response.json();
+    console.debug("[AUTH] Fetched all roles:", roles.length);
+
+    // Cache the result
+    allRolesCache = { roles, timestamp: Date.now() };
+    return roles;
+  } catch (error) {
+    console.error("[AUTH] Error fetching all roles:", error);
+    return [];
+  }
+}
+
+/**
+ * Get the SAX role ID by looking up the role name from the roles API
+ * Returns null if role not found
+ */
+async function getSAXRoleId(): Promise<string | null> {
+  const allRoles = await fetchAllRolesServerSide();
+  const saxRole = allRoles.find(
+    (r) => r.name.toLowerCase() === SAX_ROLE_NAME.toLowerCase() && r.active,
+  );
+  return saxRole?.role_id ?? null;
+}
+
+/**
+ * Fetch user roles from SleepConnect API and check for SAX role
+ * Results are cached for 5 minutes to minimize API overhead
+ *
+ * @param saxId - The user's SAX ID
+ * @returns Object with roles array and isSAXUser boolean
+ */
+async function fetchUserRolesServerSide(
+  saxId: number,
+): Promise<{ roles: string[]; isSAXUser: boolean }> {
+  // Check cache first
+  const cached = userRolesCache.get(saxId);
+  if (cached && Date.now() - cached.timestamp < ROLES_CACHE_TTL) {
+    console.debug("[AUTH] Using cached roles for saxId:", saxId);
+    return { roles: cached.roles, isSAXUser: cached.isSAXUser };
+  }
+
+  try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SLEEPCONNECT_URL ||
+      process.env.NEXT_PUBLIC_APP_BASE_URL ||
+      "http://localhost:3000";
+
+    const rolesUrl = `${baseUrl}/api/users/${saxId}/roles`;
+    console.debug("[AUTH] Fetching roles from:", rolesUrl);
+
+    const headersList = headers();
+    const cookieHeader = headersList.get("cookie") || "";
+
+    const response = await fetch(rolesUrl, {
+      method: "POST",
+      headers: {
+        cookie: cookieHeader,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(
+        "[AUTH] Failed to fetch user roles, status:",
+        response.status,
+      );
+      // Cache empty result to avoid repeated failed requests
+      const emptyResult = { roles: [], isSAXUser: false };
+      userRolesCache.set(saxId, { ...emptyResult, timestamp: Date.now() });
+      return emptyResult;
+    }
+
+    const roles: UserRole[] = await response.json();
+
+    // Extract active role IDs
+    const activeRoleIds = roles.filter((r) => r.active).map((r) => r.role_id);
+
+    // Get SAX role ID dynamically from roles API
+    const saxRoleId = await getSAXRoleId();
+
+    // Check if user has SAX role
+    const isSAXUser = saxRoleId ? activeRoleIds.includes(saxRoleId) : false;
+
+    console.debug("[AUTH] Fetched roles for saxId:", saxId, {
+      roleCount: activeRoleIds.length,
+      saxRoleId,
+      isSAXUser,
+    });
+
+    // Cache the result
+    const result = { roles: activeRoleIds, isSAXUser };
+    userRolesCache.set(saxId, { ...result, timestamp: Date.now() });
+
+    return result;
+  } catch (error) {
+    console.error("[AUTH] Error fetching user roles:", error);
+    // Cache empty result on error to avoid repeated failed requests
+    const emptyResult = { roles: [], isSAXUser: false };
+    userRolesCache.set(saxId, { ...emptyResult, timestamp: Date.now() });
+    return emptyResult;
+  }
+}
+
+/**
+ * Check if a user has the SAX role (cached)
+ * @param saxId - The user's SAX ID
+ * @returns true if user has SAX role
+ */
+export async function checkIsSAXUser(saxId: number): Promise<boolean> {
+  const { isSAXUser } = await fetchUserRolesServerSide(saxId);
+  return isSAXUser;
+}
+
+/**
  * Wrapper that extracts user context for API routes.
  * Combines Auth0 authentication with SAX user context extraction.
  *
@@ -361,6 +563,11 @@ export function withUserContext(
           { status: 403 },
         );
       }
+
+      // Check if user has SAX role (cached, 5 min TTL)
+      const { isSAXUser } = await fetchUserRolesServerSide(user.sax_id);
+      console.debug("[AUTH] withUserContext - isSAXUser:", isSAXUser);
+
       // console.debug("[AUTH] withUserContext - calling handler with context");
       return handler(
         req,
@@ -368,6 +575,7 @@ export function withUserContext(
           saxId: user.sax_id,
           tenantId: user.tenant_id,
           practiceId: user.practice_id,
+          isSAXUser,
         },
         routeContext,
       );

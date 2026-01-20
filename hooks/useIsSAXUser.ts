@@ -4,10 +4,10 @@ import type { UserRole } from "@/utils/userAssignedRoles/fetchUserRoles";
 import type { Role } from "@/components/roles/types";
 
 /**
- * The specific SAX role ID that identifies SAX employees/staff
- * This role grants access to the Outreach application
+ * The role name that identifies SAX employees/staff
+ * We look this up dynamically from the roles list instead of hardcoding the ID
  */
-export const SAX_ROLE_ID = "7742d9e2-0d5b-4eb1-81b7-4e7c476b45f0";
+export const SAX_ROLE_NAME = "Sax";
 
 /**
  * Hook to check if the current logged-in user has the "Sax" role
@@ -62,24 +62,31 @@ export function useIsSAXUser() {
       return false;
     }
 
+    // Find the SAX role by name (case-insensitive)
+    const saxRole = allRolesList.find(
+      (r: Role) =>
+        r.name.toLowerCase() === SAX_ROLE_NAME.toLowerCase() && r.active,
+    );
+
+    if (!saxRole) {
+      console.log("[useIsSAXUser] SAX role not found in all roles");
+      return false;
+    }
+
     // Filter to only active user roles
     const activeUserRoles = userRolesList.filter((r: UserRole) => r.active);
-
-    // Check if the Sax role exists in allRoles (for debugging)
-    const saxRole = allRolesList.find((r: Role) => r.role_id === SAX_ROLE_ID);
 
     console.log("[useIsSAXUser] DEBUG - Role check:", {
       totalUserRoles: userRolesList.length,
       activeUserRoles: activeUserRoles.length,
-      saxRoleExists: !!saxRole,
-      saxRoleName: saxRole?.name,
-      searchingFor: SAX_ROLE_ID,
+      saxRoleId: saxRole.role_id,
+      saxRoleName: saxRole.name,
     });
 
-    // Check if user has the specific Sax role by ID
+    // Check if user has the SAX role by ID (looked up dynamically)
     // NOTE: We do NOT bypass for Super Admin here - must have explicit Sax role
     const hasSax = activeUserRoles.some(
-      (ur: UserRole) => ur.role_id === SAX_ROLE_ID,
+      (ur: UserRole) => ur.role_id === saxRole.role_id,
     );
 
     console.log("[useIsSAXUser] Final result:", { hasSax });
@@ -105,18 +112,33 @@ export function checkIsSAXUserFromStorage(): boolean {
 
   try {
     const cachedUserRoles = localStorage.getItem("user_roles");
-    if (!cachedUserRoles) {
-      console.log("[checkIsSAXUserFromStorage] No user_roles in localStorage");
+    const cachedAllRoles = localStorage.getItem("all_roles");
+
+    if (!cachedUserRoles || !cachedAllRoles) {
+      console.log("[checkIsSAXUserFromStorage] Missing roles in localStorage");
       return false;
     }
 
     const userRoles: UserRole[] = JSON.parse(cachedUserRoles);
+    const allRoles: Role[] = JSON.parse(cachedAllRoles);
+
+    // Find the SAX role by name
+    const saxRole = allRoles.find(
+      (r) => r.name.toLowerCase() === SAX_ROLE_NAME.toLowerCase() && r.active,
+    );
+
+    if (!saxRole) {
+      console.log("[checkIsSAXUserFromStorage] SAX role not found");
+      return false;
+    }
+
     const activeRoles = userRoles.filter((r) => r.active);
-    const hasSax = activeRoles.some((r) => r.role_id === SAX_ROLE_ID);
+    const hasSax = activeRoles.some((r) => r.role_id === saxRole.role_id);
 
     console.log("[checkIsSAXUserFromStorage] Result:", {
       totalRoles: userRoles.length,
       activeRoles: activeRoles.length,
+      saxRoleId: saxRole.role_id,
       hasSax,
     });
 
