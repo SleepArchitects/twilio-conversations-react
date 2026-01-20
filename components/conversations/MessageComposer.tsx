@@ -477,7 +477,7 @@ export function MessageComposer({
           >
             <span>⚠️</span>
             <span>
-              Unresolved variables:{" "}
+              The following snippets need to be filled in:{" "}
               {unresolvedVariables.map((v) => `{{${v}}}`).join(", ")}
             </span>
           </div>
