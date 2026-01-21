@@ -366,7 +366,7 @@ export function ConversationList({
       {/* List Content */}
       <div
         ref={listRef}
-        className="flex-1 overflow-y-auto px-2 py-2 w-full max-w-full"
+        className="flex-1 overflow-y-auto px-2 py-2 w-full max-w-full overflow-x-hidden"
       >
         {/* Loading State */}
         {isLoading && (
