@@ -43,6 +43,7 @@
 		"styled-jsx": "5.1.1",
 		"tailwind-merge": "^2.2.0",
 		"twilio": "^5.10.6",
+		"use-debounce": "^10.1.0",
 		"utf-8-validate": "^6.0.5",
 		"worker-loader": "^3.0.8",
 		"zod": "^4.1.13"

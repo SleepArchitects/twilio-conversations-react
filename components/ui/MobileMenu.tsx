@@ -85,11 +85,13 @@ export default function MobileMenu({
     setAdminExpanded(false);
   };
 
+  const menuId = "mobile-menu";
+
   return (
     <>
       {/* Mobile menu button */}
       <button
-        aria-controls="navbar-hamburger"
+        aria-controls={menuId}
         aria-expanded={isMenuOpen}
         className="inline-flex items-center rounded-lg p-2 text-sm text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600 lg:hidden"
         onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -101,8 +103,8 @@ export default function MobileMenu({
 
       {/* Mobile menu */}
       <div
-        className={`${isMenuOpen ? "block" : "hidden"} absolute left-0 top-[72px] z-10 w-full bg-white dark:bg-gray-900 lg:hidden max-h-[calc(100vh-72px)] overflow-y-auto`}
-        id="navbar-hamburger"
+        className={`${isMenuOpen ? "block" : "hidden"} absolute left-0 top-full z-50 w-full bg-white dark:bg-gray-900 lg:hidden h-[calc(100vh-100%)] overflow-y-auto border-t border-gray-200 dark:border-gray-700`}
+        id={menuId}
       >
         {/* Mobile actions */}
         <div className="flex items-center justify-center border-b border-gray-200 p-4 dark:border-gray-700">
