@@ -77,6 +77,9 @@ importers:
       twilio:
         specifier: ^5.10.6
         version: 5.10.6
+      use-debounce:
+        specifier: ^10.1.0
+        version: 10.1.0(react@18.3.1)
       utf-8-validate:
         specifier: ^6.0.5
         version: 6.0.5
@@ -4958,6 +4961,12 @@ packages:
 
   urlpattern-polyfill@10.1.0:
     resolution: {integrity: sha512-IGjKp/o0NL3Bso1PymYURCJxMPNAf/ILOpendP9f5B6e1rTJgdgiOvgfoT8VxCAdY+Wisb9uhGaJJf3yZ2V9nw==}
+
+  use-debounce@10.1.0:
+    resolution: {integrity: sha512-lu87Za35V3n/MyMoEpD5zJv0k7hCn0p+V/fK2kWD+3k2u3kOCwO593UArbczg1fhfs2rqPEnHpULJ3KmGdDzvg==}
+    engines: {node: '>= 16.0.0'}
+    peerDependencies:
+      react: '*'
 
   use-sync-external-store@1.6.0:
     resolution: {integrity: sha512-Pp6GSwGP/NrPIrxVFAIkOQeyw8lFenOHijQWkUTrDvrF4ALqylP2C/KCkeS9dpUM3KvYRQhna5vt7IL95+ZQ9w==}
@@ -11437,6 +11446,10 @@ snapshots:
       requires-port: 1.0.0
 
   urlpattern-polyfill@10.1.0: {}
+
+  use-debounce@10.1.0(react@18.3.1):
+    dependencies:
+      react: 18.3.1
 
   use-sync-external-store@1.6.0(react@18.3.1):
     dependencies:

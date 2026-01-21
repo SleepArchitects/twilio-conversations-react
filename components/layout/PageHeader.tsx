@@ -45,7 +45,11 @@ export function PageHeader({
           </div>
         </div>
 
-        {children && <div className="flex items-center gap-4">{children}</div>}
+        {children && (
+          <div className="flex items-center gap-4 lg:flex-basis-1/2">
+            {children}
+          </div>
+        )}
       </div>
     </header>
   );
