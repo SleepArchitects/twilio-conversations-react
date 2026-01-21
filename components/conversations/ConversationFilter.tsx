@@ -38,7 +38,7 @@ const FILTER_OPTIONS: FilterOption[] = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
   { value: "sla_risk", label: "SLA Risk" },
-  { value: "archived", label: "Archived" },
+  // { value: "archived", label: "Archived" },
 ];
 
 // =============================================================================
