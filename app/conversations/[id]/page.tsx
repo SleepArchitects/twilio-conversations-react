@@ -161,7 +161,7 @@ export default function ConversationPage(): React.ReactElement {
     <div className="flex flex-col bg-gray-900">
       {/* Header with back button */}
       <PageHeader
-        title={conversation.friendlyName}
+        title={`Conversation with ${conversation.friendlyName}`}
         className="px-4 py-3"
         startAction={
           <Link
