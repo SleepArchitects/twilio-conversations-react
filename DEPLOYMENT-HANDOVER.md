@@ -99,7 +99,7 @@ API_BASE_URL=https://outreach-api.mydreamconnect.com
 NEXT_PUBLIC_API_BASE_URL=https://outreach-api.mydreamconnect.com
 
 # WebSocket API URL (real-time message updates)
-NEXT_PUBLIC_WS_API_URL=wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
+NEXT_PUBLIC_WS_API_URL=wss://outreach-ws-dev.mydreamconnect.com
 
 # =============================================================================
 # TWILIO CONFIGURATION
@@ -158,7 +158,7 @@ CI=false
 
 ### 1. API Gateway (WebSocket + HTTP)
 
-**Current WebSocket URL**: `wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev`
+**Current WebSocket URL**: `wss://outreach-ws-dev.mydreamconnect.com`
 
 #### Actions Needed
 
@@ -243,7 +243,7 @@ aws rds describe-db-instances --region us-east-1 --query 'DBInstances[*].[DBInst
 {
   output: "standalone",           // For OpenNext/Lambda deployment
   basePath: "/outreach",           // Multi-zone base path
-  assetPrefix: process.env.NODE_ENV === "production" 
+  assetPrefix: process.env.NODE_ENV === "production"
     ? "/outreach-static"           // CloudFront path
     : "/outreach",                 // Dev server path
 }
@@ -306,7 +306,7 @@ See [middleware.ts](middleware.ts):
    ```bash
    # Find existing WebSocket API
    aws apigatewayv2 get-apis --region us-east-1
-   
+
    # Create custom domain for outreach-api.mydreamconnect.com
    aws apigatewayv2 create-domain-name \
      --domain-name outreach-api.mydreamconnect.com \
@@ -330,7 +330,7 @@ See [middleware.ts](middleware.ts):
    ```bash
    # Get RDS endpoint
    aws rds describe-db-instances --region us-east-1
-   
+
    # Store credentials in Secrets Manager
    aws secretsmanager create-secret \
      --name outreach/db/credentials \
@@ -360,26 +360,26 @@ module.exports = {
   async rewrites() {
     return [
       {
-        source: '/outreach/:path*',
-        destination: 'https://outreach.mydreamconnect.com/outreach/:path*',
-      }
-    ]
+        source: "/outreach/:path*",
+        destination: "https://outreach.mydreamconnect.com/outreach/:path*",
+      },
+    ];
   },
-  
+
   async headers() {
     return [
       {
-        source: '/outreach/:path*',
+        source: "/outreach/:path*",
         headers: [
           {
-            key: 'x-sax-user-context',
-            value: '{{JWT_TOKEN}}', // Set in middleware
-          }
-        ]
-      }
-    ]
-  }
-}
+            key: "x-sax-user-context",
+            value: "{{JWT_TOKEN}}", // Set in middleware
+          },
+        ],
+      },
+    ];
+  },
+};
 ```
 
 **In SleepConnect middleware**, forward JWT:
@@ -387,9 +387,9 @@ module.exports = {
 ```typescript
 // sleepconnect/middleware.ts
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith('/outreach')) {
+  if (request.nextUrl.pathname.startsWith("/outreach")) {
     const session = await getSession(request);
-    
+
     if (session) {
       // Create JWT token with user context
       const token = await signUserContextToken({
@@ -399,20 +399,20 @@ export async function middleware(request: NextRequest) {
         roles: session.user.roles,
         practice_id: session.user.practice_id,
       });
-      
+
       // Forward to Outreach zone with JWT cookie
       const response = NextResponse.rewrite(
-        new URL('/outreach' + request.nextUrl.pathname, request.url)
+        new URL("/outreach" + request.nextUrl.pathname, request.url),
       );
-      response.cookies.set('x-sax-user-context', token, {
+      response.cookies.set("x-sax-user-context", token, {
         httpOnly: true,
         secure: true,
-        sameSite: 'lax',
+        sameSite: "lax",
       });
       return response;
     }
   }
-  
+
   return NextResponse.next();
 }
 ```
@@ -463,7 +463,7 @@ vercel --prod
 4. **Test WebSocket Connection**:
 
    ```bash
-   wscat -c wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
+   wscat -c wss://outreach-ws-dev.mydreamconnect.com
    # Should establish connection
    ```
 
@@ -473,16 +473,16 @@ vercel --prod
 
 ### Environment Variable Usage
 
-| Variable | Used In | Purpose |
-|----------|---------|---------|
-| `AUTH0_CLIENT_SECRET` | [lib/jwt-utils.ts](lib/jwt-utils.ts#L19) | JWT signature verification |
-| `TWILIO_ACCOUNT_SID` | [lib/twilio.ts](lib/twilio.ts#L5) | Twilio client initialization |
-| `TWILIO_AUTH_TOKEN` | [lib/twilio.ts](lib/twilio.ts#L6) | Twilio authentication |
-| `MULTI_ZONE_MODE` | [lib/auth.ts](lib/auth.ts#L56) | Enable multi-zone behavior |
-| `NEXT_PUBLIC_SLEEPCONNECT_URL` | [middleware.ts](middleware.ts#L48), [components/auth/AuthGuard.tsx](components/auth/AuthGuard.tsx#L77) | SleepConnect redirects |
-| `API_BASE_URL` | [lib/api.ts](lib/api.ts#L9) | Backend API calls |
-| `NEXT_PUBLIC_WS_API_URL` | [hooks/useMessages.ts](hooks/useMessages.ts#L58) | WebSocket connection |
-| `ENABLE_SLA_MONITORING` | [app/api/outreach/conversations/[conversationId]/messages/route.ts](app/api/outreach/conversations/[conversationId]/messages/route.ts#L26) | SLA tracking feature |
+| Variable                       | Used In                                                                                                                                    | Purpose                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `AUTH0_CLIENT_SECRET`          | [lib/jwt-utils.ts](lib/jwt-utils.ts#L19)                                                                                                   | JWT signature verification   |
+| `TWILIO_ACCOUNT_SID`           | [lib/twilio.ts](lib/twilio.ts#L5)                                                                                                          | Twilio client initialization |
+| `TWILIO_AUTH_TOKEN`            | [lib/twilio.ts](lib/twilio.ts#L6)                                                                                                          | Twilio authentication        |
+| `MULTI_ZONE_MODE`              | [lib/auth.ts](lib/auth.ts#L56)                                                                                                             | Enable multi-zone behavior   |
+| `NEXT_PUBLIC_SLEEPCONNECT_URL` | [middleware.ts](middleware.ts#L48), [components/auth/AuthGuard.tsx](components/auth/AuthGuard.tsx#L77)                                     | SleepConnect redirects       |
+| `API_BASE_URL`                 | [lib/api.ts](lib/api.ts#L9)                                                                                                                | Backend API calls            |
+| `NEXT_PUBLIC_WS_API_URL`       | [hooks/useMessages.ts](hooks/useMessages.ts#L58)                                                                                           | WebSocket connection         |
+| `ENABLE_SLA_MONITORING`        | [app/api/outreach/conversations/[conversationId]/messages/route.ts](app/api/outreach/conversations/[conversationId]/messages/route.ts#L26) | SLA tracking feature         |
 
 ### Critical Files
 
@@ -538,7 +538,9 @@ aws secretsmanager list-secrets --region us-east-1 --query 'SecretList[?contains
 **Solution**: Already fixed in [next.config.mjs](next.config.mjs#L10):
 
 ```javascript
-assetPrefix: process.env.NODE_ENV === "production" ? "/outreach-static" : "/outreach"
+assetPrefix: process.env.NODE_ENV === "production"
+  ? "/outreach-static"
+  : "/outreach";
 ```
 
 ### Issue 2: Authentication Loop
@@ -666,7 +668,7 @@ curl https://outreach.mydreamconnect.com/outreach/api/health
 curl https://outreach-api.mydreamconnect.com/health
 
 # WebSocket health
-wscat -c wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
+wscat -c wss://outreach-ws-dev.mydreamconnect.com
 ```
 
 ---

@@ -4,45 +4,45 @@ Scope: Outreach Next.js app and its AWS/OpenNext deployment. SleepConnect backen
 
 ## Quick URLs by Environment
 
-| Env | App URL (`NEXT_PUBLIC_APP_BASE_URL`) | REST API (`API_BASE_URL`/`NEXT_PUBLIC_API_BASE_URL`) | WebSocket (`NEXT_PUBLIC_WS_API_URL`) | SleepConnect shell (`NEXT_PUBLIC_SLEEPCONNECT_URL`) | Base path |
-|-----|--------------------------------------|------------------------------------------------------|--------------------------------------|-----------------------------------------------|----------|
-| Develop | `https://outreach-dev.mydreamconnect.com` | `https://outreach-api-dev.mydreamconnect.com` | `wss://outreach-ws-dev.mydreamconnect.com` | `https://dev.mydreamconnect.com` | `/outreach` |
-| Staging | `https://outreach-staging.mydreamconnect.com` | `https://outreach-api-staging.mydreamconnect.com` | `wss://outreach-ws-staging.mydreamconnect.com` | `https://stage.mydreamconnect.com` | `/outreach` |
-| Production | `https://outreach.mydreamconnect.com` | `https://outreach-api.mydreamconnect.com` | `wss://outreach-ws.mydreamconnect.com` | `https://mydreamconnect.com` | `/outreach` |
+| Env        | App URL (`NEXT_PUBLIC_APP_BASE_URL`)          | REST API (`API_BASE_URL`/`NEXT_PUBLIC_API_BASE_URL`) | WebSocket (`NEXT_PUBLIC_WS_API_URL`)           | SleepConnect shell (`NEXT_PUBLIC_SLEEPCONNECT_URL`) | Base path   |
+| ---------- | --------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------- | ----------- |
+| Develop    | `https://outreach-dev.mydreamconnect.com`     | `https://outreach-api-dev.mydreamconnect.com`        | `wss://outreach-ws-dev.mydreamconnect.com`     | `https://dev.mydreamconnect.com`                    | `/outreach` |
+| Staging    | `https://outreach-staging.mydreamconnect.com` | `https://outreach-api-staging.mydreamconnect.com`    | `wss://outreach-ws-staging.mydreamconnect.com` | `https://stage.mydreamconnect.com`                  | `/outreach` |
+| Production | `https://outreach.mydreamconnect.com`         | `https://outreach-api.mydreamconnect.com`            | `wss://outreach-ws.mydreamconnect.com`         | `https://mydreamconnect.com`                        | `/outreach` |
 
 ### Local development defaults
 
 - `NEXT_PUBLIC_APP_BASE_URL=http://localhost:3001`
 - `NEXT_PUBLIC_SLEEPCONNECT_URL=http://localhost:3000`
 - `NEXT_PUBLIC_API_BASE_URL=https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev`
-- `NEXT_PUBLIC_WS_API_URL=wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev`
+- `NEXT_PUBLIC_WS_API_URL=wss://outreach-ws-dev.mydreamconnect.com`
 - Run Outreach on port `3001` and SleepConnect on `3000`.
 
 ## Build-time variables (set in `.env.local` and GitHub Actions secrets)
 
-| Variable | Required | Purpose | Example (develop) |
-|----------|:--------:|---------|-------------------|
-| `NEXT_PUBLIC_APP_BASE_URL` | Yes | Public app URL used by links and redirects | `https://outreach-dev.mydreamconnect.com` |
-| `NEXT_PUBLIC_SLEEPCONNECT_URL` | Yes | SleepConnect shell URL for redirects | `https://dev.mydreamconnect.com` |
-| `NEXT_PUBLIC_BASE_PATH` | Yes | Base path for multi-zone routing | `/outreach` |
-| `NEXT_PUBLIC_API_BASE_URL` | Yes | REST API base URL (client) | `https://outreach-api-dev.mydreamconnect.com` |
-| `NEXT_PUBLIC_WS_API_URL` | Yes | WebSocket endpoint for real-time updates | `wss://outreach-ws-dev.mydreamconnect.com` |
-| `NEXT_PUBLIC_SHOW_BANNER` | No | Toggle marketing banner | `false` |
-| `NEXT_PUBLIC_BANNER_LOGO` | No | Banner logo key | `moonplus` |
-| `NEXT_PUBLIC_BANNER_LINK` | No | Banner href | `/bot` |
-| `NEXT_PUBLIC_BANNER_TEXT` | No | Banner copy | `Meet Alora` |
-| `NEXT_PUBLIC_PRACTICE_NAME` | No | Default practice name fallback | `Sleep Architects` |
-| `NEXT_PUBLIC_ENABLE_SLA_MONITORING` | No | Enable SLA UI | `true` |
+| Variable                            | Required | Purpose                                    | Example (develop)                             |
+| ----------------------------------- | :------: | ------------------------------------------ | --------------------------------------------- |
+| `NEXT_PUBLIC_APP_BASE_URL`          |   Yes    | Public app URL used by links and redirects | `https://outreach-dev.mydreamconnect.com`     |
+| `NEXT_PUBLIC_SLEEPCONNECT_URL`      |   Yes    | SleepConnect shell URL for redirects       | `https://dev.mydreamconnect.com`              |
+| `NEXT_PUBLIC_BASE_PATH`             |   Yes    | Base path for multi-zone routing           | `/outreach`                                   |
+| `NEXT_PUBLIC_API_BASE_URL`          |   Yes    | REST API base URL (client)                 | `https://outreach-api-dev.mydreamconnect.com` |
+| `NEXT_PUBLIC_WS_API_URL`            |   Yes    | WebSocket endpoint for real-time updates   | `wss://outreach-ws-dev.mydreamconnect.com`    |
+| `NEXT_PUBLIC_SHOW_BANNER`           |    No    | Toggle marketing banner                    | `false`                                       |
+| `NEXT_PUBLIC_BANNER_LOGO`           |    No    | Banner logo key                            | `moonplus`                                    |
+| `NEXT_PUBLIC_BANNER_LINK`           |    No    | Banner href                                | `/bot`                                        |
+| `NEXT_PUBLIC_BANNER_TEXT`           |    No    | Banner copy                                | `Meet Alora`                                  |
+| `NEXT_PUBLIC_PRACTICE_NAME`         |    No    | Default practice name fallback             | `Sleep Architects`                            |
+| `NEXT_PUBLIC_ENABLE_SLA_MONITORING` |    No    | Enable SLA UI                              | `true`                                        |
 
 | `NEXT_PUBLIC_ALLOW_INTERNATIONAL_PHONES` | No | Allow international phone input | `false` |
 
 ## Runtime variables (Lambda / server-side)
 
-| Variable | Required | Purpose | Example (develop) |
-|----------|:--------:|---------|-------------------|
-| `NODE_ENV` | Yes | Execution environment | `production` |
-| `MULTI_ZONE_MODE` | Yes | Enable multi-zone auth (read JWT from SleepConnect) | `true` |
-| `AUTH0_SECRET` | Yes | Shared secret for JWT verification | `***` |
+| Variable          | Required | Purpose                                             | Example (develop) |
+| ----------------- | :------: | --------------------------------------------------- | ----------------- |
+| `NODE_ENV`        |   Yes    | Execution environment                               | `production`      |
+| `MULTI_ZONE_MODE` |   Yes    | Enable multi-zone auth (read JWT from SleepConnect) | `true`            |
+| `AUTH0_SECRET`    |   Yes    | Shared secret for JWT verification                  | `***`             |
 
 | `AUTH0_CLIENT_SECRET` | Yes | Same as `AUTH0_SECRET` (alias) | `***` |
 | `AUTH0_CLIENT_ID` | Yes | Auth0 client ID | `***` |
@@ -60,10 +60,10 @@ Scope: Outreach Next.js app and its AWS/OpenNext deployment. SleepConnect backen
 
 ## Deployment script helpers (optional)
 
-| Variable | Purpose | When used |
-|----------|---------|-----------|
-| `FUNCTION_URL` | Override Lambda Function URL for asset uploads/invalidation | Only for legacy function-url deployments; custom domains preferred |
-| `SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID` | CloudFront ID for cache invalidation in `deploy-outreach.cjs` | Optional; if empty, invalidation is skipped |
+| Variable                                  | Purpose                                                       | When used                                                          |
+| ----------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `FUNCTION_URL`                            | Override Lambda Function URL for asset uploads/invalidation   | Only for legacy function-url deployments; custom domains preferred |
+| `SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID` | CloudFront ID for cache invalidation in `deploy-outreach.cjs` | Optional; if empty, invalidation is skipped                        |
 
 ## GitHub Actions secrets (mirrors build/runtime needs)
 
@@ -143,7 +143,7 @@ Scope: Outreach Next.js app and its AWS/OpenNext deployment. SleepConnect backen
 #### 5. Backend API Gateway (Must be deployed first)
 
 - [ ] REST API deployed: `https://outreach-api-dev.mydreamconnect.com` (or `0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev`)
-- [ ] WebSocket API deployed: `wss://outreach-ws-dev.mydreamconnect.com` (or `vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev`)
+- [ ] WebSocket API deployed: `wss://outreach-ws-dev.mydreamconnect.com`
 - [ ] Test backend health:
 
   ```bash

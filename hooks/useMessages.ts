@@ -57,7 +57,7 @@ const API_BASE_PATH = "/outreach/api/outreach";
 const DEFAULT_PAGE_SIZE = 20;
 const WS_URL =
   process.env.NEXT_PUBLIC_WS_API_URL ||
-  "wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev";
+  "wss://outreach-ws-dev.mydreamconnect.com";
 
 console.log("[useMessages] configured WS_URL:", WS_URL);
 

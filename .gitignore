@@ -51,3 +51,6 @@ dynamicConfig.yml
 .vscode
 .open-next
 
+
+# mise local config
+mise.local.toml

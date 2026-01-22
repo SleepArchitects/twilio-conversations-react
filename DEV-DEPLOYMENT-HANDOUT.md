@@ -97,7 +97,7 @@ curl -I https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev/health
 # Test WebSocket API
 wscat -c wss://outreach-ws-dev.mydreamconnect.com
 # OR:
-wscat -c wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
+wscat -c wss://outreach-ws-dev.mydreamconnect.com
 ```
 
 **Expected**: REST API returns 200 or 401 (not 404). WebSocket connects.
@@ -465,9 +465,11 @@ open https://dev.mydreamconnect.com/outreach/conversations
 
 ```javascript
 // Test REST API
-fetch('https://outreach-api-dev.mydreamconnect.com/outreach/conversations', {
-  headers: { 'Authorization': 'Bearer <token>' }
-}).then(r => r.json()).then(console.log)
+fetch("https://outreach-api-dev.mydreamconnect.com/outreach/conversations", {
+  headers: { Authorization: "Bearer <token>" },
+})
+  .then((r) => r.json())
+  .then(console.log);
 
 // Check WebSocket in DevTools → WS tab
 // Should show connection to wss://outreach-ws-dev.mydreamconnect.com
@@ -721,15 +723,15 @@ aws lambda update-alias \
 
 ## Estimated Timeline
 
-| Phase | Duration | Dependencies |
-|-------|----------|--------------|
-| 1. Verify Infrastructure | 15-20 min | AWS CLI access |
-| 2. Configure SleepConnect | 20-30 min | GitHub access, CloudFront config |
-| 2.5. Deploy SleepConnect (GitHub Actions) | 10-20 min | Phase 2 complete |
-| 3. Deploy Outreach (Manual) | 15-20 min | Phase 2.5 complete |
-| 4. Integration Testing | 10-15 min | Phase 3 complete |
-| 5. Validation | 5-10 min | All phases complete |
-| **Total** | **75-115 min** | **~1.5-2 hours** |
+| Phase                                     | Duration       | Dependencies                     |
+| ----------------------------------------- | -------------- | -------------------------------- |
+| 1. Verify Infrastructure                  | 15-20 min      | AWS CLI access                   |
+| 2. Configure SleepConnect                 | 20-30 min      | GitHub access, CloudFront config |
+| 2.5. Deploy SleepConnect (GitHub Actions) | 10-20 min      | Phase 2 complete                 |
+| 3. Deploy Outreach (Manual)               | 15-20 min      | Phase 2.5 complete               |
+| 4. Integration Testing                    | 10-15 min      | Phase 3 complete                 |
+| 5. Validation                             | 5-10 min       | All phases complete              |
+| **Total**                                 | **75-115 min** | **~1.5-2 hours**                 |
 
 ---
 
