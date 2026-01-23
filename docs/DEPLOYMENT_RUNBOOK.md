@@ -1,7 +1,7 @@
 # Outreach SMS App - Deployment Runbook
 
-> **Last Updated**: January 2026  
-> **Version**: 1.1.0
+> **Last Updated**: January 23, 2026
+> **Version**: 1.2.0
 
 ## Table of Contents
 
@@ -429,6 +429,62 @@ aws cloudfront create-invalidation \
 - **Deployment summary** - Shows deployment details in Actions UI
 - **Rollback support** - Can rollback via workflow_dispatch
 
+### GitHub Secrets Strategy
+
+We use **GitHub Environments** to manage secrets for different deployment stages. This provides a clear separation between staging and production secrets, with production requiring additional protection rules.
+
+#### Repository Secrets vs Environment Secrets
+
+| Secret Type             | Scope                | Use Case                                                             |
+| ----------------------- | -------------------- | -------------------------------------------------------------------- |
+| **Repository Secrets**  | Repository-wide      | Default values for all environments (Staging uses these as defaults) |
+| **Environment Secrets** | Specific environment | Override repository secrets for that environment only                |
+
+#### How It Works
+
+1. **Staging Deployments** (`staging` branch)
+   - Uses **Repository Secrets** directly
+   - No additional protection required
+   - Secrets use the **same names** as production (no `STAGING_` prefix), for example:
+     - `AUTH0_CLIENT_ID`
+     - `AUTH0_CLIENT_SECRET`
+     - `AUTH0_SECRET`
+
+2. **Production Deployments** (`main` branch)
+   - **Repository Secrets** act as defaults
+   - **Environment Secrets** (configured in GitHub for `production` environment) **override** the defaults
+   - Requires additional protection: at least 1 reviewer approval
+   - Secrets: **Same secret names**, but values come from the `production` environment configuration
+
+#### Setting Up Production Environment Secrets
+
+1. Go to repository **Settings** → **Environments** → **production**
+2. Add the following secrets:
+   - `AUTH0_CLIENT_ID`
+   - `AUTH0_CLIENT_SECRET`
+   - `AUTH0_SECRET`
+   - `TWILIO_ACCOUNT_SID`
+   - `TWILIO_AUTH_TOKEN`
+   - etc.
+
+3. Configure **Protection rules**:
+   - Required reviewers: 1+ (depends on your security policy)
+   - Wait timer: Optional (e.g., 30 minutes for manual approval)
+
+> **Important**: The workflow file uses the same secret names for all environments. GitHub automatically selects the correct value based on the current environment context. For production, ensure the environment-specific secrets are set BEFORE merging to `main`.
+
+#### Secret Naming Convention
+
+Secrets use the **same names** in staging and production. The difference is **where** they are configured.
+
+| Secret Name           | Staging Source    | Production Source               |
+| --------------------- | ----------------- | ------------------------------- |
+| `AUTH0_CLIENT_ID`     | Repository Secret | `production` Environment Secret |
+| `AUTH0_CLIENT_SECRET` | Repository Secret | `production` Environment Secret |
+| `AUTH0_SECRET`        | Repository Secret | `production` Environment Secret |
+| `TWILIO_ACCOUNT_SID`  | Repository Secret | `production` Environment Secret |
+| `TWILIO_AUTH_TOKEN`   | Repository Secret | `production` Environment Secret |
+
 ---
 
 ## Troubleshooting
@@ -492,9 +548,73 @@ Check AWS credentials have required permissions. See [Prerequisites](#prerequisi
 
 #### Authentication failures
 
-1. Verify Auth0 variables match SleepConnect exactly
-2. Check `AUTH0_BASE_URL` matches the access URL
-3. Ensure `AUTH0_SECRET` is the same across both apps
+> **CRITICAL**: This is the most common cause of deployment failures when setting up a new environment. Read carefully!
+
+**Symptoms:**
+
+- `401 Unauthorized` responses from API calls
+- `JWT signature verification failed` errors in Lambda logs
+- Users unable to log in or being immediately logged out
+- Auth0 redirect URIs mismatch errors
+
+**Root Cause:**
+
+The Outreach application shares authentication with the parent **SleepConnect** application. Auth0 sessions and JWT tokens are signed using a shared secret. If Outreach and SleepConnect use **different** Auth0 credentials (especially `AUTH0_CLIENT_SECRET` and `AUTH0_SECRET`), the following happens:
+
+1. User logs in through SleepConnect
+2. SleepConnect creates a session cookie with its own signing key
+3. User navigates to Outreach
+4. Outreach attempts to verify the session using its **different** signing key
+5. Verification **fails** because the signatures don't match
+
+**Fix:**
+
+Copy the Auth0 environment variables **from the SleepConnect Lambda configuration** to the Outreach configuration:
+
+1. **Get values from SleepConnect:**
+
+   ```bash
+   # Get SleepConnect Lambda environment variables
+   # Note: SleepConnect uses legacy naming conventions.
+   aws lambda get-function-configuration \
+     --function-name sax-lambda-us-east-1-0x-s-sleep-connect-server_staging \
+     --query 'Environment.Variables'
+
+   # For production, use:
+   # aws lambda get-function-configuration \
+   #   --function-name sax-lambda-us-east-1-0x-p-sleep-connect-server_production \
+   #   --query 'Environment.Variables'
+   ```
+
+2. **Set the same values on Outreach Lambda:**
+
+   ```bash
+   # Update Outreach Lambda with matching Auth0 credentials
+   aws lambda update-function-configuration \
+     --function-name sax-lam-us-east-1-0x-s-outreach \
+     --environment "Variables={
+       AUTH0_CLIENT_ID={value_from_sleepconnect},
+       AUTH0_CLIENT_SECRET={value_from_sleepconnect},
+       AUTH0_SECRET={value_from_sleepconnect},
+       AUTH0_DOMAIN={same_domain},
+       AUTH0_BASE_URL={outreach_url}
+     }"
+   ```
+
+3. **Verify in GitHub Secrets:**
+   - Ensure `AUTH0_CLIENT_ID` and `AUTH0_CLIENT_SECRET` match the SleepConnect values
+   - Never regenerate these values independently for Outreach
+
+> **WARNING**: `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, and `AUTH0_SECRET` **MUST MATCH** the parent SleepConnect application for the same environment. These are not independent configurations - they must be identical across both applications for session sharing to work.
+
+**Verification:**
+
+After fixing, check Lambda logs for successful session verification:
+
+```bash
+aws logs tail /aws/lambda/sax-lam-us-east-1-0x-s-outreach --follow
+# Should see successful authentication without 401 errors
+```
 
 ---
 
@@ -502,36 +622,43 @@ Check AWS credentials have required permissions. See [Prerequisites](#prerequisi
 
 ### Build-time Variables (NEXT*PUBLIC*\*)
 
-| Variable                       | Develop                                    | Staging                                    | Production                                 |
-| ------------------------------ | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ |
-| `NEXT_PUBLIC_APP_BASE_URL`     | `https://dev.mydreamconnect.com`           | `https://stage.mydreamconnect.com`         | `https://mydreamconnect.com`               |
-| `NEXT_PUBLIC_SLEEPCONNECT_URL` | `https://dev.mydreamconnect.com`           | `https://stage.mydreamconnect.com`         | `https://mydreamconnect.com`               |
-| `NEXT_PUBLIC_BASE_PATH`        | `/outreach`                                | `/outreach`                                | `/outreach`                                |
-| `NEXT_PUBLIC_API_BASE_URL`     | `https://api-dev.mydreamconnect.com`       | `https://api-dev.mydreamconnect.com`       | `https://api-dev.mydreamconnect.com`       |
-| `NEXT_PUBLIC_WS_API_URL`       | `wss://outreach-ws-dev.mydreamconnect.com` | `wss://outreach-ws-dev.mydreamconnect.com` | `wss://outreach-ws-dev.mydreamconnect.com` |
+| Variable                       | Develop                                          | Staging                                          | Production                                       |
+| ------------------------------ | ------------------------------------------------ | ------------------------------------------------ | ------------------------------------------------ |
+| `NEXT_PUBLIC_APP_BASE_URL`     | `https://outreach-dev.mydreamconnect.com`        | `https://outreach-stage.mydreamconnect.com`      | `https://outreach.mydreamconnect.com`            |
+| `NEXT_PUBLIC_SLEEPCONNECT_URL` | `https://dev.mydreamconnect.com`                 | `https://stage.mydreamconnect.com`               | `https://mydreamconnect.com`                     |
+| `NEXT_PUBLIC_BASE_PATH`        | `/outreach`                                      | `/outreach`                                      | `/outreach`                                      |
+| `NEXT_PUBLIC_API_BASE_URL`     | `https://develop-api.mydreamconnect.com/develop` | `https://develop-api.mydreamconnect.com/develop` | `https://develop-api.mydreamconnect.com/develop` |
+| `NEXT_PUBLIC_WS_API_URL`       | `wss://outreach-ws-dev.mydreamconnect.com`       | `wss://outreach-ws-dev.mydreamconnect.com`       | `wss://outreach-ws-dev.mydreamconnect.com`       |
 
 ### Runtime Variables
 
-| Variable                       | Description                                   |
-| ------------------------------ | --------------------------------------------- |
-| `NODE_ENV`                     | Always `production` for deployed environments |
-| `ENVIRONMENT`                  | `develop`, `staging`, or `production`         |
-| `MULTI_ZONE_MODE`              | Always `true` for deployed environments       |
-| `AUTH0_DOMAIN`                 | Auth0 tenant domain                           |
-| `AUTH0_CLIENT_ID`              | Auth0 application client ID                   |
-| `AUTH0_CLIENT_SECRET`          | Auth0 application client secret               |
-| `AUTH0_SECRET`                 | Session encryption (must match SleepConnect)  |
-| `AUTH0_BASE_URL`               | Application base URL for Auth0 callbacks      |
-| `AUTH0_ISSUER_BASE_URL`        | Auth0 issuer URL (`https://{domain}`)         |
-| `TWILIO_ACCOUNT_SID`           | Twilio account SID                            |
-| `TWILIO_AUTH_TOKEN`            | Twilio auth token                             |
-| `TWILIO_MESSAGING_SERVICE_SID` | Twilio messaging service SID                  |
+| Variable                       | Description                                   | Source of Truth    |
+| ------------------------------ | --------------------------------------------- | ------------------ |
+| `NODE_ENV`                     | Always `production` for deployed environments | -                  |
+| `ENVIRONMENT`                  | `develop`, `staging`, or `production`         | -                  |
+| `MULTI_ZONE_MODE`              | Always `true` for deployed environments       | -                  |
+| `AUTH0_DOMAIN`                 | Auth0 tenant domain                           | Auth0 Console      |
+| `AUTH0_CLIENT_ID`              | Auth0 application client ID                   | **SleepConnect**   |
+| `AUTH0_CLIENT_SECRET`          | Auth0 application client secret               | **SleepConnect**   |
+| `AUTH0_SECRET`                 | Session encryption (must match SleepConnect)  | **SleepConnect**   |
+| `AUTH0_BASE_URL`               | Application base URL for Auth0 callbacks      | Application Config |
+| `AUTH0_ISSUER_BASE_URL`        | Auth0 issuer URL (`https://{domain}`)         | Auth0 Console      |
+| `TWILIO_ACCOUNT_SID`           | Twilio account SID                            | Twilio Console     |
+| `TWILIO_AUTH_TOKEN`            | Twilio auth token                             | Twilio Console     |
+| `TWILIO_MESSAGING_SERVICE_SID` | Twilio messaging service SID                  | Twilio Console     |
+
+> **⚠️ WARNING**: `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, and `AUTH0_SECRET` **MUST MATCH** the parent **SleepConnect** application for the same environment. These values are sourced from SleepConnect's Lambda configuration, not regenerated independently. See [Authentication failures](#authentication-failures) for detailed troubleshooting.
 
 ---
 
 ## Change Log
 
-| Version | Date       | Changes                                                                            |
-| ------- | ---------- | ---------------------------------------------------------------------------------- |
-| 1.1.0   | 2026-01-22 | Updated naming conventions, removed SST references, improved deployment/infra docs |
-| 1.0.0   | 2026-01-22 | Initial runbook creation                                                           |
+| Version | Date       | Changes                                                                                                                                                                                                                                                                                |
+| ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.2.0   | 2026-01-23 | **Critical Auth0 integration details**: Added Source of Truth column to Runtime Variables table; expanded Authentication failures troubleshooting with symptoms, root cause (JWT signature mismatch), and specific fix steps; added GitHub Environments secrets strategy documentation |
+| 1.1.0   | 2026-01-22 | Updated naming conventions, removed SST references, improved deployment/infra docs                                                                                                                                                                                                     |
+| 1.0.0   | 2026-01-22 | Initial runbook creation                                                                                                                                                                                                                                                               |
+
+```
+
+```
