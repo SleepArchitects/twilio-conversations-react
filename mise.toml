@@ -1,0 +1,20 @@
+[tools]
+node = "22"
+pnpm = "9"
+
+[tasks]
+"deploy:develop" = { run = "node scripts/deploy-outreach.cjs develop", description = "Deploy to Develop environment" }
+"deploy:staging" = { run = "node scripts/deploy-outreach.cjs staging", description = "Deploy to Staging environment" }
+"deploy:production" = { run = "node scripts/deploy-outreach.cjs production", description = "Deploy to Production environment" }
+
+"infra:check:develop" = { run = "node scripts/check-infrastructure.cjs develop", description = "Check Develop infrastructure" }
+"infra:check:staging" = { run = "node scripts/check-infrastructure.cjs staging", description = "Check Staging infrastructure" }
+"infra:check:production" = { run = "node scripts/check-infrastructure.cjs production", description = "Check Production infrastructure" }
+
+"infra:create:develop" = { run = "node scripts/create-infrastructure.cjs develop", description = "Create/Update Develop infrastructure" }
+"infra:create:staging" = { run = "node scripts/create-infrastructure.cjs staging", description = "Create/Update Staging infrastructure" }
+"infra:create:production" = { run = "node scripts/create-infrastructure.cjs production", description = "Create/Update Production infrastructure" }
+
+"rollback:develop" = { run = "node scripts/rollback-deployment.cjs develop", description = "Rollback Develop" }
+"rollback:staging" = { run = "node scripts/rollback-deployment.cjs staging", description = "Rollback Staging" }
+"rollback:production" = { run = "node scripts/rollback-deployment.cjs production", description = "Rollback Production" }
