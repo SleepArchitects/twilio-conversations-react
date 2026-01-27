@@ -1,19 +1,32 @@
-import { NextRequest } from "next/server";
-import { GET as getProfileHandler } from "../../api/auth/profile/route";
+import { NextRequest, NextResponse } from "next/server";
+import { verifyUserContextToken } from "@/lib/jwt-utils";
 
 /**
- * Proxy /outreach/auth/profile to /outreach/api/auth/profile
+ * GET /auth/profile
  *
- * This is needed because Auth0's useUser() hook fetches from /auth/profile,
- * which gets prefixed with /outreach due to basePath config.
- * This route calls the actual API endpoint handler directly (no HTTP fetch).
- *
- * IMPORTANT: This uses a direct function call instead of an HTTP fetch to avoid
- * self-referential proxy loops in production where NEXT_PUBLIC_APP_BASE_URL
- * points to the same domain.
+ * Returns user profile from the x-sax-user-context JWT cookie.
+ * This is a direct implementation (not a proxy) to avoid self-referential loops.
  */
 export async function GET(request: NextRequest) {
-  // Call the actual API route handler directly
-  // This avoids the self-referential fetch loop that occurs in production
-  return getProfileHandler(request);
+  const userContextCookie = request.cookies.get("x-sax-user-context");
+
+  if (!userContextCookie?.value) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const userContext = await verifyUserContextToken(userContextCookie.value);
+
+  if (!userContext) {
+    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+  }
+
+  return NextResponse.json({
+    email: userContext.email,
+    name: userContext.name,
+    sub: userContext.sax_id,
+    sax_id: userContext.sax_id,
+    tenant_id: userContext.tenant_id,
+    practice_id: userContext.practice_id,
+    practice_name: userContext.practice_name,
+  });
 }

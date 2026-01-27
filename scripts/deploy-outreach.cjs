@@ -32,6 +32,12 @@ const {
   GetCachePolicyCommand,
 } = require("@aws-sdk/client-cloudfront");
 const { IAMClient, GetRoleCommand } = require("@aws-sdk/client-iam");
+const {
+  S3Client,
+  GetBucketPolicyCommand,
+  PutBucketPolicyCommand,
+} = require("@aws-sdk/client-s3");
+const { STSClient, GetCallerIdentityCommand } = require("@aws-sdk/client-sts");
 const { getResourceNames } = require("./aws-config");
 
 const REGION = "us-east-1";
@@ -433,16 +439,18 @@ if (missingOptional.length > 0) {
 
     // 7b. Ensure S3 Bucket Policy for CloudFront OAC Access
     console.log("\n🔐 Verifying S3 bucket policy for CloudFront access...");
-    
+
     // Get AWS account ID for policy
-    const accountId = (await sts.send(new GetCallerIdentityCommand({}))).Account;
-    
+    const accountId = (await sts.send(new GetCallerIdentityCommand({})))
+      .Account;
+
     // Find the SleepConnect CloudFront distribution (serves dev.mydreamconnect.com)
     // This is the distribution that needs access to the Outreach assets bucket
-    const sleepConnectDomain = environment === "production"
-      ? "mydreamconnect.com"
-      : "dev.mydreamconnect.com";
-    
+    const sleepConnectDomain =
+      environment === "production"
+        ? "mydreamconnect.com"
+        : "dev.mydreamconnect.com";
+
     let sleepConnectDistId = null;
     let scMarker = undefined;
     do {
@@ -459,10 +467,10 @@ if (missingOptional.length > 0) {
       }
       scMarker = response.DistributionList?.NextMarker;
     } while (scMarker && !sleepConnectDistId);
-    
+
     if (sleepConnectDistId) {
       console.log(`   Found SleepConnect Distribution: ${sleepConnectDistId}`);
-      
+
       // Define the required bucket policy
       const bucketPolicy = {
         Version: "2012-10-17",
@@ -483,7 +491,7 @@ if (missingOptional.length > 0) {
           },
         ],
       };
-      
+
       // Check if policy needs updating
       let needsUpdate = false;
       try {
@@ -493,7 +501,7 @@ if (missingOptional.length > 0) {
         const current = JSON.parse(currentPolicy.Policy);
         const required = JSON.stringify(bucketPolicy);
         const existing = JSON.stringify(current);
-        
+
         if (required !== existing) {
           needsUpdate = true;
           console.log("   Bucket policy differs from required policy");
@@ -508,7 +516,7 @@ if (missingOptional.length > 0) {
           throw e;
         }
       }
-      
+
       if (needsUpdate) {
         console.log("   Updating S3 bucket policy...");
         await s3.send(
@@ -551,38 +559,61 @@ if (missingOptional.length > 0) {
 
     if (distributionId) {
       console.log(`   Found Distribution: ${distributionId}`);
-      
+
       // Verify CloudFront compression is enabled (prevents 6MB payload errors)
       console.log("   Verifying CloudFront compression...");
-      const { GetDistributionConfigCommand, GetCachePolicyCommand } = require("@aws-sdk/client-cloudfront");
-      
+      const {
+        GetDistributionConfigCommand,
+        GetCachePolicyCommand,
+      } = require("@aws-sdk/client-cloudfront");
+
       try {
         const distConfig = await cloudfront.send(
-          new GetDistributionConfigCommand({ Id: distributionId })
+          new GetDistributionConfigCommand({ Id: distributionId }),
         );
-        const cachePolicyId = distConfig.DistributionConfig?.DefaultCacheBehavior?.CachePolicyId;
-        
+        const cachePolicyId =
+          distConfig.DistributionConfig?.DefaultCacheBehavior?.CachePolicyId;
+
         if (cachePolicyId) {
           const cachePolicy = await cloudfront.send(
-            new GetCachePolicyCommand({ Id: cachePolicyId })
+            new GetCachePolicyCommand({ Id: cachePolicyId }),
           );
-          const gzipEnabled = cachePolicy.CachePolicy?.CachePolicyConfig?.ParametersInCacheKeyAndForwardedToOrigin?.EnableAcceptEncodingGzip;
-          const brotliEnabled = cachePolicy.CachePolicy?.CachePolicyConfig?.ParametersInCacheKeyAndForwardedToOrigin?.EnableAcceptEncodingBrotli;
-          
+          const gzipEnabled =
+            cachePolicy.CachePolicy?.CachePolicyConfig
+              ?.ParametersInCacheKeyAndForwardedToOrigin
+              ?.EnableAcceptEncodingGzip;
+          const brotliEnabled =
+            cachePolicy.CachePolicy?.CachePolicyConfig
+              ?.ParametersInCacheKeyAndForwardedToOrigin
+              ?.EnableAcceptEncodingBrotli;
+
           if (!gzipEnabled && !brotliEnabled) {
             console.warn("   ⚠️  WARNING: CloudFront compression is DISABLED!");
-            console.warn("   This may cause Lambda payload size errors (>6MB) for large responses.");
-            console.warn(`   Cache Policy: ${cachePolicy.CachePolicy?.CachePolicyConfig?.Name} (${cachePolicyId})`);
-            console.warn("   Recommendation: Enable gzip/brotli compression in CloudFront cache policy.");
-            console.warn("   See docs/DEPLOYMENT_RUNBOOK.md for fix instructions.");
+            console.warn(
+              "   This may cause Lambda payload size errors (>6MB) for large responses.",
+            );
+            console.warn(
+              `   Cache Policy: ${cachePolicy.CachePolicy?.CachePolicyConfig?.Name} (${cachePolicyId})`,
+            );
+            console.warn(
+              "   Recommendation: Enable gzip/brotli compression in CloudFront cache policy.",
+            );
+            console.warn(
+              "   See docs/DEPLOYMENT_RUNBOOK.md for fix instructions.",
+            );
           } else {
-            console.log(`   ✅ Compression enabled (Gzip: ${gzipEnabled}, Brotli: ${brotliEnabled})`);
+            console.log(
+              `   ✅ Compression enabled (Gzip: ${gzipEnabled}, Brotli: ${brotliEnabled})`,
+            );
           }
         }
       } catch (err) {
-        console.warn("   ⚠️  Could not verify CloudFront compression settings:", err.message);
+        console.warn(
+          "   ⚠️  Could not verify CloudFront compression settings:",
+          err.message,
+        );
       }
-      
+
       await cloudfront.send(
         new CreateInvalidationCommand({
           DistributionId: distributionId,
