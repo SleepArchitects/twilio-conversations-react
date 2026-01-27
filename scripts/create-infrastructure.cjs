@@ -6,6 +6,7 @@ const {
   AddPermissionCommand,
   CreateFunctionUrlConfigCommand,
   GetFunctionUrlConfigCommand,
+  UpdateFunctionUrlConfigCommand,
 } = require("@aws-sdk/client-lambda");
 const {
   S3Client,
@@ -150,20 +151,45 @@ async function createInfrastructure() {
     lambdaArn = fn.Configuration.FunctionArn;
     console.log("✅ Lambda Function exists");
 
-    // Ensure Lambda has a Function URL
+    // Ensure Lambda has a Function URL with RESPONSE_STREAM mode for streaming support
     try {
       const urlConfig = await lambda.send(
         new GetFunctionUrlConfigCommand({ FunctionName: resources.lambdaName }),
       );
       lambdaFunctionUrl = urlConfig.FunctionUrl;
-      console.log("✅ Lambda Function URL exists");
+
+      // Check if InvokeMode needs updating to RESPONSE_STREAM
+      if (urlConfig.InvokeMode !== "RESPONSE_STREAM") {
+        console.log(
+          "⚡ Updating Lambda Function URL to RESPONSE_STREAM mode...",
+        );
+        await lambda.send(
+          new UpdateFunctionUrlConfigCommand({
+            FunctionName: resources.lambdaName,
+            AuthType: "NONE",
+            InvokeMode: "RESPONSE_STREAM",
+            Cors: {
+              AllowOrigins: ["*"],
+              AllowMethods: ["*"],
+              AllowHeaders: ["*"],
+              MaxAge: 86400,
+            },
+          }),
+        );
+        console.log("   ✅ Function URL updated to RESPONSE_STREAM mode");
+      } else {
+        console.log("✅ Lambda Function URL exists (RESPONSE_STREAM mode)");
+      }
     } catch (urlError) {
       if (urlError.name === "ResourceNotFoundException") {
-        console.log("⚡ Creating Lambda Function URL...");
+        console.log(
+          "⚡ Creating Lambda Function URL with RESPONSE_STREAM mode...",
+        );
         const urlResult = await lambda.send(
           new CreateFunctionUrlConfigCommand({
             FunctionName: resources.lambdaName,
             AuthType: "NONE",
+            InvokeMode: "RESPONSE_STREAM",
             Cors: {
               AllowOrigins: ["*"],
               AllowMethods: ["*"],
@@ -515,7 +541,9 @@ async function createInfrastructure() {
           },
         },
         Compress: true,
-        CachePolicyId: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad", // CachingDisabled
+        // Use dev's cache policy with compression enabled (prevents 6MB payload errors)
+        // DO NOT use Managed-CachingDisabled (4135ea2d-6df8-44a3-9df3-4b5a84be39ad) - it disables compression!
+        CachePolicyId: "a9f86ce3-0b09-4f21-b9ab-de3a7c0fc1c4", // OutreachRSCCachePolicy_undefined (has gzip+brotli)
         OriginRequestPolicyId: "b689b0a8-53d0-40ab-baf2-68738e2966ac", // AllViewerExceptHostHeader
         ForwardedValues: undefined, // Not used with managed policies
       },

@@ -535,10 +535,16 @@ export function withUserContext(
     ): Promise<NextResponse> => {
       // console.debug("[AUTH] withUserContext - starting");
       const session = await getSession();
-      console.debug(
-        "[AUTH] withUserContext - session:",
-        JSON.stringify(session),
-      );
+
+      const suppressPiiLogs = typeof process.env.SUPPRESS_PII_LOGS === "string";
+
+      if (!suppressPiiLogs) {
+        console.debug(
+          "[AUTH] withUserContext - session:",
+          JSON.stringify(session),
+        );
+      }
+
       if (!session?.user) {
         console.debug(
           "[AUTH] withUserContext - no session/user, returning 401",
@@ -546,14 +552,17 @@ export function withUserContext(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
       const user = session.user as SaxClaims;
-      console.debug(
-        "[AUTH] withUserContext - user:",
-        JSON.stringify({
-          sax_id: user.sax_id,
-          tenant_id: user.tenant_id,
-          practice_id: user.practice_id,
-        }),
-      );
+
+      if (!suppressPiiLogs) {
+        console.debug(
+          "[AUTH] withUserContext - user:",
+          JSON.stringify({
+            sax_id: user.sax_id,
+            tenant_id: user.tenant_id,
+            practice_id: user.practice_id,
+          }),
+        );
+      }
       if (!user.sax_id || !user.tenant_id || !user.practice_id) {
         console.debug(
           "[AUTH] withUserContext - invalid context, returning 403",

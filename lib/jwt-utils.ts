@@ -42,13 +42,16 @@ export async function verifyUserContextToken(
     });
 
     // DIAGNOSTIC: Log the complete payload structure to understand what we're receiving
-    console.log("[JWT] ===== JWT PAYLOAD DIAGNOSTIC =====");
-    console.log(
-      "[JWT] Full payload structure:",
-      JSON.stringify(payload, null, 2),
-    );
-    console.log("[JWT] Payload keys:", Object.keys(payload));
-    console.log("[JWT] =====================================");
+    const suppressPiiLogs = typeof process.env.SUPPRESS_PII_LOGS === "string";
+    if (!suppressPiiLogs) {
+      console.log("[JWT] ===== JWT PAYLOAD DIAGNOSTIC =====");
+      console.log(
+        "[JWT] Full payload structure:",
+        JSON.stringify(payload, null, 2),
+      );
+      console.log("[JWT] Payload keys:", Object.keys(payload));
+      console.log("[JWT] =====================================");
+    }
 
     const decoded = payload as unknown as UserContext;
 

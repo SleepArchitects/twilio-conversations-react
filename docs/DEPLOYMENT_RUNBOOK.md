@@ -1,7 +1,7 @@
 # Outreach SMS App - Deployment Runbook
 
 > **Last Updated**: January 23, 2026
-> **Version**: 1.2.0
+> **Version**: 1.3.0
 
 ## Table of Contents
 
@@ -150,6 +150,7 @@ New environment following the `sax-lam/s3` convention.
    ```
 
 4. **mise** (optional, for task running)
+
    ```bash
    mise --version
    ```
@@ -164,9 +165,31 @@ The deploying user/role needs:
 - `acm:*` in us-east-1 (for certificate management)
 - `route53:*` on mydreamconnect.com hosted zone
 - `iam:PassRole` for Lambda execution role
+- `iam:GetRole` for looking up Lambda execution role ARN
 - `logs:*` for CloudWatch logs
 
+**GitHub Actions Role**: The CI/CD workflow assumes `arn:aws:iam::{AWS_ACCOUNT_ID}:role/github-actions-role`. This role must have the above permissions plus OIDC trust for GitHub Actions.
+
 **Note**: The deployment scripts automatically check if the current credentials have the necessary permissions before proceeding.
+
+### Pre-Deploy Validation
+
+Before deploying, run the pre-deploy check script to validate configuration:
+
+```bash
+# Check staging configuration
+node scripts/pre-deploy-check.cjs staging
+
+# Check production configuration
+node scripts/pre-deploy-check.cjs production
+```
+
+This script validates:
+
+- Required environment variables are set locally
+- Lambda has required env var KEYS (without exposing values)
+- Auth0 secrets KEYS exist in both Outreach and SleepConnect Lambdas
+- GitHub secrets exist (if `gh` CLI available)
 
 ---
 
@@ -201,12 +224,35 @@ The deployment script will **validate** that all required environment variables 
 2. Fill in required values (see [Environment Variable Reference](#environment-variable-reference))
 
 3. For mise users, create `mise.local.toml`:
+
    ```bash
    cp mise.local.toml.example mise.local.toml
    # Edit with your secrets
    ```
 
 ### Required Environment Variables
+
+#### The Auth0 Variable Trio (Critical for Session Sharing)
+
+> **⚠️ CRITICAL**: The following three variables MUST match the parent SleepConnect application exactly. They are NOT independent configurations.
+
+| Variable              | Purpose                         | Must Match SleepConnect? | Source              |
+| --------------------- | ------------------------------- | ------------------------ | ------------------- |
+| `AUTH0_CLIENT_ID`     | Auth0 Application ID            | ✅ Yes                   | SleepConnect Lambda |
+| `AUTH0_CLIENT_SECRET` | JWT signing/verification secret | ✅ Yes (identical)       | SleepConnect Lambda |
+| `AUTH0_SECRET`        | Session encryption secret       | ✅ Yes (identical)       | SleepConnect Lambda |
+
+#### Distinguishing the Auth0 Variables
+
+| Variable              | What It Is                                  | What It Does                                                                    |
+| --------------------- | ------------------------------------------- | ------------------------------------------------------------------------------- |
+| `AUTH0_CLIENT_ID`     | Public identifier for the Auth0 Application | Identifies which Auth0 app to use for authentication flows                      |
+| `AUTH0_CLIENT_SECRET` | Private cryptographic secret (HMAC-SHA256)  | Signs JWT tokens; MUST be identical between apps for cross-zone session sharing |
+| `AUTH0_SECRET`        | Session encryption key                      | Encrypts/decrypts session cookies; MUST be identical between apps               |
+
+**Why they must match:** SleepConnect creates JWT tokens signed with `AUTH0_CLIENT_SECRET`. Outreach must verify these signatures using the SAME secret. If they differ, session verification fails with `401 Unauthorized` or `JWT signature verification failed`.
+
+#### Complete Variable Reference
 
 | Variable                       | Required | Description                     |
 | ------------------------------ | -------- | ------------------------------- |
@@ -222,6 +268,64 @@ The deployment script will **validate** that all required environment variables 
 | `NEXT_PUBLIC_BASE_PATH`        | ✅       | Base path (`/outreach`)         |
 | `NEXT_PUBLIC_API_BASE_URL`     | ✅       | API Gateway URL                 |
 | `NEXT_PUBLIC_WS_API_URL`       | ✅       | WebSocket API URL               |
+
+---
+
+## Security Hygiene
+
+### No Secrets in PR/Chat
+
+> **🔒 NEVER commit, paste, or share actual secrets in:**
+>
+> - Pull request comments
+> - Chat/messaging applications
+> - Version control
+> - Screenshots or code blocks in tickets
+
+**If you accidentally expose secrets:**
+
+1. Rotate the exposed secret immediately
+2. Update all environments where it was used
+3. Document the incident
+
+### Recommended Practice: `.env.production.example`
+
+Instead of committing actual secrets, maintain a `.env.production.example` file that documents the required structure:
+
+```bash
+# .env.production.example
+# Copy this to .env.production and fill in values (DO NOT commit .env.production)
+
+# Auth0 Configuration (Synced from SleepConnect Production)
+# ⚠️  GET THESE FROM SLEEPCONNECT LAMBDA - DO NOT REGENERATE
+AUTH0_CLIENT_ID=your-client-id-from-sleepconnect
+AUTH0_CLIENT_SECRET=your-client-secret-from-sleepconnect
+AUTH0_SECRET=your-session-secret-from-sleepconnect
+AUTH0_DOMAIN=sleeparchitects.us.auth0.com
+AUTH0_ISSUER_BASE_URL=https://sleeparchitects.us.auth0.com
+AUTH0_BASE_URL=https://outreach.mydreamconnect.com
+
+# Twilio Configuration
+TWILIO_ACCOUNT_SID=your-twilio-sid
+TWILIO_AUTH_TOKEN=your-twilio-token
+TWILIO_MESSAGING_SERVICE_SID=your-twilio-msg-sid
+
+# Application URLs
+NEXT_PUBLIC_APP_BASE_URL=https://outreach.mydreamconnect.com
+NEXT_PUBLIC_SLEEPCONNECT_URL=https://mydreamconnect.com
+NEXT_PUBLIC_BASE_PATH=/outreach
+```
+
+### Gitignore Verification
+
+Ensure your `.gitignore` includes:
+
+```gitignore
+# Environment files with secrets
+.env.local
+.env.*.local
+.env.production  # Contains real secrets - never commit
+```
 
 ---
 
@@ -289,9 +393,11 @@ SleepConnect needs to route `/outreach/*` traffic to the Outreach app.
 
 1. Get the **Lambda Function URL** (or CloudFront URL) from the infrastructure output.
 2. Update SleepConnect's environment configuration (e.g., `.env.staging` in the SleepConnect repo).
+
    ```
    OUTREACH_APP_URL=https://<lambda-function-url>
    ```
+
 3. **Redeploy SleepConnect** using its standard deployment pipeline (do NOT use SST commands here).
    - This ensures the new environment variable is picked up and routing is updated.
 
@@ -339,6 +445,34 @@ mise run deploy:production
 12. **Configure CloudFront cache** - Ensures RSC headers are in cache key.
 13. **Invalidate CloudFront cache** - Clears old cached content.
 14. **Create git tag** - Tags release as `deploy-{env}-v{version}`.
+
+> **⚠️ CRITICAL: Lambda Environment Variable Replacement**
+>
+> When you update Lambda configuration with `update-function-configuration`, **ALL** environment variables are replaced. The new configuration completely overwrites the previous set.
+>
+> **If you omit any variable in the update, it will be unset**, causing runtime failures.
+>
+> **Best Practice:**
+>
+> 1. Always retrieve the full current configuration before updating
+> 2. Merge new values with existing values
+> 3. Verify all required variables are present after update
+>
+> The `deploy-outreach.cjs` script handles this correctly by coalescing all required vars before update.
+>
+> **If updating manually via AWS Console or CLI:**
+>
+> ```bash
+> # WRONG - will unset other variables:
+> aws lambda update-function-configuration \
+>   --function-name my-function \
+>   --environment "Variables={AUTH0_CLIENT_SECRET=new-value}"
+>
+> # CORRECT - include all variables:
+> aws lambda update-function-configuration \
+>   --function-name my-function \
+>   --environment "Variables={AUTH0_CLIENT_ID=...,AUTH0_CLIENT_SECRET=...,AUTH0_SECRET=...,...}"
+> ```
 
 ### Deployment Flags
 
@@ -540,11 +674,86 @@ Check AWS credentials have required permissions. See [Prerequisites](#prerequisi
 #### 500 errors after deployment
 
 1. Check CloudWatch logs:
+
    ```bash
    aws logs tail /aws/lambda/sax-lam-us-east-1-0x-s-outreach --follow
    ```
+
 2. Verify environment variables are set correctly on Lambda
 3. Consider rolling back.
+
+#### Lambda payload size errors ("Request must be smaller than 6291456 bytes")
+
+**Symptoms:**
+
+- Error message: `{"Message":"Request must be smaller than 6291456 bytes for the InvokeFunction operation"}`
+- Occurs intermittently, especially on new browser tabs
+- Affects conversations with many messages
+- Works in dev but fails in production
+
+**Root Cause:**
+
+CloudFront compression is disabled, causing uncompressed responses to exceed AWS Lambda's 6MB synchronous invocation payload limit.
+
+**Fix:**
+
+Ensure CloudFront cache policy has compression enabled:
+
+```bash
+# Check current cache policy
+DIST_ID=$(aws cloudfront list-distributions --output json | \
+  jq -r '.DistributionList.Items[] | select(.Aliases.Items[]? | contains("outreach.mydreamconnect.com")) | .Id')
+
+aws cloudfront get-distribution-config --id $DIST_ID --output json | \
+  jq '.DistributionConfig.DefaultCacheBehavior.CachePolicyId' -r | \
+  xargs -I {} aws cloudfront get-cache-policy --id {} --output json | \
+  jq '{Name: .CachePolicy.CachePolicyConfig.Name, Gzip: .CachePolicy.CachePolicyConfig.ParametersInCacheKeyAndForwardedToOrigin.EnableAcceptEncodingGzip, Brotli: .CachePolicy.CachePolicyConfig.ParametersInCacheKeyAndForwardedToOrigin.EnableAcceptEncodingBrotli}'
+
+# Should show:
+# {
+#   "Name": "OutreachRSCCachePolicy_undefined",
+#   "Gzip": true,
+#   "Brotli": true
+# }
+```
+
+If compression is disabled (Gzip/Brotli = false), update to use the correct cache policy:
+
+```bash
+# Use dev's cache policy ID (has compression enabled)
+DEV_CACHE_POLICY="a9f86ce3-0b09-4f21-b9ab-de3a7c0fc1c4"
+
+# Backup current config
+aws cloudfront get-distribution-config --id $DIST_ID --output json > /tmp/cloudfront-backup.json
+
+# Update cache policy
+ETAG=$(jq -r '.ETag' /tmp/cloudfront-backup.json)
+jq --arg policy "$DEV_CACHE_POLICY" \
+  '.DistributionConfig.DefaultCacheBehavior.CachePolicyId = $policy' \
+  /tmp/cloudfront-backup.json | jq '.DistributionConfig' > /tmp/cloudfront-updated.json
+
+aws cloudfront update-distribution \
+  --id $DIST_ID \
+  --if-match "$ETAG" \
+  --distribution-config file:///tmp/cloudfront-updated.json
+
+# Wait for deployment (5-10 minutes)
+while [ "$(aws cloudfront get-distribution --id $DIST_ID --query 'Distribution.Status' --output text)" != "Deployed" ]; do
+  echo "Waiting for CloudFront deployment..."
+  sleep 30
+done
+
+# Invalidate cache
+aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
+```
+
+**Prevention:**
+
+The deployment scripts should verify CloudFront compression is enabled. See [`scripts/deploy-outreach.cjs`](../scripts/deploy-outreach.cjs) for the verification logic.
+
+**Long-term Solution:**
+
+Consider implementing message pagination to prevent responses from growing too large, regardless of compression.
 
 #### Authentication failures
 
@@ -655,10 +864,8 @@ aws logs tail /aws/lambda/sax-lam-us-east-1-0x-s-outreach --follow
 
 | Version | Date       | Changes                                                                                                                                                                                                                                                                                |
 | ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.4.0   | 2026-01-27 | **CloudFront compression fix**: Fixed production 6MB payload limit error by enabling gzip/brotli compression on CloudFront distribution E3LYWD3FPTY1XF; added troubleshooting section for Lambda payload size errors; documented CloudFront cache policy requirements                  |
+| 1.3.0   | 2026-01-23 | **Deployment hardening**: Fixed env var REPLACE→MERGE in deploy script; added GitHub Environments support to workflow; added pre-deploy-check.cjs validation script; added all missing secrets to workflow (TWILIO_FROM_NUMBER, API_BASE_URL, NEXT_PUBLIC_WS_API_URL, etc.)            |
 | 1.2.0   | 2026-01-23 | **Critical Auth0 integration details**: Added Source of Truth column to Runtime Variables table; expanded Authentication failures troubleshooting with symptoms, root cause (JWT signature mismatch), and specific fix steps; added GitHub Environments secrets strategy documentation |
 | 1.1.0   | 2026-01-22 | Updated naming conventions, removed SST references, improved deployment/infra docs                                                                                                                                                                                                     |
 | 1.0.0   | 2026-01-22 | Initial runbook creation                                                                                                                                                                                                                                                               |
-
-```
-
-```
