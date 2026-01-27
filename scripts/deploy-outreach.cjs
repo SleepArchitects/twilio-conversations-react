@@ -38,6 +38,8 @@ const REGION = "us-east-1";
 const lambda = new LambdaClient({ region: REGION });
 const cloudfront = new CloudFrontClient({ region: REGION });
 const iam = new IAMClient({ region: REGION });
+const s3 = new S3Client({ region: REGION });
+const sts = new STSClient({ region: REGION });
 
 // Parse args
 const args = process.argv.slice(2);
@@ -427,6 +429,101 @@ if (missingOptional.length > 0) {
         `aws s3 sync "${assetsDir}" s3://${resources.bucketName}/outreach-static/ --exclude "_next/*" --cache-control "public,max-age=86400"`,
         { stdio: "inherit" },
       );
+    }
+
+    // 7b. Ensure S3 Bucket Policy for CloudFront OAC Access
+    console.log("\n🔐 Verifying S3 bucket policy for CloudFront access...");
+    
+    // Get AWS account ID for policy
+    const accountId = (await sts.send(new GetCallerIdentityCommand({}))).Account;
+    
+    // Find the SleepConnect CloudFront distribution (serves dev.mydreamconnect.com)
+    // This is the distribution that needs access to the Outreach assets bucket
+    const sleepConnectDomain = environment === "production"
+      ? "mydreamconnect.com"
+      : "dev.mydreamconnect.com";
+    
+    let sleepConnectDistId = null;
+    let scMarker = undefined;
+    do {
+      const response = await cloudfront.send(
+        new ListDistributionsCommand({ Marker: scMarker }),
+      );
+      if (response.DistributionList?.Items) {
+        for (const dist of response.DistributionList.Items) {
+          if (dist.Aliases?.Items?.includes(sleepConnectDomain)) {
+            sleepConnectDistId = dist.Id;
+            break;
+          }
+        }
+      }
+      scMarker = response.DistributionList?.NextMarker;
+    } while (scMarker && !sleepConnectDistId);
+    
+    if (sleepConnectDistId) {
+      console.log(`   Found SleepConnect Distribution: ${sleepConnectDistId}`);
+      
+      // Define the required bucket policy
+      const bucketPolicy = {
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Sid: "AllowCloudFrontServicePrincipal",
+            Effect: "Allow",
+            Principal: {
+              Service: "cloudfront.amazonaws.com",
+            },
+            Action: "s3:GetObject",
+            Resource: `arn:aws:s3:::${resources.bucketName}/*`,
+            Condition: {
+              StringEquals: {
+                "AWS:SourceArn": `arn:aws:cloudfront::${accountId}:distribution/${sleepConnectDistId}`,
+              },
+            },
+          },
+        ],
+      };
+      
+      // Check if policy needs updating
+      let needsUpdate = false;
+      try {
+        const currentPolicy = await s3.send(
+          new GetBucketPolicyCommand({ Bucket: resources.bucketName }),
+        );
+        const current = JSON.parse(currentPolicy.Policy);
+        const required = JSON.stringify(bucketPolicy);
+        const existing = JSON.stringify(current);
+        
+        if (required !== existing) {
+          needsUpdate = true;
+          console.log("   Bucket policy differs from required policy");
+        } else {
+          console.log("   ✅ Bucket policy is correct");
+        }
+      } catch (e) {
+        if (e.name === "NoSuchBucketPolicy") {
+          needsUpdate = true;
+          console.log("   No bucket policy exists");
+        } else {
+          throw e;
+        }
+      }
+      
+      if (needsUpdate) {
+        console.log("   Updating S3 bucket policy...");
+        await s3.send(
+          new PutBucketPolicyCommand({
+            Bucket: resources.bucketName,
+            Policy: JSON.stringify(bucketPolicy),
+          }),
+        );
+        console.log("   ✅ S3 bucket policy updated");
+      }
+    } else {
+      console.warn(
+        `   ⚠️  Could not find SleepConnect CloudFront distribution (${sleepConnectDomain})`,
+      );
+      console.warn("   Skipping bucket policy update");
     }
 
     // 8. Invalidate CloudFront
