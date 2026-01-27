@@ -7,6 +7,12 @@ interface ProvidersProps {
   children: ReactNode;
 }
 
+/**
+ * Providers component that wraps the app with TanStack Query's QueryClientProvider.
+ *
+ * Creates a stable QueryClient instance using useState to ensure the same instance
+ * is used across renders and prevents hydration mismatches.
+ */
 export function Providers({ children }: ProvidersProps) {
   const [queryClient] = useState(
     () =>
