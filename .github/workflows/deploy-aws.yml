@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: "Environment to deploy to"
         required: true
-        default: 'develop'
+        default: "develop"
         type: choice
         options:
           - develop
@@ -19,9 +19,43 @@ on:
           - production
 
 jobs:
-  deploy:
-    name: Deploy to ${{ github.ref_name }}
+  # Determine which environment to use
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      env_name: ${{ steps.env.outputs.env_name }}
+    steps:
+      - name: Determine Environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENV_NAME="${{ inputs.environment }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ENV_NAME="production"
+          elif [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
+            ENV_NAME="staging"
+          else
+            ENV_NAME="develop"
+          fi
+          echo "env_name=${ENV_NAME}" >> $GITHUB_OUTPUT
+          # Map env_name to GitHub Environment name
+          # 'develop' uses repo secrets, 'staging'/'production' use environment secrets
+          if [[ "$ENV_NAME" == "production" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          elif [[ "$ENV_NAME" == "staging" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          else
+            echo "environment=develop" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    name: Deploy to ${{ needs.setup.outputs.env_name }}
+    needs: setup
+    runs-on: ubuntu-latest
+    # CRITICAL: Use GitHub Environments for secret isolation
+    # Production secrets override repo secrets when environment is 'production'
+    environment: ${{ needs.setup.outputs.environment }}
     permissions:
       id-token: write
       contents: read
@@ -34,7 +68,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -50,32 +84,47 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
           aws-region: us-east-1
 
-      - name: Set Environment Code
-        id: env
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "ENV_NAME=${{ inputs.environment }}" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "ENV_NAME=production" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
-            echo "ENV_NAME=staging" >> $GITHUB_ENV
-          else
-            echo "ENV_NAME=develop" >> $GITHUB_ENV
-          fi
-
       - name: Check Infrastructure
-        run: node scripts/check-infrastructure.cjs ${{ env.ENV_NAME }}
+        run: node scripts/check-infrastructure.cjs ${{ needs.setup.outputs.env_name }}
 
       - name: Deploy
         env:
-          # Secrets
+          # ====================================
+          # Auth0 Secrets
+          # CRITICAL: These MUST match SleepConnect values for the same environment
+          # Otherwise JWT verification will fail with ERR_JWS_SIGNATURE_VERIFICATION_FAILED
+          # ====================================
           AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
           AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
           AUTH0_SECRET: ${{ secrets.AUTH0_SECRET }}
           AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
           AUTH0_BASE_URL: ${{ secrets.AUTH0_BASE_URL }}
+
+          # ====================================
+          # Twilio Secrets
+          # ====================================
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
           TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
+          TWILIO_MESSAGING_SERVICE_SID: ${{ secrets.TWILIO_MESSAGING_SERVICE_SID }}
+
+          # ====================================
+          # App Configuration
+          # ====================================
+          NEXT_PUBLIC_APP_BASE_URL: ${{ secrets.NEXT_PUBLIC_APP_BASE_URL }}
           NEXT_PUBLIC_SLEEPCONNECT_URL: ${{ secrets.NEXT_PUBLIC_SLEEPCONNECT_URL }}
-          # ... add other required secrets
-        run: node scripts/deploy-outreach.cjs ${{ env.ENV_NAME }}
+          NEXT_PUBLIC_BASE_PATH: "/outreach"
+
+          # ====================================
+          # API Configuration
+          # ====================================
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          NEXT_PUBLIC_WS_API_URL: ${{ secrets.NEXT_PUBLIC_WS_API_URL }}
+
+          # ====================================
+          # Optional Feature Flags
+          # ====================================
+          ENABLE_SLA_MONITORING: ${{ secrets.ENABLE_SLA_MONITORING }}
+          NEXT_PUBLIC_PRACTICE_NAME: ${{ secrets.NEXT_PUBLIC_PRACTICE_NAME }}
+
+        run: node scripts/deploy-outreach.cjs ${{ needs.setup.outputs.env_name }}

@@ -28,6 +28,8 @@ const {
   CloudFrontClient,
   CreateInvalidationCommand,
   ListDistributionsCommand,
+  GetDistributionConfigCommand,
+  GetCachePolicyCommand,
 } = require("@aws-sdk/client-cloudfront");
 const { IAMClient, GetRoleCommand } = require("@aws-sdk/client-iam");
 const { getResourceNames } = require("./aws-config");
@@ -117,22 +119,45 @@ try {
 }
 
 // 3. Validate Required Env Vars
+// CRITICAL: These must ALL be set or the Lambda will be misconfigured
+// AUTH0_* secrets MUST match SleepConnect for JWT verification to work
 const requiredVars = [
+  // Auth0 - MUST match SleepConnect values for same environment
   "AUTH0_CLIENT_ID",
   "AUTH0_CLIENT_SECRET",
   "AUTH0_SECRET",
   "AUTH0_DOMAIN",
   "AUTH0_BASE_URL",
+  // Twilio
   "TWILIO_ACCOUNT_SID",
   "TWILIO_AUTH_TOKEN",
+  // App URLs
   "NEXT_PUBLIC_APP_BASE_URL",
   "NEXT_PUBLIC_SLEEPCONNECT_URL",
   "NEXT_PUBLIC_BASE_PATH",
+];
+
+// Optional vars - used by code but may have fallback defaults
+const optionalVars = [
+  "API_BASE_URL", // Used by 29 files - falls back to NEXT_PUBLIC_APP_BASE_URL
+  "NEXT_PUBLIC_WS_API_URL", // WebSocket endpoint for real-time messages
+  "TWILIO_FROM_NUMBER", // Used for sending SMS - required for SMS features
+  "TWILIO_MESSAGING_SERVICE_SID", // Alternative to FROM_NUMBER
+  "ENABLE_SLA_MONITORING", // Feature flag, defaults to false
+  "NEXT_PUBLIC_PRACTICE_NAME", // Display name, has default
 ];
 const missing = requiredVars.filter((v) => !process.env[v]);
 if (missing.length > 0) {
   console.error(`❌ Missing environment variables: ${missing.join(", ")}`);
   process.exit(1);
+}
+
+// Warn about missing optional vars
+const missingOptional = optionalVars.filter((v) => !process.env[v]);
+if (missingOptional.length > 0) {
+  console.warn(
+    `⚠️  Optional env vars not set (may use defaults): ${missingOptional.join(", ")}`,
+  );
 }
 
 // Async Main Execution
@@ -227,24 +252,55 @@ if (missing.length > 0) {
     // 6. Deploy Lambda
     console.log(`\n☁️  Deploying Lambda: ${resources.lambdaName}`);
 
-    // Check if function exists
+    // Check if function exists and get current config
     let exists = false;
+    let existingEnvVars = {};
     try {
-      await lambda.send(
+      const existingFn = await lambda.send(
         new GetFunctionCommand({ FunctionName: resources.lambdaName }),
       );
       exists = true;
+      existingEnvVars = existingFn.Configuration?.Environment?.Variables || {};
+      console.log(
+        `   Existing env var keys: ${Object.keys(existingEnvVars).join(", ")}`,
+      );
     } catch (e) {
       if (e.name !== "ResourceNotFoundException") throw e;
     }
 
-    const lambdaEnvVars = {
+    // Build new env vars - MERGE with existing to avoid losing manually-set vars
+    // Priority: new explicit values > existing values
+    const newEnvVars = {
+      // Fixed values for all deployments
       NODE_ENV: "production",
       ENVIRONMENT: environment,
       MULTI_ZONE_MODE: "true",
       NEXT_PUBLIC_BASE_PATH: "/outreach",
+      // Required vars from process.env
       ...requiredVars.reduce((acc, k) => ({ ...acc, [k]: process.env[k] }), {}),
+      // Optional vars - only set if provided in process.env
+      ...optionalVars.reduce((acc, k) => {
+        if (process.env[k]) {
+          acc[k] = process.env[k];
+        }
+        return acc;
+      }, {}),
     };
+
+    // MERGE: existing env vars are preserved unless explicitly overwritten
+    // This prevents losing vars that were set manually on Lambda
+    const lambdaEnvVars = {
+      ...existingEnvVars, // Existing vars first (will be overwritten if new value provided)
+      ...newEnvVars, // New vars take precedence
+    };
+
+    // Log what's changing
+    const changedKeys = Object.keys(newEnvVars).filter(
+      (k) => existingEnvVars[k] !== newEnvVars[k],
+    );
+    if (changedKeys.length > 0) {
+      console.log(`   Updating env vars: ${changedKeys.join(", ")}`);
+    }
 
     let functionArn;
 
@@ -398,6 +454,38 @@ if (missing.length > 0) {
 
     if (distributionId) {
       console.log(`   Found Distribution: ${distributionId}`);
+      
+      // Verify CloudFront compression is enabled (prevents 6MB payload errors)
+      console.log("   Verifying CloudFront compression...");
+      const { GetDistributionConfigCommand, GetCachePolicyCommand } = require("@aws-sdk/client-cloudfront");
+      
+      try {
+        const distConfig = await cloudfront.send(
+          new GetDistributionConfigCommand({ Id: distributionId })
+        );
+        const cachePolicyId = distConfig.DistributionConfig?.DefaultCacheBehavior?.CachePolicyId;
+        
+        if (cachePolicyId) {
+          const cachePolicy = await cloudfront.send(
+            new GetCachePolicyCommand({ Id: cachePolicyId })
+          );
+          const gzipEnabled = cachePolicy.CachePolicy?.CachePolicyConfig?.ParametersInCacheKeyAndForwardedToOrigin?.EnableAcceptEncodingGzip;
+          const brotliEnabled = cachePolicy.CachePolicy?.CachePolicyConfig?.ParametersInCacheKeyAndForwardedToOrigin?.EnableAcceptEncodingBrotli;
+          
+          if (!gzipEnabled && !brotliEnabled) {
+            console.warn("   ⚠️  WARNING: CloudFront compression is DISABLED!");
+            console.warn("   This may cause Lambda payload size errors (>6MB) for large responses.");
+            console.warn(`   Cache Policy: ${cachePolicy.CachePolicy?.CachePolicyConfig?.Name} (${cachePolicyId})`);
+            console.warn("   Recommendation: Enable gzip/brotli compression in CloudFront cache policy.");
+            console.warn("   See docs/DEPLOYMENT_RUNBOOK.md for fix instructions.");
+          } else {
+            console.log(`   ✅ Compression enabled (Gzip: ${gzipEnabled}, Brotli: ${brotliEnabled})`);
+          }
+        }
+      } catch (err) {
+        console.warn("   ⚠️  Could not verify CloudFront compression settings:", err.message);
+      }
+      
       await cloudfront.send(
         new CreateInvalidationCommand({
           DistributionId: distributionId,
