@@ -268,6 +268,8 @@ export interface CreateConversationRequest {
   templateVariables?: Record<string, string>;
   /** Optional metadata */
   metadata?: Record<string, unknown>;
+  /** Optional practice ID override (SAX users only) */
+  practiceId?: string;
 }
 
 /**
