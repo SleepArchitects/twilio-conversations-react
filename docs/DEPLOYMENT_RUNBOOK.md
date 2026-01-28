@@ -1,7 +1,7 @@
 # Outreach SMS App - Deployment Runbook
 
-> **Last Updated**: January 23, 2026
-> **Version**: 1.3.0
+> **Last Updated**: January 28, 2026
+> **Version**: 1.4.1
 
 ## Table of Contents
 
@@ -671,6 +671,103 @@ Check AWS credentials have required permissions. See [Prerequisites](#prerequisi
 
 ### Runtime Errors
 
+#### Staging `/outreach` returns 404 or `/outreach-static` returns 403 (SleepConnect Multi-Zone)
+
+**Symptoms:**
+
+- `https://stage.mydreamconnect.com/outreach/...` returns `404` even while authenticated
+- Outreach Lambda logs show nothing (request never reaches the Outreach Lambda)
+- After fixing `/outreach*` routing, assets under `https://stage.mydreamconnect.com/outreach-static/...` return `403`
+
+**Root causes:**
+
+1. **SleepConnect CloudFront distribution missing cache behaviors** for `/outreach` and `/outreach/*`.
+   - Requests fall through to the default origin and return `404`.
+2. **CloudFront to S3 origin access misconfigured**.
+   - If the assets bucket is private, CloudFront must use **Origin Access Control (OAC)** and the S3 bucket policy must allow the _correct_ distribution (by `AWS:SourceArn`). Otherwise, S3 returns `403 AccessDenied`.
+3. **Outreach Lambda Function URL InvokeMode mismatch**.
+   - OpenNext streaming wrapper requires `InvokeMode: RESPONSE_STREAM`. If set to `BUFFERED`, streaming responses can break.
+
+**Diagnosis:**
+
+```bash
+# Quick HTTP checks
+curl -sI "https://stage.mydreamconnect.com/outreach" | head -20
+curl -sI "https://stage.mydreamconnect.com/outreach-static/_next/static/chunks/webpack.js" | head -20
+
+# Confirm CloudFront behaviors include /outreach and /outreach-static
+aws cloudfront get-distribution-config \
+  --id E29AZJ8V99WM0C \
+  --query 'DistributionConfig.CacheBehaviors.Items[*].PathPattern' \
+  --output json
+
+# Confirm the S3 origin uses OAC
+aws cloudfront get-distribution-config \
+  --id E29AZJ8V99WM0C \
+  --query 'DistributionConfig.Origins.Items[?Id==`outreach-assets-staging`].OriginAccessControlId' \
+  --output text
+
+# Confirm S3 bucket policy exists and references the staging distribution ARN
+aws s3api get-bucket-policy --bucket sax-s3-us-east-1-0x-s-outreach-assets
+
+# Confirm Lambda Function URL InvokeMode
+aws lambda get-function-url-config \
+  --function-name sax-lam-us-east-1-0x-s-outreach \
+  --region us-east-1
+```
+
+**Fix (staging):**
+
+```bash
+./scripts/fix-staging-cloudfront.sh
+```
+
+Requires: AWS CLI + `jq`.
+
+This script:
+
+- Sets Outreach Lambda Function URL to `InvokeMode: RESPONSE_STREAM`
+- Updates the staging assets bucket policy (`sax-s3-us-east-1-0x-s-outreach-assets`) to allow only the staging CloudFront distribution (`E29AZJ8V99WM0C`) via `AWS:SourceArn`
+- Updates CloudFront distribution (`E29AZJ8V99WM0C`) to:
+  - Add/refresh the Outreach Lambda origin
+  - Add/refresh the Outreach S3 origin and attach the staging OAC (`E3O4D825ESRBE8`)
+  - Add behaviors for `/outreach`, `/outreach/*`, and `/outreach-static/*`
+
+**Wait for CloudFront deployment:**
+
+```bash
+aws cloudfront get-distribution \
+  --id E29AZJ8V99WM0C \
+  --query 'Distribution.Status' \
+  --output text
+```
+
+When status is `Deployed`, retest:
+
+```bash
+curl -sI "https://stage.mydreamconnect.com/outreach" | head -10
+curl -sI "https://stage.mydreamconnect.com/outreach-static/_next/static/chunks/webpack.js" | head -10
+```
+
+**Notes:**
+
+- The script overwrites the staging assets bucket policy. If you need additional statements, merge them manually before running.
+- The script is staging-specific (distribution IDs, bucket name, and OAC). For other environments, update the variables at the top of `scripts/fix-staging-cloudfront.sh`.
+
+**Prevention (make this idempotent in infra scripts):**
+
+- `scripts/create-infrastructure.cjs` already contains the correct building blocks for the Outreach-owned CloudFront + S3 setup:
+  - Creates (or reuses) an S3 **Origin Access Control** (`CreateOriginAccessControlCommand`) and attaches it to the S3 origin via `OriginAccessControlId`
+  - Writes the S3 bucket policy to allow CloudFront via `Principal: cloudfront.amazonaws.com` scoped by `Condition.StringEquals["AWS:SourceArn"]`
+  - Ensures `/outreach-static/*` exists as a CloudFront cache behavior
+- For the **SleepConnect multi-zone** entrypoint (`stage.mydreamconnect.com`), the missing piece is ensuring the SleepConnect CloudFront distribution also has the `/outreach`, `/outreach/*`, and `/outreach-static/*` behaviors (and uses OAC for the S3 origin). The closest existing hook is in `scripts/deploy-outreach.cjs` where it locates the SleepConnect distribution by alias and already syncs the S3 bucket policy to the discovered `sleepConnectDistId`. Extend that section to also apply the required CloudFront origins/behaviors so this does not require `scripts/fix-staging-cloudfront.sh`.
+
+**References:**
+
+- OAC + S3 private access: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html
+- CloudFront 403 troubleshooting (S3 origin): https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/http-403-permission-denied.html
+- Cache behaviors and path patterns: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/DownloadDistValuesCacheBehavior.html
+
 #### 500 errors after deployment
 
 1. Check CloudWatch logs:
@@ -864,6 +961,7 @@ aws logs tail /aws/lambda/sax-lam-us-east-1-0x-s-outreach --follow
 
 | Version | Date       | Changes                                                                                                                                                                                                                                                                                |
 | ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.4.1   | 2026-01-28 | **Staging multi-zone fix runbook**: Documented staging `/outreach` 404 and `/outreach-static` 403 troubleshooting; documented `scripts/fix-staging-cloudfront.sh` (CloudFront behaviors, OAC, and S3 bucket policy `AWS:SourceArn`).                                                   |
 | 1.4.0   | 2026-01-27 | **CloudFront compression fix**: Fixed production 6MB payload limit error by enabling gzip/brotli compression on CloudFront distribution E3LYWD3FPTY1XF; added troubleshooting section for Lambda payload size errors; documented CloudFront cache policy requirements                  |
 | 1.3.0   | 2026-01-23 | **Deployment hardening**: Fixed env var REPLACE→MERGE in deploy script; added GitHub Environments support to workflow; added pre-deploy-check.cjs validation script; added all missing secrets to workflow (TWILIO_FROM_NUMBER, API_BASE_URL, NEXT_PUBLIC_WS_API_URL, etc.)            |
 | 1.2.0   | 2026-01-23 | **Critical Auth0 integration details**: Added Source of Truth column to Runtime Variables table; expanded Authentication failures troubleshooting with symptoms, root cause (JWT signature mismatch), and specific fix steps; added GitHub Environments secrets strategy documentation |
