@@ -444,12 +444,15 @@ if (missingOptional.length > 0) {
     const accountId = (await sts.send(new GetCallerIdentityCommand({})))
       .Account;
 
-    // Find the SleepConnect CloudFront distribution (serves dev.mydreamconnect.com)
+    // Find the SleepConnect CloudFront distribution for this environment
     // This is the distribution that needs access to the Outreach assets bucket
+    const sleepConnectDomainMap = {
+      production: "mydreamconnect.com",
+      staging: "stage.mydreamconnect.com",
+      develop: "dev.mydreamconnect.com",
+    };
     const sleepConnectDomain =
-      environment === "production"
-        ? "mydreamconnect.com"
-        : "dev.mydreamconnect.com";
+      sleepConnectDomainMap[environment] || "dev.mydreamconnect.com";
 
     let sleepConnectDistId = null;
     let scMarker = undefined;
