@@ -6,7 +6,7 @@
     "debug": "NODE_OPTIONS=\"$NODE_OPTIONS --inspect\" next dev",
     "dev": "next dev",
     "build": "next build",
-    "build:open-next": "NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' open-next build --dangerously-use-unsupported-next-version && node scripts/fix-opennext-pnpm-symlinks.mjs",
+    "build:open-next": "NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' open-next build  && node scripts/fix-opennext-pnpm-symlinks.mjs",
     "build:open-next:debug": "NODE_OPTIONS='--max-old-space-size=4096' OPEN_NEXT_DEBUG=true open-next build && node scripts/fix-opennext-pnpm-symlinks.mjs",
     "deploy:dev": "pnpm load-env && pnpm exec ./scripts/deploy-outreach.cjs",
     "start": "next start",
