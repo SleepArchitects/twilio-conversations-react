@@ -757,6 +757,9 @@ export function NewConversationModal({
           patientPhone: phoneNumber,
           patientName: sanitizedName,
           initialMessage: initialMessage.trim(),
+          ...(isSAXUser && selectedPracticeId
+            ? { practiceId: selectedPracticeId }
+            : {}),
         };
 
         const response = await api.post<CreateConversationResponse>(
@@ -787,6 +790,8 @@ export function NewConversationModal({
       practiceName,
       initialMessage,
       onConversationCreated,
+      isSAXUser,
+      selectedPracticeId,
     ],
   );
 

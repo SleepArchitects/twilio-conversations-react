@@ -541,9 +541,15 @@ async function handlePost(
     // Create conversation via Lambda API
     // The Lambda will check for existing conversations and return them if found,
     // or create a new Twilio conversation automatically
+    // Determine practice_id: use override if SAX user provided one, otherwise default
+    const practiceId =
+      userContext.isSAXUser && body.practiceId
+        ? body.practiceId
+        : userContext.practiceId;
+
     const createPayload = {
       tenant_id: userContext.tenantId,
-      practice_id: userContext.practiceId,
+      practice_id: practiceId,
       coordinator_sax_id: userContext.saxId,
       patient_phone: body.patientPhone,
       friendly_name: friendlyName,
