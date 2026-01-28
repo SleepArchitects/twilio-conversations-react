@@ -61,6 +61,7 @@ interface Patient {
   last_name: string;
   phone: string;
   email: string;
+  practice_id: string;
 }
 
 // =============================================================================
@@ -345,6 +346,9 @@ export function NewConversationModal({
   const [selectedPracticeId, setSelectedPracticeId] = React.useState<
     string | null
   >(null);
+  const [priorPracticeId, setPriorPracticeId] = React.useState<string | null>(
+    null,
+  );
 
   // Patient search state (FR-006a, FR-006b)
   const [patientSearchQuery, setPatientSearchQuery] = React.useState("");
@@ -565,28 +569,41 @@ export function NewConversationModal({
    * Handle patient selection from search results (FR-006b)
    * Auto-populates phone and name fields
    */
-  const handlePatientSelect = React.useCallback((patient: Patient) => {
-    setSelectedPatient(patient);
-    setPatientSearchQuery(`${patient.first_name} ${patient.last_name}`);
-    setShowPatientDropdown(false);
+  const handlePatientSelect = React.useCallback(
+    (patient: Patient) => {
+      setSelectedPatient(patient);
+      setPatientSearchQuery(`${patient.first_name} ${patient.last_name}`);
+      setShowPatientDropdown(false);
 
-    // Auto-populate phone number if available
-    if (patient.phone) {
-      const formattedPhone = formatPhoneNumber(patient.phone);
-      setPhoneNumber(formattedPhone);
-      if (formattedPhone && isValidUSPhoneNumber(formattedPhone)) {
-        setDisplayPhone(formatDisplayPhoneNumber(formattedPhone));
-      } else {
-        setDisplayPhone(patient.phone);
+      // Auto-populate phone number if available
+      if (patient.phone) {
+        const formattedPhone = formatPhoneNumber(patient.phone);
+        setPhoneNumber(formattedPhone);
+        if (formattedPhone && isValidUSPhoneNumber(formattedPhone)) {
+          setDisplayPhone(formatDisplayPhoneNumber(formattedPhone));
+        } else {
+          setDisplayPhone(patient.phone);
+        }
+        setPhoneError(null);
       }
-      setPhoneError(null);
-    }
 
-    // Auto-populate friendly name
-    const fullName = `${patient.first_name} ${patient.last_name}`.trim();
-    setFriendlyName(fullName);
-    setNameError(null);
-  }, []);
+      // Auto-populate friendly name
+      const fullName = `${patient.first_name} ${patient.last_name}`.trim();
+      setFriendlyName(fullName);
+      setNameError(null);
+
+      // Capture current practice before auto-setting patient's practice
+      if (patient.practice_id && selectedPracticeId !== patient.practice_id) {
+        setPriorPracticeId(selectedPracticeId);
+      }
+
+      // Auto-set practice from patient's practice_id
+      if (patient.practice_id) {
+        setSelectedPracticeId(patient.practice_id);
+      }
+    },
+    [selectedPracticeId],
+  );
 
   /**
    * Clear patient selection and reset form for manual entry
@@ -602,11 +619,17 @@ export function NewConversationModal({
     setPhoneError(null);
     setNameError(null);
 
+    // Restore prior practice selection
+    if (priorPracticeId) {
+      setSelectedPracticeId(priorPracticeId);
+      setPriorPracticeId(null);
+    }
+
     // Focus search input
     requestAnimationFrame(() => {
       patientSearchInputRef.current?.focus();
     });
-  }, []);
+  }, [priorPracticeId]);
 
   /**
    * Handle manual phone number input
@@ -1008,13 +1031,17 @@ export function NewConversationModal({
                   id="practice-select"
                   value={selectedPracticeId || ""}
                   onChange={(e) => setSelectedPracticeId(e.target.value)}
-                  disabled={isSubmitting || practicesLoading}
+                  disabled={
+                    isSubmitting || practicesLoading || !!selectedPatient
+                  }
                   className={cn(
                     "w-full px-4 py-2.5 rounded-lg text-sm",
-                    "bg-gray-900 text-white",
-                    "border border-gray-600",
-                    "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800",
-                    "disabled:opacity-50 disabled:cursor-not-allowed",
+                    "border transition-colors",
+                    selectedPatient
+                      ? "bg-gray-900/50 text-gray-400 border-gray-700/50 cursor-not-allowed opacity-60"
+                      : "bg-gray-900 text-white border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800",
+                    (isSubmitting || practicesLoading) &&
+                      "opacity-50 cursor-not-allowed",
                   )}
                 >
                   {practicesLoading ? (
