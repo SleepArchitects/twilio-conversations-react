@@ -8,6 +8,8 @@ import {
   formatDisplayPhoneNumber,
   isValidUSPhoneNumber,
 } from "@/lib/validation";
+import { useIsSAXUser } from "@/hooks/useIsSAXUser";
+import { usePractices } from "@/hooks/usePractices";
 
 // =============================================================================
 // Types & Interfaces
@@ -293,6 +295,26 @@ function ClearIcon({ className, ...props }: IconProps) {
   );
 }
 
+function BuildingIcon({ className, ...props }: IconProps) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      {...props}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+      />
+    </svg>
+  );
+}
+
 // =============================================================================
 // NewConversationModal Component
 // =============================================================================
@@ -320,6 +342,9 @@ export function NewConversationModal({
   const [displayPhone, setDisplayPhone] = React.useState("");
   const [friendlyName, setFriendlyName] = React.useState("");
   const [initialMessage, setInitialMessage] = React.useState("");
+  const [selectedPracticeId, setSelectedPracticeId] = React.useState<
+    string | null
+  >(null);
 
   // Patient search state (FR-006a, FR-006b)
   const [patientSearchQuery, setPatientSearchQuery] = React.useState("");
@@ -338,6 +363,10 @@ export function NewConversationModal({
   const [nameError, setNameError] = React.useState<string | null>(null);
   const [messageError, setMessageError] = React.useState<string | null>(null);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
+
+  // SAX user and practices hooks
+  const { data: isSAXUser, isLoading: isSAXLoading } = useIsSAXUser();
+  const { data: practices, isLoading: practicesLoading } = usePractices();
 
   // Refs
   const modalRef = React.useRef<HTMLDivElement>(null);
@@ -954,6 +983,47 @@ export function NewConversationModal({
                 </p>
               )}
             </div>
+
+            {isSAXUser && !isSAXLoading && (
+              <div>
+                <label
+                  htmlFor="practice-select"
+                  className="flex items-center gap-2 text-sm font-medium text-gray-200 mb-1.5"
+                >
+                  <BuildingIcon
+                    className="h-4 w-4 text-gray-400"
+                    aria-hidden="true"
+                  />
+                  Practice
+                  <span className="text-red-400" aria-hidden="true">
+                    *
+                  </span>
+                </label>
+                <select
+                  id="practice-select"
+                  value={selectedPracticeId || ""}
+                  onChange={(e) => setSelectedPracticeId(e.target.value)}
+                  disabled={isSubmitting || practicesLoading}
+                  className={cn(
+                    "w-full px-4 py-2.5 rounded-lg text-sm",
+                    "bg-gray-900 text-white",
+                    "border border-gray-600",
+                    "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800",
+                    "disabled:opacity-50 disabled:cursor-not-allowed",
+                  )}
+                >
+                  {practicesLoading ? (
+                    <option value="">Loading practices...</option>
+                  ) : (
+                    practices?.map((p) => (
+                      <option key={p.practice_id} value={p.practice_id}>
+                        {p.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+            )}
 
             {/* Divider */}
             <div className="relative">
