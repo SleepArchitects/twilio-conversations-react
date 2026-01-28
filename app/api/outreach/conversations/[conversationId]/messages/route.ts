@@ -121,6 +121,12 @@ async function validateConversationAccess(
       "x-practice-id": userContext.practiceId,
       "x-coordinator-sax-id": String(userContext.saxId),
     };
+    if (userContext.isSAXUser) {
+      delete headers["x-practice-id"];
+    }
+    if (userContext.isSAXUser) {
+      delete headers["x-practice-id"];
+    }
 
     // SAX users get admin header to bypass tenant filtering on Lambda
     if (userContext.isSAXUser) {
@@ -287,17 +293,21 @@ export const GET = withUserContext(
         headers["Authorization"] = `Bearer ${accessToken}`;
       }
 
+      const params: Record<string, string | number> = {
+        limit,
+        offset,
+        order,
+      };
+      if (!userContext.isSAXUser) {
+        params.tenant_id = userContext.tenantId;
+        params.practice_id = userContext.practiceId;
+        params.coordinator_sax_id = String(userContext.saxId);
+      }
+
       const lambdaResponse = await api.get<LambdaMessagesResponse>(
         buildPath(LAMBDA_API_BASE, "conversations", conversationId, "messages"),
         {
-          params: {
-            limit,
-            offset,
-            order,
-            tenant_id: userContext.tenantId,
-            practice_id: userContext.practiceId,
-            coordinator_sax_id: String(userContext.saxId),
-          },
+          params,
           headers,
         },
       );
@@ -487,12 +497,19 @@ export const POST = withUserContext(
       // Calculate segment count (SMS segments are 160 chars for GSM-7, 70 for UCS-2)
       const segmentCount = Math.ceil(messageBody.length / 160);
 
+      // Lambda API returns snake_case (practice_id), but TypeScript interface uses camelCase
+      // SAX users need to use the conversation's practice_id to send messages on behalf of other practices
+      const effectivePracticeId = userContext.isSAXUser
+        ? (conversation.practiceId ??
+          (conversation as { practice_id?: string }).practice_id)
+        : userContext.practiceId;
+
       // Store message in database via Lambda
       // Get access token for Authorization header
       const accessToken = await getAccessToken();
       const headers: Record<string, string> = {
         "x-tenant-id": userContext.tenantId,
-        "x-practice-id": userContext.practiceId,
+        "x-practice-id": effectivePracticeId,
         "x-coordinator-sax-id": String(userContext.saxId),
       };
       if (accessToken) {
@@ -504,6 +521,7 @@ export const POST = withUserContext(
       >(
         buildPath(LAMBDA_API_BASE, "conversations", conversationId, "messages"),
         {
+          practice_id: effectivePracticeId,
           twilio_sid: twilioMessage.sid,
           direction: "outbound",
           author_sax_id: userContext.saxId,

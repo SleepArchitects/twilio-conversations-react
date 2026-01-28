@@ -112,6 +112,9 @@ async function handleGet(
     // Get access token for Authorization header
     const accessToken = await getAccessToken();
     const headers: Record<string, string> = getLambdaHeaders(userContext);
+    if (userContext.isSAXUser) {
+      delete headers["x-practice-id"];
+    }
     if (accessToken) {
       headers["Authorization"] = `Bearer ${accessToken}`;
     }
