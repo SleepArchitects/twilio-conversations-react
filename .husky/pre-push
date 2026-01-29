@@ -1,6 +1,0 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
-# Commented out automatic version bump - should be done manually or in CI
-# echo "Bump version"
-# pnpm version patch

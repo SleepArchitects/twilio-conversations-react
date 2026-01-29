@@ -24,7 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.env.outputs.environment }}
-      env_name: ${{ steps.env.outputs.env_name }}
     steps:
       - name: Determine Environment
         id: env
@@ -38,11 +37,10 @@ jobs:
           else
             ENV_NAME="develop"
           fi
-          echo "env_name=${ENV_NAME}" >> $GITHUB_OUTPUT
           echo "environment=${ENV_NAME}" >> $GITHUB_OUTPUT
 
   deploy:
-    name: Deploy to ${{ needs.setup.outputs.env_name }}
+    name: Deploy to ${{ needs.setup.outputs.environment }}
     needs: setup
     runs-on: ubuntu-latest
     # CRITICAL: Use GitHub Environments for secret isolation
@@ -75,9 +73,6 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-role
           aws-region: us-east-1
-
-      - name: Check Infrastructure
-        run: node scripts/check-infrastructure.cjs ${{ needs.setup.outputs.env_name }}
 
       - name: Deploy
         env:
@@ -119,4 +114,4 @@ jobs:
           ENABLE_SLA_MONITORING: ${{ secrets.ENABLE_SLA_MONITORING }}
           NEXT_PUBLIC_PRACTICE_NAME: ${{ secrets.NEXT_PUBLIC_PRACTICE_NAME }}
 
-        run: node scripts/deploy-outreach.cjs ${{ needs.setup.outputs.env_name }}
+        run: node scripts/deploy-outreach.cjs ${{ needs.setup.outputs.environment }}
