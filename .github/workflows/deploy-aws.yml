@@ -68,6 +68,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Run lint
+        run: pnpm run lint
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -106,6 +109,7 @@ jobs:
           # API Configuration
           # ====================================
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.API_BASE_URL }}
           NEXT_PUBLIC_WS_API_URL: ${{ secrets.WS_API_URL }}
 
           # ====================================
