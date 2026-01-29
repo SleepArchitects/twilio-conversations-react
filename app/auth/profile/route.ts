@@ -1,64 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyUserContextToken } from "@/lib/jwt-utils";
 
 /**
- * Proxy /outreach/auth/profile to /outreach/api/auth/profile
+ * GET /auth/profile
  *
- * This is needed because Auth0's useUser() hook fetches from /auth/profile,
- * which gets prefixed with /outreach due to basePath config.
- * This route proxies the request to our actual API endpoint.
+ * Returns user profile from the x-sax-user-context JWT cookie.
+ * This is a direct implementation (not a proxy) to avoid self-referential loops.
  */
 export async function GET(request: NextRequest) {
-  try {
-    // Get the base URL for this app
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_BASE_URL || "http://localhost:3001";
+  const userContextCookie = request.cookies.get("x-sax-user-context");
 
-    // Forward to our own API endpoint
-    const profileUrl = `${baseUrl}/outreach/api/auth/profile`;
-
-    const response = await fetch(profileUrl, {
-      method: "GET",
-      headers: {
-        // Forward all cookies
-        cookie: request.headers.get("cookie") || "",
-      },
-      credentials: "include",
-    });
-
-    // Get the response text first to check if it's valid JSON
-    const text = await response.text();
-
-    if (!text || text.trim() === "") {
-      return NextResponse.json(
-        { error: "Not authenticated", user: null },
-        { status: 401 },
-      );
-    }
-
-    // Parse the response data
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      console.error(
-        "[Auth Profile Proxy] Failed to parse response:",
-        text.substring(0, 200),
-      );
-      return NextResponse.json(
-        { error: "Invalid response from auth server", user: null },
-        { status: 502 },
-      );
-    }
-
-    // Return the response with the same status
-    return NextResponse.json(data, {
-      status: response.status,
-    });
-  } catch (error) {
-    console.error("[Auth Profile Proxy] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch profile" },
-      { status: 500 },
-    );
+  if (!userContextCookie?.value) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
+
+  const userContext = await verifyUserContextToken(userContextCookie.value);
+
+  if (!userContext) {
+    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+  }
+
+  return NextResponse.json({
+    email: userContext.email,
+    name: userContext.name,
+    sub: userContext.sax_id,
+    sax_id: userContext.sax_id,
+    tenant_id: userContext.tenant_id,
+    practice_id: userContext.practice_id,
+    practice_name: userContext.practice_name,
+  });
 }

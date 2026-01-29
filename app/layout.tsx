@@ -49,7 +49,9 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.className} bg-white dark:bg-gray-900`}>
+      <body
+        className={`${inter.className} bg-white dark:bg-gray-900 overflow-x-hidden`}
+      >
         {content}
       </body>
     </html>

@@ -1,753 +1,646 @@
 #!/usr/bin/env node
 /**
- * Outreach SMS App Deployment (No SST)
- * Deploys Outreach Next.js app to AWS Lambda using OpenNext
- * 
+ * Outreach SMS App Deployment
+ * Deploys Outreach Next.js app to AWS Lambda using OpenNext + AWS SDK
+ *
  * Usage:
- *   node scripts/deploy-outreach.cjs [environment]
- * 
- * Examples:
- *   node scripts/deploy-outreach.cjs develop
- *   node scripts/deploy-outreach.cjs staging
- *   node scripts/deploy-outreach.cjs production
+ *   node scripts/deploy-outreach.cjs [environment] [--skip-build]
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
+const { execSync, spawn } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const dotenv = require("dotenv");
+const util = require("util");
+const {
+  LambdaClient,
+  UpdateFunctionCodeCommand,
+  UpdateFunctionConfigurationCommand,
+  PublishVersionCommand,
+  UpdateAliasCommand,
+  TagResourceCommand,
+  GetFunctionCommand,
+  CreateFunctionCommand,
+  CreateAliasCommand,
+} = require("@aws-sdk/client-lambda");
+const {
+  CloudFrontClient,
+  CreateInvalidationCommand,
+  ListDistributionsCommand,
+  GetDistributionConfigCommand,
+  GetCachePolicyCommand,
+} = require("@aws-sdk/client-cloudfront");
+const { IAMClient, GetRoleCommand } = require("@aws-sdk/client-iam");
+const {
+  S3Client,
+  GetBucketPolicyCommand,
+  PutBucketPolicyCommand,
+} = require("@aws-sdk/client-s3");
+const { STSClient, GetCallerIdentityCommand } = require("@aws-sdk/client-sts");
+const { getResourceNames } = require("./aws-config");
 
-// Environment configurations (to be updated after infrastructure is created)
-const ENVIRONMENTS = {
-  develop: {
-    lambdaFunction: 'sax-lambda-us-east-1-0x-d-outreach-server_develop',
-    // Provided by operator (optional): exported by the deployment guide
-    lambdaFunctionUrl: process.env.FUNCTION_URL || '',
-    // SleepConnect CloudFront distribution ID (optional, used only for cache invalidation)
-    cloudfrontDistribution: process.env.SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID || '',
-    // Outreach-specific CloudFront distribution (outreach-dev.mydreamconnect.com)
-    outreachCloudfrontDistribution: 'E8BMOBRWCCCO2',
-    s3AssetsBucket: 'sax-nextjs-us-east-1-develop-outreach-assets',
-    region: 'us-east-1',
-    memory: 1024,
-    timeout: 30,
-  },
-  staging: {
-    lambdaFunction: 'sax-lambda-us-east-1-0x-s-outreach-server_staging',
-    lambdaFunctionUrl: process.env.FUNCTION_URL || '',
-    cloudfrontDistribution: process.env.SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID || '',
-    outreachCloudfrontDistribution: '', // TODO: Add staging Outreach CloudFront ID
-    s3AssetsBucket: 'sax-nextjs-us-east-1-staging-outreach-assets',
-    region: 'us-east-1',
-    memory: 1024,
-    timeout: 30,
-  },
-  production: {
-    lambdaFunction: 'sax-lambda-us-east-1-0x-p-outreach-server_production',
-    lambdaFunctionUrl: process.env.FUNCTION_URL || '',
-    cloudfrontDistribution: process.env.SLEEPCONNECT_CLOUDFRONT_DISTRIBUTION_ID || '',
-    outreachCloudfrontDistribution: '', // TODO: Add production Outreach CloudFront ID
-    s3AssetsBucket: 'sax-nextjs-us-east-1-production-outreach-assets',
-    region: 'us-east-1',
-    memory: 2048,
-    timeout: 30,
-  },
+const REGION = "us-east-1";
+const lambda = new LambdaClient({ region: REGION });
+const cloudfront = new CloudFrontClient({ region: REGION });
+const iam = new IAMClient({ region: REGION });
+const s3 = new S3Client({ region: REGION });
+const sts = new STSClient({ region: REGION });
+
+// Parse args
+const args = process.argv.slice(2);
+const environment = args.find((a) => !a.startsWith("--")) || "develop";
+const skipBuild = args.includes("--skip-build");
+
+// 1. Load Environment Variables (Coalescing)
+console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+console.log(`🚀 Deploying to [${environment}]`);
+console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+// Load .env (base)
+dotenv.config({ path: ".env" });
+
+// Helper to load env file overrides
+const loadEnvOverride = (file) => {
+  if (fs.existsSync(file)) {
+    console.log(`Tb Loading ${file} overrides`);
+    const envConfig = dotenv.parse(fs.readFileSync(file));
+    for (const k in envConfig) {
+      process.env[k] = envConfig[k];
+    }
+  }
 };
 
-// Parse command line arguments
-const environment = process.argv[2] || 'develop';
+// Load .env.local (local overrides/secrets)
+// Loaded BEFORE env-specific config so that target environment config (e.g. URLs) takes precedence
+loadEnvOverride(".env.local");
 
-if (!ENVIRONMENTS[environment]) {
-  console.error(`❌ Invalid environment: ${environment}`);
-  console.error(`   Valid options: ${Object.keys(ENVIRONMENTS).join(', ')}`);
-  process.exit(1);
-}
+// Load environment-specific .env (e.g. .env.staging)
+// This overwrites .env.local for defined keys (crucial for URLs)
+loadEnvOverride(`.env.${environment}`);
 
-const config = ENVIRONMENTS[environment];
-
-// Validate required environment variables
-console.log('');
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('🔍 Validating Environment Variables');
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-// Core Auth0 variables (must match SleepConnect for shared sessions)
-const requiredAuthVars = [
-  'AUTH0_CLIENT_ID',
-  'AUTH0_CLIENT_SECRET',
-  'AUTH0_SECRET',
-  'AUTH0_DOMAIN',
-  'AUTH0_BASE_URL',
-];
-
-// Twilio variables (required for SMS functionality)
-const requiredTwilioVars = [
-  'TWILIO_ACCOUNT_SID',
-  'TWILIO_AUTH_TOKEN',
-];
-
-// Multi-zone integration variables
-const requiredMultiZoneVars = [
-  'NEXT_PUBLIC_APP_BASE_URL',
-  'NEXT_PUBLIC_SLEEPCONNECT_URL',
-  'NEXT_PUBLIC_BASE_PATH',
-];
-
-// API Gateway variables
-const requiredApiVars = [
-  'NEXT_PUBLIC_API_BASE_URL',
-  'NEXT_PUBLIC_WS_API_URL',
-];
-
-const allRequired = [
-  ...requiredAuthVars,
-  ...requiredTwilioVars,
-  ...requiredMultiZoneVars,
-  ...requiredApiVars,
-];
-
-const missing = allRequired.filter(varName => !process.env[varName]);
-
-if (missing.length > 0) {
-  console.error('');
-  console.error('❌ Missing required environment variables:');
-  
-  const missingAuth = missing.filter(v => requiredAuthVars.includes(v));
-  const missingTwilio = missing.filter(v => requiredTwilioVars.includes(v));
-  const missingMultiZone = missing.filter(v => requiredMultiZoneVars.includes(v));
-  const missingApi = missing.filter(v => requiredApiVars.includes(v));
-  
-  if (missingAuth.length > 0) {
-    console.error('');
-    console.error('  Auth0 (must match SleepConnect):');
-    missingAuth.forEach(v => console.error(`   - ${v}`));
-  }
-  if (missingTwilio.length > 0) {
-    console.error('');
-    console.error('  Twilio:');
-    missingTwilio.forEach(v => console.error(`   - ${v}`));
-  }
-  if (missingMultiZone.length > 0) {
-    console.error('');
-    console.error('  Multi-zone integration:');
-    missingMultiZone.forEach(v => console.error(`   - ${v}`));
-  }
-  if (missingApi.length > 0) {
-    console.error('');
-    console.error('  API Gateway:');
-    missingApi.forEach(v => console.error(`   - ${v}`));
-  }
-  
-  console.error('');
-  console.error('Please set these in your .env.local file or as Lambda environment variables.');
-  console.error('See ENVIRONMENT_VARIABLES.md for required values.');
-  process.exit(1);
-}
-
-console.log('');
-console.log('✅ All required environment variables present');
-console.log('');
-console.log('Multi-zone configuration:');
-console.log(`   MULTI_ZONE_MODE:  true (hardcoded - Outreach always runs behind SleepConnect)`);
-console.log(`   Base Path:        ${process.env.NEXT_PUBLIC_BASE_PATH}`);
-console.log(`   SleepConnect URL: ${process.env.NEXT_PUBLIC_SLEEPCONNECT_URL}`);
-console.log(`   Outreach URL:     ${process.env.NEXT_PUBLIC_APP_BASE_URL}`);
-console.log('');
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-console.log('');
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('🚀 Outreach SMS App Deployment (No SST)');
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log(`📦 Environment:   ${environment}`);
-console.log(`λ  Lambda:        ${config.lambdaFunction}`);
-console.log(`☁️  CloudFront:    ${config.cloudfrontDistribution}`);
-console.log(`🪣  S3 Assets:     ${config.s3AssetsBucket}`);
-console.log(`📍 Region:        ${config.region}`);
-console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('');
-
-// Confirmation for production
-if (environment === 'production') {
-  console.log('⚠️  WARNING: Deploying to PRODUCTION');
-  console.log('');
-  console.log('   This will update the production Lambda function.');
-  console.log('   Press Ctrl+C within 5 seconds to cancel...');
-  console.log('');
-  execSync('sleep 5', { stdio: 'inherit' });
-}
-
-const workspaceRoot = path.join(__dirname, '..');
-
+// Get resource names for this environment
+let resources;
 try {
-  // Step 1: Build with OpenNext (includes Next.js build internally)
-  console.log('📦 Step 1: Building Next.js with OpenNext...');
-  console.log('');
+  resources = getResourceNames(environment);
+} catch (e) {
+  console.error(`❌ ${e.message}`);
+  process.exit(1);
+}
 
-  // Filter out expected "Dynamic server usage" warnings from Next.js build
-  // These are normal for API routes that use headers/cookies/searchParams
-  const { spawnSync } = require('child_process');
-  const buildResult = spawnSync('npx', ['@opennextjs/aws@3.6.6', 'build'], {
-    cwd: workspaceRoot,
-    env: {
-      ...process.env,
-      NODE_ENV: 'production',
-      NODE_OPTIONS: '--max-old-space-size=4096'
-    },
-    stdio: ['inherit', 'pipe', 'pipe'],
-    encoding: 'utf8',
-    maxBuffer: 50 * 1024 * 1024 // 50MB buffer
-  });
-
-  // Filter stdout - show everything
-  if (buildResult.stdout) {
-    process.stdout.write(buildResult.stdout);
-  }
-
-  // Filter stderr - remove noisy "Dynamic server usage" errors
-  if (buildResult.stderr) {
-    const filteredStderr = buildResult.stderr
-      .split('\n')
-      .filter(line => {
-        // Skip dynamic server usage errors (these are expected for API routes)
-        if (line.includes('DYNAMIC_SERVER_USAGE')) return false;
-        if (line.includes("couldn't be rendered statically")) return false;
-        if (line.includes('Dynamic server usage')) return false;
-        if (line.match(/^\s+at\s+/)) return false; // Skip stack trace lines
-        if (line.includes('[Proxy ')) return false;
-        if (line.includes('[Set Cookie API]')) return false;
-        if (line.includes('[Auth Profile Proxy]')) return false;
-        if (line.includes('[AUTH] Error verifying JWT')) return false;
-        if (line.includes('Forwarding to:')) return false;
-        if (line.trim().startsWith('description:')) return false;
-        if (line.trim().startsWith('digest:')) return false;
-        if (line.trim() === '}') return false;
-        return true;
-      })
-      .join('\n');
-    if (filteredStderr.trim()) {
-      process.stderr.write(filteredStderr);
-    }
-  }
-
-  if (buildResult.status !== 0) {
-    throw new Error(`OpenNext build failed with exit code ${buildResult.status}`);
-  }
-  console.log('');
-  console.log('✅ Next.js build complete');
-  console.log('');
-
-  // Step 2: Fix pnpm symlinks for Next.js 14 (styled-jsx, @swc/helpers)
-  console.log('🔧 Step 2: Fixing pnpm symlinks for Next.js 14...');
-  console.log('');
-  
-  const nodeModulesPath = path.join(workspaceRoot, '.open-next/server-functions/default/node_modules');
-  const pnpmPath = path.join(nodeModulesPath, '.pnpm');
-  
-  if (fs.existsSync(pnpmPath)) {
-    // Fix styled-jsx symlink
-    const pnpmDirs = fs.readdirSync(pnpmPath);
-    const styledJsxDir = pnpmDirs.find(dir => dir.startsWith('styled-jsx@'));
-    if (styledJsxDir && !fs.existsSync(path.join(nodeModulesPath, 'styled-jsx'))) {
-      const source = path.join('.pnpm', styledJsxDir, 'node_modules', 'styled-jsx');
-      fs.symlinkSync(source, path.join(nodeModulesPath, 'styled-jsx'), 'dir');
-      console.log('   ✅ Created symlink: styled-jsx');
-    }
-    
-    // Fix @swc/helpers symlink
-    const swcHelpersDir = pnpmDirs.find(dir => dir.startsWith('@swc+helpers@'));
-    if (swcHelpersDir) {
-      const swcDir = path.join(nodeModulesPath, '@swc');
-      if (!fs.existsSync(swcDir)) {
-        fs.mkdirSync(swcDir, { recursive: true });
-      }
-      if (!fs.existsSync(path.join(swcDir, 'helpers'))) {
-        const source = path.join('..', '.pnpm', swcHelpersDir, 'node_modules', '@swc', 'helpers');
-        fs.symlinkSync(source, path.join(swcDir, 'helpers'), 'dir');
-        console.log('   ✅ Created symlink: @swc/helpers');
-      }
-    }
-    console.log('');
-  }
-
-  // Step 3: Zip the server function
-  console.log('🗜️  Step 3: Creating deployment package...');
-  const openNextDir = path.join(workspaceRoot, '.open-next');
-  const serverDir = path.join(openNextDir, 'server-functions', 'default');
-  const zipFile = path.join(openNextDir, 'function.zip');
-
-  // Remove old zip if exists
-  if (fs.existsSync(zipFile)) {
-    fs.unlinkSync(zipFile);
-  }
-
-  // Check if server directory exists
-  if (!fs.existsSync(serverDir)) {
-    console.error(`❌ Server directory not found: ${serverDir}`);
-    console.error('   Available directories in .open-next:');
-    if (fs.existsSync(openNextDir)) {
-      execSync(`ls -la "${openNextDir}"`, { stdio: 'inherit' });
-    }
-    throw new Error('Server function directory not found');
-  }
-
-  console.log(`   Zipping from: ${serverDir}`);
-  // Use -ry to preserve symlinks (required for styled-jsx and @swc/helpers)
-  execSync(`cd "${serverDir}" && zip -ry "${zipFile}" . -q`, { stdio: 'inherit' });
-
-  if (!fs.existsSync(zipFile)) {
-    throw new Error(`Zip file was not created at: ${zipFile}`);
-  }
-
-  const zipStats = fs.statSync(zipFile);
-  const zipSizeMB = (zipStats.size / 1024 / 1024).toFixed(2);
-  console.log(`   Package size: ${zipSizeMB} MB`);
-  console.log('✅ Deployment package created');
-  console.log('');
-
-  // Step 4: Update Lambda function
-  console.log('☁️  Step 4: Updating Lambda function...');
-  console.log(`   Function: ${config.lambdaFunction}`);
-  console.log('');
-
-  // Use --no-cli-pager to prevent AWS CLI from opening vi/less with JSON output
-  execSync(
-    `aws lambda update-function-code \
-      --function-name "${config.lambdaFunction}" \
-      --zip-file fileb://"${zipFile}" \
-      --region ${config.region} \
-      --no-cli-pager`,
-    { stdio: 'inherit' }
+// 2. Validate Infrastructure
+console.log("\n🔍 Checking infrastructure...");
+try {
+  const checkResult = execSync(
+    `node scripts/check-infrastructure.cjs ${environment}`,
+    { encoding: "utf8" },
   );
+  const match = checkResult.match(/JSON_OUTPUT=(.*)/);
+  if (match) {
+    const status = JSON.parse(match[1]);
+    if (!status.ready) {
+      console.warn(
+        "⚠️  Infrastructure check reported issues. Attempting deployment anyway (Lambda creation might be needed)...",
+      );
+      console.warn("   Missing:", status.missing.join(", "));
+    }
+  } else {
+    console.warn(
+      "⚠️ Could not parse infrastructure check output. Proceeding with caution...",
+    );
+  }
+} catch (e) {
+  // Check failed (exit code 1), but extract status from stdout
+  const output = e.stdout?.toString() || "";
+  const match = output.match(/JSON_OUTPUT=(.*)/);
+  if (match) {
+    const status = JSON.parse(match[1]);
+    console.warn(
+      "⚠️  Infrastructure check reported issues. Attempting deployment anyway (Lambda creation might be needed)...",
+    );
+    console.warn("   Missing:", status.missing.join(", "));
+  } else {
+    console.error("❌ Infrastructure check failed with no parseable output");
+    console.error(e.message);
+    process.exit(1);
+  }
+}
 
-  console.log('');
-  console.log('✅ Lambda function code updated');
-  console.log('');
+// 3. Validate Required Env Vars
+// CRITICAL: These must ALL be set or the Lambda will be misconfigured
+// AUTH0_* secrets MUST match SleepConnect for JWT verification to work
+const requiredVars = [
+  // Auth0 - MUST match SleepConnect values for same environment
+  "AUTH0_CLIENT_ID",
+  "AUTH0_CLIENT_SECRET",
+  "AUTH0_SECRET",
+  "AUTH0_DOMAIN",
+  "AUTH0_BASE_URL",
+  // Twilio
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_AUTH_TOKEN",
+  // App URLs
+  "NEXT_PUBLIC_APP_BASE_URL",
+  "NEXT_PUBLIC_SLEEPCONNECT_URL",
+  "NEXT_PUBLIC_BASE_PATH",
+];
 
-  // Step 5: Wait for Lambda to be ready
-  console.log('⏳ Step 5: Waiting for Lambda update to complete...');
-  execSync(
-    `aws lambda wait function-updated \
-      --function-name "${config.lambdaFunction}" \
-      --region ${config.region}`,
-    { stdio: 'inherit' }
+// Optional vars - used by code but may have fallback defaults
+const optionalVars = [
+  "API_BASE_URL", // Used by 29 files - falls back to NEXT_PUBLIC_APP_BASE_URL
+  "NEXT_PUBLIC_WS_API_URL", // WebSocket endpoint for real-time messages
+  "TWILIO_FROM_NUMBER", // Used for sending SMS - required for SMS features
+  "TWILIO_MESSAGING_SERVICE_SID", // Alternative to FROM_NUMBER
+  "ENABLE_SLA_MONITORING", // Feature flag, defaults to false
+  "NEXT_PUBLIC_PRACTICE_NAME", // Display name, has default
+];
+const missing = requiredVars.filter((v) => !process.env[v]);
+if (missing.length > 0) {
+  console.error(`❌ Missing environment variables: ${missing.join(", ")}`);
+  process.exit(1);
+}
+
+// Warn about missing optional vars
+const missingOptional = optionalVars.filter((v) => !process.env[v]);
+if (missingOptional.length > 0) {
+  console.warn(
+    `⚠️  Optional env vars not set (may use defaults): ${missingOptional.join(", ")}`,
   );
-  console.log('✅ Lambda function is ready');
-  console.log('');
+}
 
-  // Step 5.5: Update environment variables
-  console.log('🔧 Step 5.5: Updating environment variables...');
-  
-  const envVars = {
-    NODE_ENV: 'production',
-    ENVIRONMENT: environment,
-    MULTI_ZONE_MODE: 'true',
-    NEXT_PUBLIC_BASE_PATH: '/outreach',
-    NEXT_PUBLIC_APP_BASE_URL: environment === 'production'
-      ? 'https://dreamconnect.health'
-      : `https://${environment === 'develop' ? 'dev' : 'staging'}.mydreamconnect.com`,
-    // Add other necessary runtime variables from process.env if available
-    AUTH0_SECRET: process.env.AUTH0_SECRET || process.env.AUTH0_CLIENT_SECRET,
-    AUTH0_CLIENT_SECRET: process.env.AUTH0_CLIENT_SECRET,
-    AUTH0_DOMAIN: process.env.AUTH0_DOMAIN,
-    AUTH0_CLIENT_ID: process.env.AUTH0_CLIENT_ID,
-    AUTH0_ISSUER_BASE_URL: process.env.AUTH0_ISSUER_BASE_URL || (process.env.AUTH0_DOMAIN ? `https://${process.env.AUTH0_DOMAIN}` : undefined),
-    AUTH0_BASE_URL: process.env.AUTH0_BASE_URL,
-    AUTH0_AUDIENCE: process.env.AUTH0_AUDIENCE,
-    API_BASE_URL: process.env.API_BASE_URL,
-    TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
-    TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
-    TWILIO_MESSAGING_SERVICE_SID: process.env.TWILIO_MESSAGING_SERVICE_SID,
-    NEXT_PUBLIC_WS_API_URL: process.env.WS_API_URL,
-    
-    // Application
-    LOG_LEVEL: process.env.LOG_LEVEL,
-    SAX_COMPANY: process.env.SAX_COMPANY,
-    SST_STAGE: process.env.SST_STAGE,
-    
-    // Auth0 Management API (M2M)
-    AUTH0_M2M_DOMAIN: process.env.AUTH0_M2M_DOMAIN,
-    AUTH0_M2M_CLIENT_ID: process.env.AUTH0_M2M_CLIENT_ID,
-    AUTH0_M2M_CLIENT_SECRET: process.env.AUTH0_M2M_CLIENT_SECRET,
-    
-    // AWS Configuration
-    // Note: AWS_REGION is automatically set by Lambda and cannot be overridden
-    SES_REGION: process.env.SES_REGION,
-    SES_FROM_EMAIL: process.env.SES_FROM_EMAIL,
-    CLOUDWATCH_EMAIL_LOG_GROUP: process.env.CLOUDWATCH_EMAIL_LOG_GROUP,
-    CLOUDWATCH_EMAIL_LOG_STREAM: process.env.CLOUDWATCH_EMAIL_LOG_STREAM,
-    
-    // S3 Configuration
-    S3_CHART_UPLOADS_BUCKET: process.env.S3_CHART_UPLOADS_BUCKET,
-    S3_CHART_UPLOADS_PREFIX: process.env.S3_CHART_UPLOADS_PREFIX,
-    S3_CHART_UPLOADS_KMS_KEY_ARN: process.env.S3_CHART_UPLOADS_KMS_KEY_ARN,
-    MAX_SINGLE_PART_BYTES: process.env.MAX_SINGLE_PART_BYTES,
-    
-    // DynamoDB Configuration
-    DYNAMODB_TABLE: process.env.DYNAMODB_TABLE,
-    AUTH_DYNAMODB_REGION: process.env.AUTH_DYNAMODB_REGION,
-    
-    // PostgreSQL Database (RDS)
-    HOST: process.env.HOST,
-    PG_DB: process.env.PG_DB,
-    SECRET_ARN: process.env.SECRET_ARN,
-    
-    // Twilio From Number
-    TWILIO_FROM_NUMBER: process.env.TWILIO_FROM_NUMBER,
-    
-    // Lex Bot Configuration
-    LEX_BOT_ID: process.env.LEX_BOT_ID,
-    LEX_BOT_ALIAS_ID: process.env.LEX_BOT_ALIAS_ID,
-    NEXT_PUBLIC_AI_OR_LEX: process.env.NEXT_PUBLIC_AI_OR_LEX,
-    
-    // UI Configuration
-    NEXT_PUBLIC_BANNER_LOGO: process.env.NEXT_PUBLIC_BANNER_LOGO,
-    NEXT_PUBLIC_BANNER_LINK: process.env.NEXT_PUBLIC_BANNER_LINK,
-    NEXT_PUBLIC_BANNER_TEXT: process.env.NEXT_PUBLIC_BANNER_TEXT,
-    NEXT_PUBLIC_SHOW_BANNER: process.env.NEXT_PUBLIC_SHOW_BANNER,
-    
-    // JWT Configuration
-    TOKEN_EXPIRY: process.env.TOKEN_EXPIRY,
-    
-    // Zoho Configuration
-    ZOHO_REDIRECT_URI: process.env.ZOHO_REDIRECT_URI,
-    ZOHO_SERVICE_ID: process.env.ZOHO_SERVICE_ID,
-    ZOHO_WORKSPACE_ID: process.env.ZOHO_WORKSPACE_ID,
-    ZOHO_STAFF_ID: process.env.ZOHO_STAFF_ID,
-    ZOHO_STAFF_EMAIL: process.env.ZOHO_STAFF_EMAIL,
-    
-    // URLs from .env
-    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-    NEXT_PUBLIC_EXTERNAL_FORM_URL: process.env.NEXT_PUBLIC_EXTERNAL_FORM_URL,
-    NEXT_SMS_URL: process.env.NEXT_SMS_URL,
-    FORMS_BASE_URL: process.env.FORMS_BASE_URL,
-  };
-
-  // Filter out undefined values
-  Object.keys(envVars).forEach(key => envVars[key] === undefined && delete envVars[key]);
-
+// Async Main Execution
+(async () => {
   try {
-    // Get current environment variables first to avoid overwriting others
-    const currentConfig = JSON.parse(execSync(
-      `aws lambda get-function-configuration \
-        --function-name "${config.lambdaFunction}" \
-        --region ${config.region} \
-        --output json`,
-      { encoding: 'utf8' }
-    ));
+    const workspaceRoot = path.join(__dirname, "..");
 
-    const variables = {
-      ...(currentConfig.Environment?.Variables || {}),
-      ...envVars
-    };
+    // 4. Build
+    if (!skipBuild) {
+      console.log("\n📦 Building with OpenNext...");
 
-    // Use a temp JSON file to avoid shell escaping issues with complex JSON
-    const tempConfigPath = path.join(os.tmpdir(), `lambda-env-${Date.now()}.json`);
-    const lambdaEnvConfig = {
-      FunctionName: config.lambdaFunction,
-      Environment: { Variables: variables }
-    };
-    fs.writeFileSync(tempConfigPath, JSON.stringify(lambdaEnvConfig));
+      await new Promise((resolve, reject) => {
+        const build = spawn("npx", ["@opennextjs/aws@3.6.6", "build"], {
+          cwd: workspaceRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: "production",
+            NODE_OPTIONS: "--max-old-space-size=4096",
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
 
-    execSync(
-      `aws lambda update-function-configuration \
-        --cli-input-json file://${tempConfigPath} \
-        --region ${config.region}`,
-      { stdio: 'inherit' }
-    );
+        const filterLog = (data) => {
+          const str = data.toString();
+          // Strip ANSI codes (robust regex for colors/styles)
+          const clean = util.stripVTControlCharacters
+            ? util.stripVTControlCharacters(str)
+            : str.replace(new RegExp("\\x1b\\[[0-9;]*m", "g"), "");
 
-    // Clean up temp file
-    fs.unlinkSync(tempConfigPath);
-    
-    console.log('✅ Environment variables updated');
-    console.log('');
-    
-    // Wait for update to complete
-    execSync(
-      `aws lambda wait function-updated \
-        --function-name "${config.lambdaFunction}" \
-        --region ${config.region}`,
-      { stdio: 'inherit' }
-    );
-  } catch (error) {
-    console.log(`⚠️  Warning: Could not update environment variables: ${error.message}`);
-  }
-
-  // Step 5.6: Configure CloudFront cache policy for RSC support
-  // Next.js 14+ uses React Server Components (RSC) which require specific headers
-  // in the cache key to prevent caching empty prefetch responses
-  if (config.outreachCloudfrontDistribution) {
-    console.log('🔧 Step 5.6: Configuring CloudFront cache policy for RSC...');
-    console.log(`   Distribution: ${config.outreachCloudfrontDistribution}`);
-
-    try {
-      const cachePolicyName = `OutreachRSCCachePolicy_${config.env}`;
-      let cachePolicyId = null;
-
-      // Check if RSC-aware cache policy already exists
-      console.log('   🔍 Checking for existing RSC cache policy...');
-      const listPoliciesOutput = execSync(
-        'aws cloudfront list-cache-policies --type custom --output json',
-        { encoding: 'utf8' }
-      );
-      const policies = JSON.parse(listPoliciesOutput);
-      const existingPolicy = policies.CachePolicyList?.Items?.find(
-        item => item.CachePolicy.CachePolicyConfig.Name === cachePolicyName
-      );
-
-      if (existingPolicy) {
-        cachePolicyId = existingPolicy.CachePolicy.Id;
-        console.log(`   ✅ Found existing cache policy: ${cachePolicyId}`);
-      } else {
-        // Create new RSC-aware cache policy
-        console.log('   🆕 Creating new RSC-aware cache policy...');
-        const cachePolicyConfig = {
-          Name: cachePolicyName,
-          Comment: 'Cache policy for Outreach Next.js app with RSC header support to prevent caching empty prefetch responses',
-          DefaultTTL: 86400,
-          MaxTTL: 31536000,
-          MinTTL: 0,
-          ParametersInCacheKeyAndForwardedToOrigin: {
-            EnableAcceptEncodingGzip: true,
-            EnableAcceptEncodingBrotli: true,
-            CookiesConfig: {
-              CookieBehavior: 'all'
-            },
-            HeadersConfig: {
-              HeaderBehavior: 'whitelist',
-              Headers: {
-                Quantity: 5,
-                Items: [
-                  'RSC',
-                  'Next-Router-Prefetch',
-                  'Next-Router-State-Tree',
-                  'Next-URL',
-                  'x-middleware-prefetch'
-                ]
-              }
-            },
-            QueryStringsConfig: {
-              QueryStringBehavior: 'whitelist',
-              QueryStrings: {
-                Quantity: 1,
-                Items: ['rsc']
-              }
-            }
+          if (
+            clean.includes("Dynamic server usage:") ||
+            clean.includes("[Auth Profile Proxy] Error") ||
+            clean.includes(
+              "Route /auth/profile couldn't be rendered statically",
+            )
+          ) {
+            return false;
           }
+          return true;
         };
 
-        const tempPolicyPath = path.join(os.tmpdir(), `cache-policy-${Date.now()}.json`);
-        fs.writeFileSync(tempPolicyPath, JSON.stringify(cachePolicyConfig));
+        // Filter stdout for noise
+        build.stdout.on("data", (data) => {
+          if (filterLog(data)) {
+            process.stdout.write(data);
+          }
+        });
 
-        const createPolicyOutput = execSync(
-          `aws cloudfront create-cache-policy --cache-policy-config file://${tempPolicyPath} --output json`,
-          { encoding: 'utf8' }
+        // Pass through stderr with filtering
+        build.stderr.on("data", (data) => {
+          if (filterLog(data)) {
+            process.stderr.write(data);
+          }
+        });
+
+        build.on("close", (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`Build failed with code ${code}`));
+        });
+      });
+
+      // Fix pnpm symlinks
+      const nodeModulesPath = path.join(
+        workspaceRoot,
+        ".open-next/server-functions/default/node_modules",
+      );
+      if (fs.existsSync(path.join(nodeModulesPath, ".pnpm"))) {
+        const pnpmDirs = fs.readdirSync(path.join(nodeModulesPath, ".pnpm"));
+        const styledJsx = pnpmDirs.find((d) => d.startsWith("styled-jsx@"));
+        if (
+          styledJsx &&
+          !fs.existsSync(path.join(nodeModulesPath, "styled-jsx"))
+        ) {
+          fs.symlinkSync(
+            path.join(".pnpm", styledJsx, "node_modules", "styled-jsx"),
+            path.join(nodeModulesPath, "styled-jsx"),
+            "dir",
+          );
+        }
+      }
+    }
+
+    // 5. Zip
+    console.log("\n🗜️  Zipping function...");
+    const openNextDir = path.join(workspaceRoot, ".open-next");
+    const zipFile = path.join(openNextDir, "function.zip");
+    execSync(
+      `cd "${path.join(openNextDir, "server-functions/default")}" && zip -ry "${zipFile}" . -q`,
+      { stdio: "inherit" },
+    );
+
+    // 6. Deploy Lambda
+    console.log(`\n☁️  Deploying Lambda: ${resources.lambdaName}`);
+
+    // Check if function exists and get current config
+    let exists = false;
+    let existingEnvVars = {};
+    try {
+      const existingFn = await lambda.send(
+        new GetFunctionCommand({ FunctionName: resources.lambdaName }),
+      );
+      exists = true;
+      existingEnvVars = existingFn.Configuration?.Environment?.Variables || {};
+      console.log(
+        `   Existing env var keys: ${Object.keys(existingEnvVars).join(", ")}`,
+      );
+    } catch (e) {
+      if (e.name !== "ResourceNotFoundException") throw e;
+    }
+
+    // Build new env vars - MERGE with existing to avoid losing manually-set vars
+    // Priority: new explicit values > existing values
+    const newEnvVars = {
+      // Fixed values for all deployments
+      NODE_ENV: "production",
+      ENVIRONMENT: environment,
+      MULTI_ZONE_MODE: "true",
+      NEXT_PUBLIC_BASE_PATH: "/outreach",
+      // Required vars from process.env
+      ...requiredVars.reduce((acc, k) => ({ ...acc, [k]: process.env[k] }), {}),
+      // Optional vars - only set if provided in process.env
+      ...optionalVars.reduce((acc, k) => {
+        if (process.env[k]) {
+          acc[k] = process.env[k];
+        }
+        return acc;
+      }, {}),
+    };
+
+    // MERGE: existing env vars are preserved unless explicitly overwritten
+    // This prevents losing vars that were set manually on Lambda
+    const lambdaEnvVars = {
+      ...existingEnvVars, // Existing vars first (will be overwritten if new value provided)
+      ...newEnvVars, // New vars take precedence
+    };
+
+    // Log what's changing
+    const changedKeys = Object.keys(newEnvVars).filter(
+      (k) => existingEnvVars[k] !== newEnvVars[k],
+    );
+    if (changedKeys.length > 0) {
+      console.log(`   Updating env vars: ${changedKeys.join(", ")}`);
+    }
+
+    let functionArn;
+
+    if (exists) {
+      console.log("   Function exists. Updating code...");
+      await lambda.send(
+        new UpdateFunctionCodeCommand({
+          FunctionName: resources.lambdaName,
+          ZipFile: fs.readFileSync(zipFile),
+        }),
+      );
+
+      // Wait for update
+      let ready = false;
+      while (!ready) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const fn = await lambda.send(
+          new GetFunctionCommand({ FunctionName: resources.lambdaName }),
         );
-        const createdPolicy = JSON.parse(createPolicyOutput);
-        cachePolicyId = createdPolicy.CachePolicy.Id;
-
-        fs.unlinkSync(tempPolicyPath);
-        console.log(`   ✅ Created cache policy: ${cachePolicyId}`);
+        if (fn.Configuration.LastUpdateStatus === "Successful") {
+          ready = true;
+          functionArn = fn.Configuration.FunctionArn;
+        }
+        if (fn.Configuration.LastUpdateStatus === "Failed")
+          throw new Error("Lambda update failed");
       }
 
-      // Get current distribution config
-      console.log('   🔍 Checking distribution cache behavior...');
-      const cfConfigOutput = execSync(
-        `aws cloudfront get-distribution-config \
-          --id ${config.outreachCloudfrontDistribution} \
-          --output json`,
-        { encoding: 'utf8' }
+      console.log("   Updating configuration...");
+      await lambda.send(
+        new UpdateFunctionConfigurationCommand({
+          FunctionName: resources.lambdaName,
+          Environment: { Variables: lambdaEnvVars },
+        }),
       );
-      const cfConfig = JSON.parse(cfConfigOutput);
-      const etag = cfConfig.ETag;
-      const distConfig = cfConfig.DistributionConfig;
+    } else {
+      console.log("   Function does not exist. Creating...");
 
-      // Check if distribution is using legacy ForwardedValues or already has correct cache policy
-      const currentCacheBehavior = distConfig.DefaultCacheBehavior;
-      const needsUpdate = currentCacheBehavior.ForwardedValues || 
-                         currentCacheBehavior.CachePolicyId !== cachePolicyId;
+      // Get Role ARN
+      console.log(`   Looking up role: ${resources.roleName}`);
+      const role = await iam.send(
+        new GetRoleCommand({ RoleName: resources.roleName }),
+      );
+      const roleArn = role.Role.Arn;
+
+      const createResult = await lambda.send(
+        new CreateFunctionCommand({
+          FunctionName: resources.lambdaName,
+          Runtime: "nodejs20.x",
+          Role: roleArn,
+          Handler: "index.handler", // OpenNext default
+          Code: { ZipFile: fs.readFileSync(zipFile) },
+          Environment: { Variables: lambdaEnvVars },
+          Timeout: 30,
+          MemorySize: environment === "production" ? 2048 : 1024,
+          Architectures: ["x86_64"],
+          Tags: resources.tags,
+        }),
+      );
+      functionArn = createResult.FunctionArn;
+      console.log("   Function created.");
+    }
+
+    // Wait for stability
+    await new Promise((r) => setTimeout(r, 5000));
+
+    // Publish Version
+    console.log("   Publishing version...");
+    const version = await lambda.send(
+      new PublishVersionCommand({
+        FunctionName: resources.lambdaName,
+        Description: `Deploy ${new Date().toISOString()}`,
+      }),
+    );
+    console.log(`   🚀 Published v${version.Version}`);
+
+    // Tag Resource
+    const gitHash = execSync("git rev-parse --short HEAD").toString().trim();
+    // We tag the function ARN, not the version/alias (which often fails or is unsupported for alias tags depending on context)
+    // Actually, tagging the function itself is best.
+    // The previous error "Tags on function aliases and versions are not supported" implies we should tag the main function ARN.
+    // The `functionArn` variable is derived from GetFunction or CreateFunction.
+    await lambda.send(
+      new TagResourceCommand({
+        Resource: functionArn,
+        Tags: {
+          GitCommit: gitHash,
+          Deployer: process.env.USER || "ci",
+        },
+      }),
+    );
+
+    // Update Alias
+    console.log('   Updating "live" alias...');
+    try {
+      await lambda.send(
+        new UpdateAliasCommand({
+          FunctionName: resources.lambdaName,
+          Name: "live",
+          FunctionVersion: version.Version,
+        }),
+      );
+    } catch (e) {
+      if (e.name === "ResourceNotFoundException") {
+        await lambda.send(
+          new CreateAliasCommand({
+            FunctionName: resources.lambdaName,
+            Name: "live",
+            FunctionVersion: version.Version,
+          }),
+        );
+        console.log('   Alias "live" created.');
+      } else throw e;
+    }
+
+    // 7. S3 Sync (Assets) - NO DELETE
+    console.log(`\n📤 Uploading assets to ${resources.bucketName}...`);
+    const assetsDir = path.join(openNextDir, "assets");
+    if (fs.existsSync(assetsDir)) {
+      execSync(
+        `aws s3 sync "${path.join(assetsDir, "_next")}" s3://${resources.bucketName}/outreach-static/_next --cache-control "public,max-age=31536000,immutable"`,
+        { stdio: "inherit" },
+      );
+      execSync(
+        `aws s3 sync "${assetsDir}" s3://${resources.bucketName}/outreach-static/ --exclude "_next/*" --cache-control "public,max-age=86400"`,
+        { stdio: "inherit" },
+      );
+    }
+
+    // 7b. Ensure S3 Bucket Policy for CloudFront OAC Access
+    console.log("\n🔐 Verifying S3 bucket policy for CloudFront access...");
+
+    // Get AWS account ID for policy
+    const accountId = (await sts.send(new GetCallerIdentityCommand({})))
+      .Account;
+
+    // Find the SleepConnect CloudFront distribution for this environment
+    // This is the distribution that needs access to the Outreach assets bucket
+    const sleepConnectDomainMap = {
+      production: "mydreamconnect.com",
+      staging: "stage.mydreamconnect.com",
+      develop: "dev.mydreamconnect.com",
+    };
+    const sleepConnectDomain =
+      sleepConnectDomainMap[environment] || "dev.mydreamconnect.com";
+
+    let sleepConnectDistId = null;
+    let scMarker = undefined;
+    do {
+      const response = await cloudfront.send(
+        new ListDistributionsCommand({ Marker: scMarker }),
+      );
+      if (response.DistributionList?.Items) {
+        for (const dist of response.DistributionList.Items) {
+          if (dist.Aliases?.Items?.includes(sleepConnectDomain)) {
+            sleepConnectDistId = dist.Id;
+            break;
+          }
+        }
+      }
+      scMarker = response.DistributionList?.NextMarker;
+    } while (scMarker && !sleepConnectDistId);
+
+    if (sleepConnectDistId) {
+      console.log(`   Found SleepConnect Distribution: ${sleepConnectDistId}`);
+
+      // Define the required bucket policy
+      const bucketPolicy = {
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Sid: "AllowCloudFrontServicePrincipal",
+            Effect: "Allow",
+            Principal: {
+              Service: "cloudfront.amazonaws.com",
+            },
+            Action: "s3:GetObject",
+            Resource: `arn:aws:s3:::${resources.bucketName}/*`,
+            Condition: {
+              StringEquals: {
+                "AWS:SourceArn": `arn:aws:cloudfront::${accountId}:distribution/${sleepConnectDistId}`,
+              },
+            },
+          },
+        ],
+      };
+
+      // Check if policy needs updating
+      let needsUpdate = false;
+      try {
+        const currentPolicy = await s3.send(
+          new GetBucketPolicyCommand({ Bucket: resources.bucketName }),
+        );
+        const current = JSON.parse(currentPolicy.Policy);
+        const required = JSON.stringify(bucketPolicy);
+        const existing = JSON.stringify(current);
+
+        if (required !== existing) {
+          needsUpdate = true;
+          console.log("   Bucket policy differs from required policy");
+        } else {
+          console.log("   ✅ Bucket policy is correct");
+        }
+      } catch (e) {
+        if (e.name === "NoSuchBucketPolicy") {
+          needsUpdate = true;
+          console.log("   No bucket policy exists");
+        } else {
+          throw e;
+        }
+      }
 
       if (needsUpdate) {
-        console.log('   🔧 Updating distribution to use RSC-aware cache policy...');
-
-        // Replace legacy ForwardedValues with modern cache policy + origin request policy
-        delete currentCacheBehavior.ForwardedValues;
-        delete currentCacheBehavior.MinTTL;
-        delete currentCacheBehavior.DefaultTTL;
-        delete currentCacheBehavior.MaxTTL;
-        
-        currentCacheBehavior.CachePolicyId = cachePolicyId;
-        currentCacheBehavior.OriginRequestPolicyId = 'b689b0a8-53d0-40ab-baf2-68738e2966ac'; // AllViewerExceptHostHeader
-
-        // Write updated config to temp file
-        const tempCfConfigPath = path.join(os.tmpdir(), `cf-config-${Date.now()}.json`);
-        fs.writeFileSync(tempCfConfigPath, JSON.stringify(distConfig));
-
-        execSync(
-          `aws cloudfront update-distribution \
-            --id ${config.outreachCloudfrontDistribution} \
-            --if-match ${etag} \
-            --distribution-config file://${tempCfConfigPath}`,
-          { stdio: 'inherit' }
+        console.log("   Updating S3 bucket policy...");
+        await s3.send(
+          new PutBucketPolicyCommand({
+            Bucket: resources.bucketName,
+            Policy: JSON.stringify(bucketPolicy),
+          }),
         );
-
-        fs.unlinkSync(tempCfConfigPath);
-        console.log('   ✅ CloudFront distribution updated with RSC cache policy');
-        console.log('   ⏳ Note: CloudFront changes may take a few minutes to propagate');
-      } else {
-        console.log('   ✅ CloudFront already using correct RSC cache policy');
+        console.log("   ✅ S3 bucket policy updated");
       }
-      console.log('');
-    } catch (error) {
-      console.log(`   ⚠️  Warning: Could not configure CloudFront cache policy: ${error.message}`);
-      console.log('');
-    }
-  }
-
-  // Step 6: Deploy static assets to S3
-  const assetsDir = path.join(openNextDir, 'assets');
-  if (fs.existsSync(assetsDir)) {
-    console.log('📤 Step 6: Uploading static assets to S3...');
-    console.log(`   Bucket: ${config.s3AssetsBucket}`);
-    console.log('');
-
-    try {
-      // Upload _next directory with long cache (1 year - immutable)
-      const nextDir = path.join(assetsDir, '_next');
-      if (fs.existsSync(nextDir)) {
-        console.log('   Uploading _next/* (immutable, 1 year cache)...');
-        execSync(
-          `aws s3 sync "${nextDir}" s3://${config.s3AssetsBucket}/outreach-static/_next \
-            --delete \
-            --cache-control "public,max-age=31536000,immutable" \
-            --region ${config.region}`,
-          { stdio: 'inherit' }
-        );
-      }
-
-      // Upload root-level files (favicons, manifest, etc.) - 1 day cache
-      console.log('   Uploading root files (1 day cache)...');
-      const rootFiles = fs.readdirSync(assetsDir).filter(f =>
-        fs.statSync(path.join(assetsDir, f)).isFile()
+    } else {
+      console.warn(
+        `   ⚠️  Could not find SleepConnect CloudFront distribution (${sleepConnectDomain})`,
       );
+      console.warn("   Skipping bucket policy update");
+    }
 
-      for (const file of rootFiles) {
-        execSync(
-          `aws s3 cp "${path.join(assetsDir, file)}" \
-            s3://${config.s3AssetsBucket}/outreach-static/${file} \
-            --cache-control "public,max-age=86400" \
-            --region ${config.region}`,
-          { stdio: 'inherit' }
+    // 8. Invalidate CloudFront
+    console.log("\n🔄 Invalidating CloudFront...");
+    let distributionId = null;
+    let found = false;
+    let marker = undefined;
+
+    // Attempt to find distribution by Alias
+    do {
+      const response = await cloudfront.send(
+        new ListDistributionsCommand({ Marker: marker }),
+      );
+      if (response.DistributionList?.Items) {
+        for (const dist of response.DistributionList.Items) {
+          if (dist.Aliases?.Items?.includes(resources.domainName)) {
+            found = true;
+            distributionId = dist.Id;
+            break;
+          }
+        }
+      }
+      marker = response.DistributionList?.NextMarker;
+    } while (marker && !found);
+
+    if (distributionId) {
+      console.log(`   Found Distribution: ${distributionId}`);
+
+      // Verify CloudFront compression is enabled (prevents 6MB payload errors)
+      console.log("   Verifying CloudFront compression...");
+      const {
+        GetDistributionConfigCommand,
+        GetCachePolicyCommand,
+      } = require("@aws-sdk/client-cloudfront");
+
+      try {
+        const distConfig = await cloudfront.send(
+          new GetDistributionConfigCommand({ Id: distributionId }),
+        );
+        const cachePolicyId =
+          distConfig.DistributionConfig?.DefaultCacheBehavior?.CachePolicyId;
+
+        if (cachePolicyId) {
+          const cachePolicy = await cloudfront.send(
+            new GetCachePolicyCommand({ Id: cachePolicyId }),
+          );
+          const gzipEnabled =
+            cachePolicy.CachePolicy?.CachePolicyConfig
+              ?.ParametersInCacheKeyAndForwardedToOrigin
+              ?.EnableAcceptEncodingGzip;
+          const brotliEnabled =
+            cachePolicy.CachePolicy?.CachePolicyConfig
+              ?.ParametersInCacheKeyAndForwardedToOrigin
+              ?.EnableAcceptEncodingBrotli;
+
+          if (!gzipEnabled && !brotliEnabled) {
+            console.warn("   ⚠️  WARNING: CloudFront compression is DISABLED!");
+            console.warn(
+              "   This may cause Lambda payload size errors (>6MB) for large responses.",
+            );
+            console.warn(
+              `   Cache Policy: ${cachePolicy.CachePolicy?.CachePolicyConfig?.Name} (${cachePolicyId})`,
+            );
+            console.warn(
+              "   Recommendation: Enable gzip/brotli compression in CloudFront cache policy.",
+            );
+            console.warn(
+              "   See docs/DEPLOYMENT_RUNBOOK.md for fix instructions.",
+            );
+          } else {
+            console.log(
+              `   ✅ Compression enabled (Gzip: ${gzipEnabled}, Brotli: ${brotliEnabled})`,
+            );
+          }
+        }
+      } catch (err) {
+        console.warn(
+          "   ⚠️  Could not verify CloudFront compression settings:",
+          err.message,
         );
       }
 
-      // Upload subdirectories (images, etc.) - 1 day cache
-      const rootDirs = fs.readdirSync(assetsDir).filter(f =>
-        fs.statSync(path.join(assetsDir, f)).isDirectory() && f !== '_next'
+      await cloudfront.send(
+        new CreateInvalidationCommand({
+          DistributionId: distributionId,
+          InvalidationBatch: {
+            CallerReference: `deploy-${Date.now()}`,
+            Paths: {
+              Quantity: 1,
+              Items: ["/*"],
+            },
+          },
+        }),
       );
-
-      for (const dir of rootDirs) {
-        console.log(`   Uploading ${dir}/* (1 day cache)...`);
-        execSync(
-          `aws s3 sync "${path.join(assetsDir, dir)}" \
-            s3://${config.s3AssetsBucket}/outreach-static/${dir} \
-            --cache-control "public,max-age=86400" \
-            --region ${config.region}`,
-          { stdio: 'inherit' }
-        );
-      }
-
-      console.log('');
-      console.log('✅ Static assets uploaded');
-      console.log('');
-    } catch (error) {
-      console.log('⚠️  Warning: Could not upload assets to S3');
-      console.log('   Assets will be served from Lambda (slower but functional)');
-      console.log('');
-    }
-  } else {
-    console.log('ℹ️  Step 6: No static assets to upload');
-    console.log('');
-  }
-
-  // Step 7: Invalidate CloudFront cache (optional)
-  const hasCloudFrontDistribution =
-    Boolean(config.cloudfrontDistribution) &&
-    !String(config.cloudfrontDistribution).includes('[UPDATE-AFTER-CREATION]');
-
-  if (hasCloudFrontDistribution) {
-    console.log('🔄 Step 7: Invalidating CloudFront cache...');
-    console.log(`   Distribution: ${config.cloudfrontDistribution}`);
-    console.log('');
-
-    try {
-      const invalidationResult = execSync(
-        `aws cloudfront create-invalidation \
-          --distribution-id ${config.cloudfrontDistribution} \
-          --paths "/outreach/*" "/outreach-static/*" \
-          --region ${config.region} \
-          --output json`,
-        { encoding: 'utf8' }
+      console.log("   ✅ Invalidation requested");
+    } else {
+      console.warn(
+        "⚠️  Could not find CloudFront distribution for invalidation",
       );
-
-      const invalidation = JSON.parse(invalidationResult);
-      console.log(`   Invalidation ID: ${invalidation.Invalidation.Id}`);
-      console.log('✅ CloudFront cache invalidation started');
-      console.log('');
-    } catch (error) {
-      console.log('⚠️  Warning: Could not invalidate CloudFront cache');
-      console.log('   Users may see cached content until TTL expires');
-      console.log('');
+      console.warn(`   Looked for alias: ${resources.domainName}`);
     }
-  } else {
-    console.log('ℹ️  Step 7: Skipping CloudFront invalidation');
-    console.log('   Reason: cloudfrontDistribution is not configured');
-    console.log('');
-  }
 
-  // Success summary
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('✅ Deployment Complete!');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('');
-  console.log(`🌍 Environment:     ${environment}`);
-  console.log(`λ  Lambda:          ${config.lambdaFunction}`);
-  console.log(`🔗 Function URL:    ${config.lambdaFunctionUrl}`);
-  console.log(`☁️  CloudFront:      ${config.cloudfrontDistribution}`);
-  console.log('');
-  console.log('🌐 Multi-zone URL:');
-  if (environment === 'develop') {
-    console.log('   https://dev.mydreamconnect.com/outreach');
-  } else if (environment === 'staging') {
-    console.log('   https://staging.mydreamconnect.com/outreach');
-  } else {
-    console.log('   https://dreamconnect.health/outreach');
+    console.log("\n✅ Deployment Complete!");
+    console.log(`🌍 URL: https://${resources.domainName}/outreach`);
+  } catch (e) {
+    console.error("\n❌ Deployment Failed:", e);
+    process.exit(1);
   }
-  console.log('');
-  console.log('📊 View logs:');
-  console.log(`   aws logs tail /aws/lambda/${config.lambdaFunction} --follow`);
-  console.log('');
-  console.log('🔍 Check function:');
-  console.log(`   aws lambda get-function --function-name ${config.lambdaFunction}`);
-  console.log('');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('');
-
-  // Cleanup
-  console.log('🧹 Cleaning up...');
-  if (fs.existsSync(zipFile)) {
-    fs.unlinkSync(zipFile);
-  }
-  console.log('✅ Cleanup complete');
-  console.log('');
-
-} catch (error) {
-  console.error('');
-  console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.error('❌ Deployment Failed');
-  console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.error('');
-  console.error(error.message);
-  console.error('');
-  process.exit(1);
-}
+})();

@@ -11,6 +11,7 @@ import { TemplateEditor } from "@/components/templates/TemplateEditor";
 import { type Template } from "@/types/sms";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { getUserFriendlyError } from "@/lib/errors";
 
 export default function TemplatesPage() {
   const { templates, isLoading, refresh } = useTemplates();
@@ -37,7 +38,7 @@ export default function TemplatesPage() {
       refresh();
     } catch (error) {
       console.error("Failed to delete template:", error);
-      toast.error("Failed to delete template");
+      toast.error(getUserFriendlyError(error));
     }
   };
 
@@ -73,7 +74,7 @@ export default function TemplatesPage() {
       refresh();
     } catch (error) {
       console.error("Failed to save template:", error);
-      toast.error("Failed to save template");
+      toast.error(getUserFriendlyError(error));
     } finally {
       setIsSaving(false);
     }

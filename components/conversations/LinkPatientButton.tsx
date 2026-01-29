@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { getUserFriendlyError } from "@/lib/errors";
 import { formatPhoneNumber, formatDisplayPhoneNumber } from "@/lib/validation";
 
 // =============================================================================
@@ -203,7 +204,7 @@ export function LinkPatientButton({
       setSearchResults(data || []);
     } catch (err) {
       console.error("Error searching patients:", err);
-      setError("Failed to search patients. Please try again.");
+      setError(getUserFriendlyError(err));
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -253,7 +254,7 @@ export function LinkPatientButton({
         onPatientLinked?.(patient.sax_id);
       } catch (err) {
         console.error("Error linking patient:", err);
-        setError("Failed to link patient. Please try again.");
+        setError(getUserFriendlyError(err));
       } finally {
         setIsLinking(false);
       }

@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Button, Tooltip } from "flowbite-react";
-import { HiTemplate } from "react-icons/hi";
+import { Button, Tooltip, Dropdown } from "flowbite-react";
+import { HiTemplate, HiMenu, HiCheck } from "react-icons/hi";
 import { ConversationList } from "@/components/conversations/ConversationList";
 import {
   ConversationFilter,
@@ -12,6 +12,7 @@ import {
 } from "@/components/conversations/ConversationFilter";
 import { NewConversationModal } from "@/components/conversations/NewConversationModal";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { SearchInput } from "@/components/ui/search-input";
 import type { Conversation } from "@/types/sms";
 
 // =============================================================================
@@ -32,9 +33,14 @@ export default function ConversationsPage(): React.ReactElement {
   const urlFilterStatus = searchParams.get(
     "status",
   ) as ConversationFilterValue | null;
+  const conversationFilterOptions = [
+    "all",
+    "unread",
+    "sla_risk",
+    // "archived"
+  ];
   const initialFilter: ConversationFilterValue =
-    urlFilterStatus &&
-    ["all", "unread", "sla_risk", "archived"].includes(urlFilterStatus)
+    urlFilterStatus && conversationFilterOptions.includes(urlFilterStatus)
       ? urlFilterStatus
       : "all";
 
@@ -51,9 +57,12 @@ export default function ConversationsPage(): React.ReactElement {
     string | undefined
   >();
 
-  // Search query state (setSearchQuery will be used when search UI is implemented)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // Search query state
   const [searchQuery, setSearchQuery] = React.useState<string>("");
+
+  const handleSearch = React.useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
 
   // ==========================================================================
   // Handlers
@@ -110,27 +119,89 @@ export default function ConversationsPage(): React.ReactElement {
   // ==========================================================================
 
   return (
-    <div className="flex flex-col h-full bg-gray-900">
+    <div className="flex flex-col h-full w-full lg:basis-1/2 bg-gray-900">
       <PageHeader
         title="SMS Conversations"
         subtitle="Manage patient conversations"
       >
-        {/* Templates Link */}
-        <Tooltip content="Manage message templates" placement="bottom">
-          <Link href="/templates">
-            <Button color="gray" size="sm">
-              <HiTemplate className="mr-2 h-4 w-4" />
-              Templates
-            </Button>
-          </Link>
-        </Tooltip>
-
-        {/* Status filter - FR-014c */}
-        <ConversationFilter
-          value={filterStatus}
-          onChange={handleFilterChange}
+        {/* Search Input */}
+        <SearchInput
+          placeholder="Search conversations..."
+          onChange={handleSearch}
+          className="w-full max-w-xs hidden md:block"
         />
+
+        {/* Mobile Menu - Hidden on md+ */}
+        <div className="md:hidden">
+          <Dropdown
+            label={<HiMenu className="h-5 w-5" />}
+            arrowIcon={false}
+            color="gray"
+            size="sm"
+            dismissOnClick={false}
+          >
+            <Dropdown.Header>
+              <span className="block text-sm font-medium text-center text-gray-900 dark:text-gray-200 mb-2">
+                Filters
+              </span>
+            </Dropdown.Header>
+            <Dropdown.Item
+              onClick={() => handleFilterChange("all")}
+              icon={filterStatus === "all" ? HiCheck : undefined}
+            >
+              All Conversations
+            </Dropdown.Item>
+            <Dropdown.Item
+              onClick={() => handleFilterChange("unread")}
+              icon={filterStatus === "unread" ? HiCheck : undefined}
+            >
+              Unread
+            </Dropdown.Item>
+            <Dropdown.Item
+              onClick={() => handleFilterChange("sla_risk")}
+              icon={filterStatus === "sla_risk" ? HiCheck : undefined}
+            >
+              SLA Risk
+            </Dropdown.Item>
+            <Dropdown.Divider />
+            <Dropdown.Item>
+              <Link href="/templates" className="flex items-center w-full">
+                <HiTemplate className="mr-2 h-4 w-4" />
+                Templates
+              </Link>
+            </Dropdown.Item>
+          </Dropdown>
+        </div>
+
+        {/* Templates Link - Hidden on mobile */}
+        <div className="hidden md:block">
+          <Tooltip content="Manage message templates" placement="bottom">
+            <Link href="/templates">
+              <Button color="gray" size="sm">
+                <HiTemplate className="mr-2 h-4 w-4" />
+                Templates
+              </Button>
+            </Link>
+          </Tooltip>
+        </div>
+
+        {/* Status filter - Hidden on mobile */}
+        <div className="hidden md:block">
+          <ConversationFilter
+            value={filterStatus}
+            onChange={handleFilterChange}
+          />
+        </div>
       </PageHeader>
+
+      {/* Mobile Search - Visible only on small screens */}
+      <div className="md:hidden px-4 py-3 bg-gray-800 border-b border-gray-700">
+        <SearchInput
+          placeholder="Search..."
+          onChange={handleSearch}
+          className="w-full"
+        />
+      </div>
 
       {/* Main Content - ConversationList handles its own data fetching */}
       <main className="flex-1 overflow-hidden flex">

@@ -2,12 +2,16 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { logAndFormatError } from "@/lib/errors";
 import {
   formatPhoneNumber,
   formatDisplayPhoneNumber,
   isValidUSPhoneNumber,
 } from "@/lib/validation";
+import { useIsSAXUser } from "@/hooks/useIsSAXUser";
+import { usePractices } from "@/hooks/usePractices";
+import { HiExclamationTriangle } from "react-icons/hi2";
 
 // =============================================================================
 // Types & Interfaces
@@ -59,6 +63,7 @@ interface Patient {
   last_name: string;
   phone: string;
   email: string;
+  practice_id: string;
 }
 
 // =============================================================================
@@ -293,6 +298,26 @@ function ClearIcon({ className, ...props }: IconProps) {
   );
 }
 
+function BuildingIcon({ className, ...props }: IconProps) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      {...props}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+      />
+    </svg>
+  );
+}
+
 // =============================================================================
 // NewConversationModal Component
 // =============================================================================
@@ -320,6 +345,12 @@ export function NewConversationModal({
   const [displayPhone, setDisplayPhone] = React.useState("");
   const [friendlyName, setFriendlyName] = React.useState("");
   const [initialMessage, setInitialMessage] = React.useState("");
+  const [selectedPracticeId, setSelectedPracticeId] = React.useState<
+    string | null
+  >(null);
+  const [priorPracticeId, setPriorPracticeId] = React.useState<string | null>(
+    null,
+  );
 
   // Patient search state (FR-006a, FR-006b)
   const [patientSearchQuery, setPatientSearchQuery] = React.useState("");
@@ -338,6 +369,10 @@ export function NewConversationModal({
   const [nameError, setNameError] = React.useState<string | null>(null);
   const [messageError, setMessageError] = React.useState<string | null>(null);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
+
+  // SAX user and practices hooks
+  const { data: isSAXUser, isLoading: isSAXLoading } = useIsSAXUser();
+  const { data: practices, isLoading: practicesLoading } = usePractices();
 
   // Refs
   const modalRef = React.useRef<HTMLDivElement>(null);
@@ -536,28 +571,41 @@ export function NewConversationModal({
    * Handle patient selection from search results (FR-006b)
    * Auto-populates phone and name fields
    */
-  const handlePatientSelect = React.useCallback((patient: Patient) => {
-    setSelectedPatient(patient);
-    setPatientSearchQuery(`${patient.first_name} ${patient.last_name}`);
-    setShowPatientDropdown(false);
+  const handlePatientSelect = React.useCallback(
+    (patient: Patient) => {
+      setSelectedPatient(patient);
+      setPatientSearchQuery(`${patient.first_name} ${patient.last_name}`);
+      setShowPatientDropdown(false);
 
-    // Auto-populate phone number if available
-    if (patient.phone) {
-      const formattedPhone = formatPhoneNumber(patient.phone);
-      setPhoneNumber(formattedPhone);
-      if (formattedPhone && isValidUSPhoneNumber(formattedPhone)) {
-        setDisplayPhone(formatDisplayPhoneNumber(formattedPhone));
-      } else {
-        setDisplayPhone(patient.phone);
+      // Auto-populate phone number if available
+      if (patient.phone) {
+        const formattedPhone = formatPhoneNumber(patient.phone);
+        setPhoneNumber(formattedPhone);
+        if (formattedPhone && isValidUSPhoneNumber(formattedPhone)) {
+          setDisplayPhone(formatDisplayPhoneNumber(formattedPhone));
+        } else {
+          setDisplayPhone(patient.phone);
+        }
+        setPhoneError(null);
       }
-      setPhoneError(null);
-    }
 
-    // Auto-populate friendly name
-    const fullName = `${patient.first_name} ${patient.last_name}`.trim();
-    setFriendlyName(fullName);
-    setNameError(null);
-  }, []);
+      // Auto-populate friendly name
+      const fullName = `${patient.first_name} ${patient.last_name}`.trim();
+      setFriendlyName(fullName);
+      setNameError(null);
+
+      // Capture current practice before auto-setting patient's practice
+      if (patient.practice_id && selectedPracticeId !== patient.practice_id) {
+        setPriorPracticeId(selectedPracticeId);
+      }
+
+      // Auto-set practice from patient's practice_id
+      if (patient.practice_id) {
+        setSelectedPracticeId(patient.practice_id);
+      }
+    },
+    [selectedPracticeId],
+  );
 
   /**
    * Clear patient selection and reset form for manual entry
@@ -573,11 +621,53 @@ export function NewConversationModal({
     setPhoneError(null);
     setNameError(null);
 
+    // Restore prior practice selection
+    if (priorPracticeId) {
+      setSelectedPracticeId(priorPracticeId);
+      setPriorPracticeId(null);
+    }
+
     // Focus search input
     requestAnimationFrame(() => {
       patientSearchInputRef.current?.focus();
     });
-  }, []);
+  }, [priorPracticeId]);
+
+  /**
+   * Handle manual phone number input
+   */
+  const handlePhoneChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const rawValue = event.target.value;
+      const formattedPhone = formatPhoneNumber(rawValue);
+      setPhoneNumber(formattedPhone);
+      if (formattedPhone && isValidUSPhoneNumber(formattedPhone)) {
+        setDisplayPhone(formatDisplayPhoneNumber(formattedPhone));
+      } else {
+        setDisplayPhone(rawValue);
+      }
+      if (phoneError) {
+        setPhoneError(null);
+      }
+    },
+    [phoneError],
+  );
+
+  /**
+   * Handle manual patient name input
+   */
+  const handleNameChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = event.target.value;
+      if (value.length <= MAX_NAME_LENGTH) {
+        setFriendlyName(value);
+      }
+      if (nameError) {
+        setNameError(null);
+      }
+    },
+    [nameError],
+  );
 
   /**
    * Handle initial message input with auto-resize
@@ -692,6 +782,9 @@ export function NewConversationModal({
           patientPhone: phoneNumber,
           patientName: sanitizedName,
           initialMessage: initialMessage.trim(),
+          ...(isSAXUser && selectedPracticeId
+            ? { practiceId: selectedPracticeId }
+            : {}),
         };
 
         const response = await api.post<CreateConversationResponse>(
@@ -703,11 +796,7 @@ export function NewConversationModal({
         onConversationCreated(response.id);
         onClose();
       } catch (error) {
-        if (error instanceof ApiError) {
-          setSubmitError(error.message);
-        } else {
-          setSubmitError("An unexpected error occurred. Please try again.");
-        }
+        setSubmitError(logAndFormatError(error, "Create Conversation"));
       } finally {
         setIsSubmitting(false);
       }
@@ -722,6 +811,8 @@ export function NewConversationModal({
       practiceName,
       initialMessage,
       onConversationCreated,
+      isSAXUser,
+      selectedPracticeId,
     ],
   );
 
@@ -919,6 +1010,51 @@ export function NewConversationModal({
               )}
             </div>
 
+            {isSAXUser && !isSAXLoading && (
+              <div>
+                <label
+                  htmlFor="practice-select"
+                  className="flex items-center gap-2 text-sm font-medium text-gray-200 mb-1.5"
+                >
+                  <BuildingIcon
+                    className="h-4 w-4 text-gray-400"
+                    aria-hidden="true"
+                  />
+                  Practice
+                  <span className="text-red-400" aria-hidden="true">
+                    *
+                  </span>
+                </label>
+                <select
+                  id="practice-select"
+                  value={selectedPracticeId || ""}
+                  onChange={(e) => setSelectedPracticeId(e.target.value)}
+                  disabled={
+                    isSubmitting || practicesLoading || !!selectedPatient
+                  }
+                  className={cn(
+                    "w-full px-4 py-2.5 rounded-lg text-sm",
+                    "border transition-colors",
+                    selectedPatient
+                      ? "bg-gray-900/50 text-gray-400 border-gray-700/50 cursor-not-allowed opacity-60"
+                      : "bg-gray-900 text-white border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800",
+                    (isSubmitting || practicesLoading) &&
+                      "opacity-50 cursor-not-allowed",
+                  )}
+                >
+                  {practicesLoading ? (
+                    <option value="">Loading practices...</option>
+                  ) : (
+                    practices?.map((p) => (
+                      <option key={p.practice_id} value={p.practice_id}>
+                        {p.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+            )}
+
             {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -928,7 +1064,7 @@ export function NewConversationModal({
                 <span className="px-2 bg-gray-800 text-gray-500">
                   {selectedPatient
                     ? "Auto-filled from patient record"
-                    : "Patient details"}
+                    : "Enter patient details manually"}
                 </span>
               </div>
             </div>
@@ -953,23 +1089,32 @@ export function NewConversationModal({
                 id="phone-input"
                 type="tel"
                 value={displayPhone}
-                placeholder="Select a patient above"
+                onChange={handlePhoneChange}
+                placeholder={
+                  selectedPatient
+                    ? "Auto-filled from patient"
+                    : "(555) 123-4567"
+                }
                 aria-required="true"
                 aria-invalid={!!phoneError}
                 aria-describedby={phoneError ? "phone-error" : "phone-hint"}
-                disabled
-                readOnly
+                disabled={isSubmitting}
+                readOnly={!!selectedPatient}
                 className={cn(
                   "w-full px-4 py-2.5 rounded-lg text-sm",
-                  "bg-gray-900/50 text-gray-400 placeholder:text-gray-600",
-                  "border border-gray-700/50",
-                  "cursor-not-allowed opacity-60",
+                  "border transition-colors",
+                  selectedPatient
+                    ? "bg-gray-900/50 text-gray-400 border-gray-700/50 cursor-not-allowed opacity-60"
+                    : "bg-gray-900 text-white placeholder:text-gray-500 border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800",
+                  isSubmitting && "opacity-50 cursor-not-allowed",
                   phoneError && "border-red-500",
                 )}
               />
               {!phoneError && (
                 <p id="phone-hint" className="mt-1.5 text-xs text-gray-500">
-                  Auto-filled from patient selection
+                  {selectedPatient
+                    ? "Auto-filled from patient selection"
+                    : "Enter a US phone number"}
                 </p>
               )}
               {phoneError && (
@@ -1002,17 +1147,24 @@ export function NewConversationModal({
                 id="name-input"
                 type="text"
                 value={friendlyName}
-                placeholder="Select a patient above"
+                onChange={handleNameChange}
+                placeholder={
+                  selectedPatient
+                    ? "Auto-filled from patient"
+                    : "Enter patient name"
+                }
                 aria-required="true"
                 aria-invalid={!!nameError}
                 aria-describedby={nameError ? "name-error" : "name-hint"}
-                disabled
-                readOnly
+                disabled={isSubmitting}
+                readOnly={!!selectedPatient}
                 className={cn(
                   "w-full px-4 py-2.5 rounded-lg text-sm",
-                  "bg-gray-900/50 text-gray-400 placeholder:text-gray-600",
-                  "border border-gray-700/50",
-                  "cursor-not-allowed opacity-60",
+                  "border transition-colors",
+                  selectedPatient
+                    ? "bg-gray-900/50 text-gray-400 border-gray-700/50 cursor-not-allowed opacity-60"
+                    : "bg-gray-900 text-white placeholder:text-gray-500 border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800",
+                  isSubmitting && "opacity-50 cursor-not-allowed",
                   nameError && "border-red-500",
                 )}
               />
@@ -1028,7 +1180,9 @@ export function NewConversationModal({
                 <p id="name-hint" className="mt-1.5 text-xs text-gray-500">
                   {friendlyName && practiceName
                     ? `Will be saved as "${friendlyName} (${practiceName})"`
-                    : "Auto-filled from patient selection"}
+                    : selectedPatient
+                      ? "Auto-filled from patient selection"
+                      : "Patient's display name"}
                 </p>
               )}
             </div>
@@ -1107,10 +1261,18 @@ export function NewConversationModal({
             {/* Submit Error */}
             {submitError && (
               <div
-                className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20"
+                className="rounded-md bg-red-900/30 p-4 border border-red-800/50"
                 role="alert"
               >
-                <p className="text-sm text-red-400">{submitError}</p>
+                <div className="flex gap-3">
+                  <HiExclamationTriangle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-red-300 mb-1">
+                      Unable to Create Conversation
+                    </h3>
+                    <p className="text-sm text-red-400">{submitError}</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>

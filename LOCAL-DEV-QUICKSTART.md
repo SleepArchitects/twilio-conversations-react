@@ -263,7 +263,7 @@ curl http://localhost:3001/outreach
 curl https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev/outreach/conversations
 
 # Test WebSocket (requires wscat)
-wscat -c wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
+wscat -c wss://outreach-ws-dev.mydreamconnect.com
 ```
 
 ---
@@ -418,6 +418,6 @@ Before starting development:
 - **Outreach (Multi-zone)**: `http://localhost:3000/outreach`
 - **Outreach (Direct)**: `http://localhost:3001/outreach`
 - **REST API**: `https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev`
-- **WebSocket API**: `wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev`
+- **WebSocket API**: `wss://outreach-ws-dev.mydreamconnect.com`
 
 **Ready to Start?** See **Quick Start** section above! 🚀

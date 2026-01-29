@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFriendlyError } from "@/lib/errors";
 import { useAuth } from "@/hooks/useAuth";
 import { ConversationListItem } from "./ConversationListItem";
 import type { ConversationFilterValue } from "./ConversationFilter";
@@ -224,11 +225,7 @@ export function ConversationList({
         setHasMore(pagination.hasMore);
       } catch (err) {
         console.error("Error fetching conversations:", err);
-        if (err instanceof ApiError) {
-          setError(err.message);
-        } else {
-          setError("Failed to load conversations");
-        }
+        setError(getUserFriendlyError(err));
       } finally {
         setIsLoading(false);
         setIsLoadingMore(false);
@@ -366,7 +363,7 @@ export function ConversationList({
       {/* List Content */}
       <div
         ref={listRef}
-        className="flex-1 overflow-y-auto px-2 py-2 w-full max-w-full"
+        className="flex-1 overflow-y-auto px-2 py-2 w-full max-w-full overflow-x-hidden"
       >
         {/* Loading State */}
         {isLoading && (

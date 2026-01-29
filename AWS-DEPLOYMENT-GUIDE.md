@@ -361,7 +361,7 @@ aws lambda update-alias \
 **Before production deployment**, set up custom domains for Outreach Lambda:
 
 - `outreach-dev.mydreamconnect.com` → develop
-- `outreach-staging.mydreamconnect.com` → staging  
+- `outreach-staging.mydreamconnect.com` → staging
 - `outreach.mydreamconnect.com` → production
 
 **Benefits**:
@@ -446,7 +446,7 @@ NEXT_PUBLIC_APP_BASE_URL=https://outreach.mydreamconnect.com
 NEXT_PUBLIC_SLEEPCONNECT_URL=https://dev.mydreamconnect.com
 NEXT_PUBLIC_BASE_PATH=/outreach
 NEXT_PUBLIC_API_BASE_URL=https://outreach-api.mydreamconnect.com
-NEXT_PUBLIC_WS_API_URL=wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev
+NEXT_PUBLIC_WS_API_URL=wss://outreach-ws-dev.mydreamconnect.com
 ```
 
 ### Runtime Variables (Lambda)
@@ -515,43 +515,55 @@ aws lambda update-function-configuration \
 Create `infra/cloudfront-stack.ts`:
 
 ```typescript
-import * as cdk from 'aws-cdk-lib';
-import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
-import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
-import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as cdk from "aws-cdk-lib";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import * as lambda from "aws-cdk-lib/aws-lambda";
 
 export class OutreachCloudFrontStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     // Reference existing resources
-    const bucket = s3.Bucket.fromBucketName(this, 'AssetsBucket', 
-      'outreach-mydreamconnect-production');
-    
-    const serverFunction = lambda.Function.fromFunctionArn(this, 'ServerFunction',
-      'arn:aws:lambda:us-east-1:ACCOUNT:function:outreach-mydreamconnect-server-production');
+    const bucket = s3.Bucket.fromBucketName(
+      this,
+      "AssetsBucket",
+      "outreach-mydreamconnect-production",
+    );
+
+    const serverFunction = lambda.Function.fromFunctionArn(
+      this,
+      "ServerFunction",
+      "arn:aws:lambda:us-east-1:ACCOUNT:function:outreach-mydreamconnect-server-production",
+    );
 
     // Create CloudFront distribution
-    new cloudfront.Distribution(this, 'OutreachDistribution', {
+    new cloudfront.Distribution(this, "OutreachDistribution", {
       defaultBehavior: {
         origin: new origins.S3Origin(bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        edgeLambdas: [{
-          functionVersion: serverFunction.currentVersion,
-          eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
-        }],
+        edgeLambdas: [
+          {
+            functionVersion: serverFunction.currentVersion,
+            eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
+          },
+        ],
       },
       additionalBehaviors: {
-        '/outreach-static/*': {
+        "/outreach-static/*": {
           origin: new origins.S3Origin(bucket),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         },
       },
-      domainNames: ['outreach.mydreamconnect.com'],
-      certificate: acm.Certificate.fromCertificateArn(this, 'Certificate',
-        'arn:aws:acm:us-east-1:ACCOUNT:certificate/CERT_ID'),
+      domainNames: ["outreach.mydreamconnect.com"],
+      certificate: acm.Certificate.fromCertificateArn(
+        this,
+        "Certificate",
+        "arn:aws:acm:us-east-1:ACCOUNT:certificate/CERT_ID",
+      ),
     });
   }
 }
@@ -689,17 +701,17 @@ aws s3 ls s3://outreach-mydreamconnect-production/outreach-static/ --recursive -
 
 Based on moderate traffic (100K requests/month):
 
-| Service | Cost |
-|---------|------|
-| Lambda (server) | $5-15 |
-| Lambda (image optimization) | $2-5 |
-| S3 storage (10GB) | $0.23 |
-| S3 requests | $0.50 |
-| CloudFront data transfer (100GB) | $8.50 |
-| CloudFront requests | $1.00 |
-| Route53 hosted zone | $0.50 |
-| ACM certificate | FREE |
-| **Total** | **~$17.73-30.73/month** |
+| Service                          | Cost                    |
+| -------------------------------- | ----------------------- |
+| Lambda (server)                  | $5-15                   |
+| Lambda (image optimization)      | $2-5                    |
+| S3 storage (10GB)                | $0.23                   |
+| S3 requests                      | $0.50                   |
+| CloudFront data transfer (100GB) | $8.50                   |
+| CloudFront requests              | $1.00                   |
+| Route53 hosted zone              | $0.50                   |
+| ACM certificate                  | FREE                    |
+| **Total**                        | **~$17.73-30.73/month** |
 
 ### Cost Optimization Tips
 
@@ -742,28 +754,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
-          
+          node-version: "18"
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Build with OpenNext
         run: npm run build:open-next
         env:
           NEXT_PUBLIC_APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
           NEXT_PUBLIC_API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-          
+
       - name: Deploy to AWS
         run: ./scripts/deploy-to-aws.sh production
 ```

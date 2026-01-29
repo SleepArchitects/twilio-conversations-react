@@ -135,7 +135,7 @@ export const handler = async (event) => {
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
+    body: JSON.stringify({
       message: 'Awaiting OpenNext deployment',
       timestamp: new Date().toISOString()
     })
@@ -256,7 +256,7 @@ aws lambda update-function-configuration \
     TWILIO_ACCOUNT_SID=YOUR_TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN=YOUR_TWILIO_AUTH_TOKEN,
     TWILIO_MESSAGING_SERVICE_SID=YOUR_TWILIO_MESSAGING_SERVICE_SID,
-    NEXT_PUBLIC_WS_API_URL=wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev,
+    NEXT_PUBLIC_WS_API_URL=wss://outreach-ws-dev.mydreamconnect.com,
     NEXT_PUBLIC_APP_BASE_URL=https://dev.mydreamconnect.com,
     NEXT_PUBLIC_SLEEPCONNECT_URL=https://dev.mydreamconnect.com,
     NEXT_PUBLIC_BASE_PATH=/outreach,
@@ -300,7 +300,7 @@ Required Secrets:
   - AUTH0_DOMAIN
   - AUTH0_BASE_URL (https://dev.mydreamconnect.com/outreach)
   - API_BASE_URL (https://0qz7d63vw2.execute-api.us-east-1.amazonaws.com/dev)
-  - WS_API_URL (wss://vfb5l5uxak.execute-api.us-east-1.amazonaws.com/dev)
+  - WS_API_URL (wss://outreach-ws-dev.mydreamconnect.com)
   - TWILIO_ACCOUNT_SID
   - TWILIO_AUTH_TOKEN
   - TWILIO_MESSAGING_SERVICE_SID

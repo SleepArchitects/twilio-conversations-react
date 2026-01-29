@@ -193,14 +193,33 @@ function toConversationSummary(conv: Conversation): ConversationSummary {
 /**
  * Get headers for Lambda API calls with user context
  * Note: Headers are sent in lowercase to match what API Gateway forwards to Lambda
+ * SAX users get an admin header to bypass tenant filtering and omit practice-id
+ * to see all conversations across practices
  */
-function getLambdaHeaders(userContext: UserContext): Record<string, string> {
-  return {
+function getLambdaHeaders(
+  userContext: UserContext,
+  options?: { includePracticeId?: boolean },
+): Record<string, string> {
+  const headers: Record<string, string> = {
     "x-tenant-id": userContext.tenantId,
-    "x-practice-id": userContext.practiceId,
     "x-sax-id": String(userContext.saxId),
     "x-coordinator-sax-id": String(userContext.saxId),
   };
+
+  // SAX users get admin header to bypass tenant filtering on Lambda
+  // They also omit x-practice-id by default so they can see all conversations
+  if (userContext.isSAXUser) {
+    headers["x-sax-admin"] = "true";
+    // Only include practice-id if explicitly requested (e.g., for writes)
+    if (options?.includePracticeId) {
+      headers["x-practice-id"] = userContext.practiceId;
+    }
+  } else {
+    // Non-SAX users always include practice-id
+    headers["x-practice-id"] = userContext.practiceId;
+  }
+
+  return headers;
 }
 
 /**
@@ -317,13 +336,22 @@ async function handleGet(
     }
 
     // Build query parameters for Lambda API
+    // SAX users don't filter by tenant/practice/coordinator - they see all conversations
     const queryParams: Record<string, string | number | undefined> = {
-      tenant_id: userContext.tenantId,
-      practice_id: userContext.practiceId,
-      coordinator_sax_id: userContext.saxId,
       limit,
       offset,
     };
+
+    if (!userContext.isSAXUser) {
+      // Regular users: include tenant/practice/coordinator filters
+      queryParams.tenant_id = userContext.tenantId;
+      queryParams.practice_id = userContext.practiceId;
+      queryParams.coordinator_sax_id = userContext.saxId;
+    } else {
+      console.log(
+        "[CONVERSATIONS API] SAX admin access - showing all conversations",
+      );
+    }
 
     // Handle filterStatus parameter (FR-014c)
     // Map filterStatus to appropriate Lambda API parameters
@@ -524,18 +552,28 @@ async function handlePost(
     // Create conversation via Lambda API
     // The Lambda will check for existing conversations and return them if found,
     // or create a new Twilio conversation automatically
+    // Determine practice_id: use override if SAX user provided one, otherwise default
+    const practiceId =
+      userContext.isSAXUser && body.practiceId
+        ? body.practiceId
+        : userContext.practiceId;
+
     const createPayload = {
       tenant_id: userContext.tenantId,
-      practice_id: userContext.practiceId,
+      practice_id: practiceId,
       coordinator_sax_id: userContext.saxId,
       patient_phone: body.patientPhone,
       friendly_name: friendlyName,
       metadata: body.metadata,
     };
 
-    // Backend API uses header-based authentication (x-tenant-id, x-practice-id, x-coordinator-sax-id)
-    // NOT Bearer token authentication
-    const headers: Record<string, string> = getLambdaHeaders(userContext);
+    // Build headers - for POST we need to include practice-id for proper authorization
+    // SAX users creating conversations under a specific practice need that practice-id in headers
+    const headers: Record<string, string> = getLambdaHeaders(userContext, {
+      includePracticeId: true,
+    });
+    // Override practice-id with the effective practice for this conversation
+    headers["x-practice-id"] = practiceId;
 
     let conversation: Conversation & { existing?: boolean };
     let isExisting = false;
