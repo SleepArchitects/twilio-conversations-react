@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { logAndFormatError } from "@/lib/errors";
 import {
   formatPhoneNumber,
   formatDisplayPhoneNumber,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/validation";
 import { useIsSAXUser } from "@/hooks/useIsSAXUser";
 import { usePractices } from "@/hooks/usePractices";
+import { HiExclamationTriangle } from "react-icons/hi2";
 
 // =============================================================================
 // Types & Interfaces
@@ -794,11 +796,7 @@ export function NewConversationModal({
         onConversationCreated(response.id);
         onClose();
       } catch (error) {
-        if (error instanceof ApiError) {
-          setSubmitError(error.message);
-        } else {
-          setSubmitError("An unexpected error occurred. Please try again.");
-        }
+        setSubmitError(logAndFormatError(error, "Create Conversation"));
       } finally {
         setIsSubmitting(false);
       }
@@ -1263,10 +1261,18 @@ export function NewConversationModal({
             {/* Submit Error */}
             {submitError && (
               <div
-                className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20"
+                className="rounded-md bg-red-900/30 p-4 border border-red-800/50"
                 role="alert"
               >
-                <p className="text-sm text-red-400">{submitError}</p>
+                <div className="flex gap-3">
+                  <HiExclamationTriangle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-red-300 mb-1">
+                      Unable to Create Conversation
+                    </h3>
+                    <p className="text-sm text-red-400">{submitError}</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
