@@ -4,6 +4,7 @@ import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
 import type { Conversation } from "@/types/sms";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export const runtime = "nodejs";
 
 /**

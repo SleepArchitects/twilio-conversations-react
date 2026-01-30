@@ -259,6 +259,7 @@ async function request<T>(
   const config: RequestInit = {
     method,
     headers,
+    cache: "no-store",
     ...restOptions,
   };
 
