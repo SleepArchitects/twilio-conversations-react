@@ -12,6 +12,11 @@ const API_BASE_URL =
     : "";
 
 /**
+ * Module-level flag to prevent multiple concurrent logout attempts on 401
+ */
+let isLoggingOut = false;
+
+/**
  * Custom error class for API errors
  */
 export class ApiError extends Error {
@@ -25,6 +30,15 @@ export class ApiError extends Error {
     this.code = code;
     Object.setPrototypeOf(this, ApiError.prototype);
   }
+}
+
+/**
+ * Handle 401 Unauthorized response by redirecting to logout
+ */
+function handleUnauthorized(): void {
+  if (typeof window === "undefined" || isLoggingOut) return;
+  isLoggingOut = true;
+  window.location.href = "/auth/logout";
 }
 
 /**
@@ -270,6 +284,9 @@ async function request<T>(
   const response = await fetch(url, config);
 
   if (!response.ok) {
+    if (response.status === 401) {
+      handleUnauthorized();
+    }
     throw await parseErrorResponse(response);
   }
 
