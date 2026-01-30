@@ -10,6 +10,7 @@ import type {
 } from "@/types/sms";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export const runtime = "nodejs";
 
 // Constants
@@ -26,16 +27,35 @@ const ENABLE_SLA_MONITORING =
   process.env.ENABLE_SLA_MONITORING === "true" ||
   process.env.NEXT_PUBLIC_ENABLE_SLA_MONITORING === "true";
 
-/**
- * Lambda response wrapper for single conversation
- */
+async function fetchWithRetry<T>(
+  fetchFn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelay = 300,
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fetchFn();
+    } catch (error) {
+      const isLastAttempt = i === maxRetries - 1;
+      const isRetryableError =
+        error instanceof ApiError &&
+        error.status === 404 &&
+        error.code === "NOT_FOUND";
+
+      if (isLastAttempt || !isRetryableError) {
+        throw error;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, baseDelay * (i + 1)));
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+
 interface LambdaConversationResponse {
   conversation: Conversation;
 }
 
-/**
- * Lambda message format (snake_case from database)
- */
 interface LambdaMessage {
   id: string;
   conversation_id: string;
@@ -121,9 +141,6 @@ async function validateConversationAccess(
       "x-practice-id": userContext.practiceId,
       "x-coordinator-sax-id": String(userContext.saxId),
     };
-    if (userContext.isSAXUser) {
-      delete headers["x-practice-id"];
-    }
     if (userContext.isSAXUser) {
       delete headers["x-practice-id"];
     }
@@ -304,12 +321,19 @@ export const GET = withUserContext(
         params.coordinator_sax_id = String(userContext.saxId);
       }
 
-      const lambdaResponse = await api.get<LambdaMessagesResponse>(
-        buildPath(LAMBDA_API_BASE, "conversations", conversationId, "messages"),
-        {
-          params,
-          headers,
-        },
+      const lambdaResponse = await fetchWithRetry(() =>
+        api.get<LambdaMessagesResponse>(
+          buildPath(
+            LAMBDA_API_BASE,
+            "conversations",
+            conversationId,
+            "messages",
+          ),
+          {
+            params,
+            headers,
+          },
+        ),
       );
 
       console.log("[GET MESSAGES] Lambda response:", {

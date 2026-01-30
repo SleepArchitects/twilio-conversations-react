@@ -11,6 +11,7 @@ import type {
 } from "@/types/sms";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export const runtime = "nodejs";
 
 // Constants
@@ -322,7 +323,18 @@ async function handleGet(
           offset: 0,
           hasMore: false,
         };
-        return NextResponse.json({ data, pagination }, { status: 200 });
+        return NextResponse.json(
+          { data, pagination },
+          {
+            status: 200,
+            headers: {
+              "Cache-Control":
+                "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+              Pragma: "no-cache",
+              Expires: "0",
+            },
+          },
+        );
       }
 
       // No existing conversation found
