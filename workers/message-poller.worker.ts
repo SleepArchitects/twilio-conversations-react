@@ -12,11 +12,15 @@
  */
 
 // Import types and configuration
-import type { WorkerCommand, WorkerMessage, WorkerState } from '../types/worker';
-import { POLLING_CONFIG } from '../config/polling';
+import type {
+  WorkerCommand,
+  WorkerMessage,
+  WorkerState,
+} from "../types/worker";
+import { POLLING_CONFIG } from "../config/polling";
 
 // Log worker initialization
-console.log('[Worker] Message poller worker initialized');
+console.log("[Worker] Message poller worker initialized");
 
 // Internal state for tracking conversations being polled
 const conversationStates = new Map<string, WorkerState>();
@@ -36,14 +40,18 @@ function postMessage(message: WorkerMessage): void {
  */
 function sendStatus(conversationSid: string, state: WorkerState): void {
   postMessage({
-    type: 'POLL_STATUS',
+    type: "POLL_STATUS",
     timestamp: Date.now(),
     conversationSid,
     payload: {
       isPolling: state.isPolling,
       interval: state.interval,
-      lastPollTime: state.lastPollTime ? new Date(state.lastPollTime).toISOString() : undefined,
-      nextPollTime: state.isPolling ? new Date(Date.now() + state.interval).toISOString() : undefined,
+      lastPollTime: state.lastPollTime
+        ? new Date(state.lastPollTime).toISOString()
+        : undefined,
+      nextPollTime: state.isPolling
+        ? new Date(Date.now() + state.interval).toISOString()
+        : undefined,
       totalPolls: state.totalPolls,
       consecutiveErrors: state.consecutiveErrors,
     },
@@ -53,15 +61,20 @@ function sendStatus(conversationSid: string, state: WorkerState): void {
 /**
  * Send an error message to the main thread
  */
-function sendError(conversationSid: string, error: Error, retryCount: number, willRetry: boolean): void {
+function sendError(
+  conversationSid: string,
+  error: Error,
+  retryCount: number,
+  willRetry: boolean,
+): void {
   postMessage({
-    type: 'POLL_ERROR',
+    type: "POLL_ERROR",
     timestamp: Date.now(),
     conversationSid,
     payload: {
       error: {
         message: error.message,
-        code: (error as any).code || 'UNKNOWN_ERROR',
+        code: (error as any).code || "UNKNOWN_ERROR",
       },
       retryCount,
       willRetry,
@@ -72,9 +85,13 @@ function sendError(conversationSid: string, error: Error, retryCount: number, wi
 /**
  * Send fetched messages to the main thread
  */
-function sendMessages(conversationSid: string, messages: any[], hasMore: boolean): void {
+function sendMessages(
+  conversationSid: string,
+  messages: any[],
+  hasMore: boolean,
+): void {
   postMessage({
-    type: 'MESSAGES_FETCHED',
+    type: "MESSAGES_FETCHED",
     timestamp: Date.now(),
     conversationSid,
     payload: {
@@ -98,8 +115,8 @@ function buildApiUrl(conversationSid: string): string {
   console.log(`[Worker] Building API URL for ${conversationSid}: ${baseUrl}`);
 
   // "Safety Net" strategy: fetch the latest messages
-  params.append('limit', POLLING_CONFIG.defaultFetchLimit.toString());
-  params.append('order', 'desc');
+  params.append("limit", POLLING_CONFIG.defaultFetchLimit.toString());
+  params.append("order", "desc");
 
   return `${baseUrl}?${params.toString()}`;
 }
@@ -118,15 +135,27 @@ async function fetchMessagesWithRetry(
   try {
     const url = buildApiUrl(conversationSid);
     const response = await fetch(url, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      credentials: 'include', // Include cookies for authentication
+      credentials: "include", // Include cookies for authentication
     });
 
     if (!response.ok) {
-      console.error(`[Worker] Fetch failed: ${response.status} ${response.statusText} for URL: ${url}`);
+      console.error(
+        `[Worker] Fetch failed: ${response.status} ${response.statusText} for URL: ${url}`,
+      );
+
+      // Handle 401 Unauthorized - notify main thread for graceful logout
+      if (response.status === 401) {
+        console.log(
+          "[Worker] 🔐 Received 401 - notifying main thread for logout",
+        );
+        self.postMessage({ type: "AUTH_ERROR", status: 401 });
+        return;
+      }
+
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -136,7 +165,7 @@ async function fetchMessagesWithRetry(
     // Safety Net: we fetch in desc order (newest first) but the main thread expects asc (oldest first)
     if (data.messages && data.messages.length > 0) {
       const messages = [...data.messages].reverse();
-      
+
       // Send messages to the main thread
       sendMessages(conversationSid, messages, data.hasMore ?? false);
     }
@@ -146,7 +175,6 @@ async function fetchMessagesWithRetry(
     state.totalPolls++;
     state.lastPollTime = Date.now();
     sendStatus(conversationSid, state);
-
   } catch (error) {
     const err = error as Error;
     state.consecutiveErrors++;
@@ -165,7 +193,7 @@ async function fetchMessagesWithRetry(
       );
 
       // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, backoffDelay));
+      await new Promise((resolve) => setTimeout(resolve, backoffDelay));
       return fetchMessagesWithRetry(conversationSid, state, retryCount + 1);
     } else {
       // Max retries exceeded, stop polling
@@ -259,18 +287,15 @@ function updateInterval(conversationSid: string, newInterval: number): void {
  */
 function handleCommand(command: WorkerCommand): void {
   switch (command.type) {
-    case 'START_POLLING':
-      startPolling(
-        command.payload.conversationSid,
-        command.payload.interval,
-      );
+    case "START_POLLING":
+      startPolling(command.payload.conversationSid, command.payload.interval);
       break;
 
-    case 'STOP_POLLING':
+    case "STOP_POLLING":
       stopPolling(command.payload.conversationSid);
       break;
 
-    case 'UPDATE_INTERVAL':
+    case "UPDATE_INTERVAL":
       updateInterval(command.payload.conversationSid, command.payload.interval);
       break;
 
@@ -300,8 +325,4 @@ self.onclose = (): void => {
 };
 
 // Export for testing purposes (in non-worker environments)
-export type {
-  WorkerCommand,
-  WorkerMessage,
-  WorkerState,
-};
+export type { WorkerCommand, WorkerMessage, WorkerState };
