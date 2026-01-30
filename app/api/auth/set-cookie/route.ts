@@ -87,7 +87,7 @@ export async function GET() {
           .setIssuedAt()
           .setIssuer("sleepconnect")
           .setAudience("outreach")
-          .setExpirationTime("1h")
+          .setExpirationTime("8h")
           .sign(encoder.encode(secret));
 
         console.log(
@@ -118,7 +118,7 @@ export async function GET() {
     console.log("[Set Cookie API] ✅ Setting x-sax-user-context cookie");
     cookieStore.set("x-sax-user-context", jwtToken, {
       httpOnly: true,
-      maxAge: 60 * 60, // 1 hour
+      maxAge: 60 * 60 * 8, // 8 hours
       path: "/",
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
