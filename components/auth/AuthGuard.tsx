@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useIsSAXUser, checkIsSAXUserFromStorage } from "@/hooks/useIsSAXUser";
+import { useSessionHeartbeat } from "@/hooks/useSessionHeartbeat";
 
 type AuthState =
   | "loading"
@@ -30,6 +31,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [authState, setAuthState] = useState<AuthState>("loading");
   const { data: hasSaxRole, isLoading: isRoleLoading } = useIsSAXUser();
+  useSessionHeartbeat();
 
   useEffect(() => {
     // Don't check auth on auth routes (they're handled by middleware)
