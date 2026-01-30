@@ -16,9 +16,11 @@ const HEARTBEAT_INTERVAL = 45 * 60 * 1000; // 45 minutes
  */
 export function useSessionHeartbeat(): void {
   useEffect(() => {
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
     const heartbeat = async () => {
       try {
-        await fetch("/api/auth/set-cookie", { method: "POST" });
+        await fetch(`${basePath}/api/auth/set-cookie`, { method: "POST" });
       } catch (error) {
         console.error("Session heartbeat failed:", error);
       }
