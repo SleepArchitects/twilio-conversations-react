@@ -153,6 +153,10 @@ async function fetchMessagesWithRetry(
           "[Worker] 🔐 Received 401 - notifying main thread for logout",
         );
         self.postMessage({ type: "AUTH_ERROR", status: 401 });
+        // Stop polling and clean up state
+        state.isPolling = false;
+        sendStatus(conversationSid, state);
+        stopPolling(conversationSid);
         return;
       }
 
