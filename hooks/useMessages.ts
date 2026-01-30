@@ -673,6 +673,16 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
           });
         };
 
+        // Handle 401 auth errors from worker
+        worker.addEventListener("message", (event: MessageEvent) => {
+          if (event.data?.type === "AUTH_ERROR" && event.data?.status === 401) {
+            console.log(
+              "[useMessages] 🔐 Received 401 from worker - redirecting to logout",
+            );
+            window.location.href = "/auth/logout";
+          }
+        });
+
         worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
           const data = event.data;
           console.log("[useMessages] 📨 Worker message received:", data.type);
