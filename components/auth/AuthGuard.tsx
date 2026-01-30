@@ -133,24 +133,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [authState, hasSaxRole, isRoleLoading]);
 
-  // Listen for worker 401 errors and redirect to logout
-  useEffect(() => {
-    const handleWorkerMessage = (event: MessageEvent) => {
-      if (event.data?.type === "AUTH_ERROR" && event.data?.status === 401) {
-        console.log(
-          "[AuthGuard] 🔐 Received 401 from worker - redirecting to logout",
-        );
-        window.location.href = "/auth/logout";
-      }
-    };
-
-    self.addEventListener("message", handleWorkerMessage);
-
-    return () => {
-      self.removeEventListener("message", handleWorkerMessage);
-    };
-  }, []);
-
   // Show loading state while checking auth
   if (authState === "loading") {
     return (
