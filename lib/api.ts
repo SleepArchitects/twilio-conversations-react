@@ -207,30 +207,11 @@ async function request<T>(
 
   const url = buildUrl(path, params);
 
-  console.log("[API] Request:", method, url);
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
     ...(customHeaders as Record<string, string>),
   };
-
-  // Log custom headers being passed in
-  if (customHeaders) {
-    console.log("[API] Custom headers received:", Object.keys(customHeaders));
-    if ((customHeaders as Record<string, string>)["Authorization"]) {
-      console.log("[API] Authorization header present in custom headers: YES");
-      const authHeader = (customHeaders as Record<string, string>)[
-        "Authorization"
-      ];
-      console.log(
-        "[API] Authorization header value (first 20 chars):",
-        authHeader?.substring(0, 20),
-      );
-    } else {
-      console.log("[API] Authorization header present in custom headers: NO");
-    }
-  }
 
   // Add user context headers from the SleepConnect-issued JWT cookie
   // Lambdas expect tenant/practice/coordinator identifiers either as headers or query params
@@ -248,26 +229,7 @@ async function request<T>(
         if (tenantId) headers["x-tenant-id"] = String(tenantId);
         if (practiceId) headers["x-practice-id"] = String(practiceId);
       }
-      console.log("[API] Added user context headers from cookie");
     }
-  }
-
-  // Log final headers before sending request
-  console.log("[API] Final headers being sent:", Object.keys(headers));
-  if (headers["Authorization"]) {
-    console.log("[API] Authorization header in final headers: YES");
-    console.log(
-      "[API] Authorization header value (first 20 chars):",
-      headers["Authorization"]?.substring(0, 20),
-    );
-  } else if (headers["authorization"]) {
-    console.log("[API] authorization header (lowercase) in final headers: YES");
-    console.log(
-      "[API] authorization header value (first 20 chars):",
-      headers["authorization"]?.substring(0, 20),
-    );
-  } else {
-    console.log("[API] Authorization header in final headers: NO");
   }
 
   const config: RequestInit = {

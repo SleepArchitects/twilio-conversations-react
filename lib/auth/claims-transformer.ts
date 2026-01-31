@@ -45,25 +45,15 @@ export function transformNamespacedClaims(user: any): TransformedClaims {
   // First, check for plain (non-namespaced) claims from JWT cookie
   if (user.sax_id) {
     result.saxId = toStringHelper(user.sax_id);
-    console.debug("[Claims Transformer] Found plain saxId:", user.sax_id);
   }
   if (user.tenant_id) {
     result.tenantId = toStringHelper(user.tenant_id);
-    console.debug("[Claims Transformer] Found plain tenantId:", user.tenant_id);
   }
   if (user.practice_id) {
     result.practiceId = toStringHelper(user.practice_id);
-    console.debug(
-      "[Claims Transformer] Found plain practiceId:",
-      user.practice_id,
-    );
   }
   if (user.practice_name) {
     result.practiceName = toStringHelper(user.practice_name);
-    console.debug(
-      "[Claims Transformer] Found plain practiceName:",
-      user.practice_name,
-    );
   }
 
   // Look for namespaced claims patterns
@@ -71,16 +61,10 @@ export function transformNamespacedClaims(user: any): TransformedClaims {
     (key) => key.includes("://") || key.includes("/"),
   );
 
-  console.debug("[Claims Transformer] Found namespaced keys:", namespacedKeys);
-
   for (const key of namespacedKeys) {
     // Extract app_metadata claims
     if (key.includes("/app_metadata")) {
       const appMetadata = user[key] as AppMetadata;
-      console.debug("[Claims Transformer] Found app_metadata:", {
-        key,
-        appMetadata,
-      });
       if (appMetadata) {
         result.appMetadata = appMetadata;
 
@@ -97,32 +81,16 @@ export function transformNamespacedClaims(user: any): TransformedClaims {
         // Transform specific known fields to camelCase
         if (appMetadata.practice_id) {
           result.practiceId = toStringHelper(appMetadata.practice_id);
-          console.debug(
-            "[Claims Transformer] Extracted practiceId:",
-            appMetadata.practice_id,
-          );
         }
         if (appMetadata.tenant_id) {
           result.tenantId = toStringHelper(appMetadata.tenant_id);
-          console.debug(
-            "[Claims Transformer] Extracted tenantId:",
-            appMetadata.tenant_id,
-          );
         }
         if (appMetadata.sax_id) {
           result.saxId = toStringHelper(appMetadata.sax_id);
-          console.debug(
-            "[Claims Transformer] Extracted saxId:",
-            appMetadata.sax_id,
-          );
         }
 
         if (appMetadata.practice_name) {
           result.practiceName = toStringHelper(appMetadata.practice_name);
-          console.debug(
-            "[Claims Transformer] Extracted practiceName:",
-            appMetadata.practice_name,
-          );
         }
       }
     }
@@ -180,12 +148,7 @@ export function transformNamespacedClaims(user: any): TransformedClaims {
 export function createPlainUserObject(user: any): any {
   if (!user) return null;
 
-  console.debug("[Claims Transformer] Input user object:", user);
   const transformedClaims = transformNamespacedClaims(user);
-  console.debug(
-    "[Claims Transformer] Transformed claims result:",
-    transformedClaims,
-  );
 
   // MINIMAL session object - only essential fields to avoid 413 errors
   const plainUser = {

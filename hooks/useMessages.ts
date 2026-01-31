@@ -59,8 +59,6 @@ const WS_URL =
   process.env.NEXT_PUBLIC_WS_API_URL ||
   "wss://outreach-ws-dev.mydreamconnect.com";
 
-console.log("[useMessages] configured WS_URL:", WS_URL);
-
 /**
  * Query key factory for messages
  */
@@ -75,10 +73,6 @@ async function fetchMessagesFromApi(
   offset = 0,
   limit = DEFAULT_PAGE_SIZE,
 ): Promise<PaginatedResponse<Message>> {
-  console.log(
-    `[useMessages] Fetching messages for ${conversationId} (offset: ${offset})`,
-  );
-
   // Always fetch in ASC order (chronological) for consistent ordering
   const response = await api.get<PaginatedResponse<Message>>(
     `${API_BASE_PATH}/conversations/${conversationId}/messages`,
@@ -149,13 +143,8 @@ function messageReducer(
     case "ADD_MESSAGE": {
       // Avoid duplicates
       if (state.messageIds.has(action.payload.id)) {
-        console.log(
-          "[messageReducer] Skipping duplicate message",
-          action.payload.id,
-        );
         return state;
       }
-      console.log("[messageReducer] Adding message", action.payload.id);
 
       // Add and sort by createdOn to ensure correct order
       const newMessages = [...state.messages, action.payload].sort(
@@ -184,10 +173,6 @@ function messageReducer(
         return state;
       }
 
-      console.log(
-        `[messageReducer] Merging ${newMessages.length} new messages`,
-      );
-
       // Combine and sort
       const allMessages = [...state.messages, ...newMessages].sort(
         (a, b) =>
@@ -209,19 +194,11 @@ function messageReducer(
       const messageIndex = state.messages.findIndex((m) => m.id === id);
       if (messageIndex === -1) {
         // Message not found, ignore update
-        console.log("[messageReducer] Message not found for update", id);
         return state;
       }
 
       // If we're changing the ID, check if the new ID already exists (race condition with WebSocket)
       if (updates.id && updates.id !== id && state.messageIds.has(updates.id)) {
-        console.log(
-          "[messageReducer] Target ID already exists, removing old message",
-          {
-            oldId: id,
-            newId: updates.id,
-          },
-        );
         // The new ID already exists (WebSocket was faster), so just remove the old optimistic message
         const newMessages = state.messages.filter((m) => m.id !== id);
         const newMessageIds = new Set(state.messageIds);
@@ -240,10 +217,6 @@ function messageReducer(
       const newMessageIds = new Set(state.messageIds);
       if (updates.id && updates.id !== id) {
         // ID is changing, remove old and add new
-        console.log("[messageReducer] Updating message ID", {
-          oldId: id,
-          newId: updates.id,
-        });
         newMessageIds.delete(id);
         newMessageIds.add(updates.id);
       }
@@ -396,10 +369,6 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       // Calculate offset to get the last page
       // If total=77 and limit=50, offset should be 27 to get messages 28-77
       const lastPageOffset = Math.max(0, total - DEFAULT_PAGE_SIZE);
-
-      console.log(
-        `[useMessages] Total messages: ${total}, fetching from offset: ${lastPageOffset}`,
-      );
 
       // Fetch the last page
       return fetchMessagesFromApi(
@@ -641,36 +610,23 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
    */
   useEffect(() => {
     if (!conversationId) {
-      console.log("[useMessages] Skipping worker - no conversationId");
       return;
     }
 
     // Create worker if it doesn't exist
     if (!workerRef.current) {
-      console.log(
-        "[useMessages] ⚙️ Initializing polling worker for conversation:",
-        conversationId,
-      );
-
       try {
         const workerUrl = new URL(
           "../workers/message-poller.worker.js",
           import.meta.url,
         );
-        console.log("[useMessages] Worker URL:", workerUrl.href);
 
         // Use native Worker API with pure JavaScript worker (no TypeScript imports)
         const worker = new Worker(workerUrl);
 
         // Add error handler for worker creation
         worker.onerror = (e) => {
-          console.error("[useMessages] ❌ Worker error:", {
-            message: e.message,
-            filename: e.filename,
-            lineno: e.lineno,
-            colno: e.colno,
-            error: e.error,
-          });
+          console.error("[useMessages] Worker error:", e.message);
         };
 
         // Handle 401 auth errors from worker
@@ -685,23 +641,15 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
         worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
           const data = event.data;
-          console.log("[useMessages] 📨 Worker message received:", data.type);
 
           switch (data.type) {
             case "MESSAGES_FETCHED": {
-              console.log(
-                `[useMessages] ✅ Polling worker fetched ${data.payload.fetchCount} messages`,
-              );
-
               // Messages from API are already in the correct format (Message interface)
               // No transformation needed - just add them to state
               const newMessages: Message[] = data.payload.messages;
 
               // Dispatch all messages to the reducer to merge and sort
               if (newMessages.length > 0) {
-                console.log(
-                  `[useMessages] 📥 Merging ${newMessages.length} polled messages`,
-                );
                 dispatch({ type: "MERGE_MESSAGES", payload: newMessages });
               }
               break;
@@ -715,17 +663,11 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
               break;
 
             case "POLL_STATUS":
-              if (!data.payload.isPolling) {
-                console.log(
-                  `[useMessages] Polling stopped for ${data.conversationSid}`,
-                );
-              }
               break;
           }
         };
 
         workerRef.current = worker;
-        console.log("[useMessages] Worker initialized successfully");
       } catch (error) {
         console.error("[useMessages] Failed to create worker:", error);
         // Continue without worker - WebSocket will be the only update mechanism
@@ -744,12 +686,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     };
 
     if (workerRef.current) {
-      console.log("[useMessages] 🚀 Starting worker polling:", startCommand);
       workerRef.current.postMessage(startCommand);
-    } else {
-      console.warn(
-        "[useMessages] ⚠️ Worker not initialized, cannot start polling",
-      );
     }
 
     return () => {
@@ -770,75 +707,37 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
    * WebSocket connection management
    */
   useEffect(() => {
-    // Debug log for dependency changes
-    console.log("[useMessages] WebSocket effect triggered", {
-      conversationId,
-      saxId,
-      tenantId,
-      practiceId,
-      wsConnected: wsRef.current?.readyState === WebSocket.OPEN,
-    });
-
     // Don't connect if we don't have user context yet
     if (!saxId || !tenantId || !practiceId) {
-      console.log(
-        "[useMessages] Waiting for user context before connecting WebSocket",
-      );
       return;
     }
 
     const connectWebSocket = () => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
-        console.log("[useMessages] WebSocket already connected, skipping");
         return;
       }
 
-      console.log(
-        `[useMessages] 🔌 Attempting WebSocket connection for conversation ${conversationId}`,
-      );
-      console.log("[useMessages] Auth context:", {
-        saxId,
-        tenantId,
-        practiceId,
-      });
-
       const wsUrlWithParams = `${WS_URL}?coordinatorId=${saxId}&tenantId=${tenantId}&practiceId=${practiceId}`;
-      console.log("[useMessages] WebSocket URL:", wsUrlWithParams);
 
       try {
         const ws = new WebSocket(wsUrlWithParams);
-        console.log(
-          "[useMessages] WebSocket object created, waiting for connection...",
-        );
 
         ws.onopen = () => {
-          console.log("[useMessages] ✅ WebSocket CONNECTED successfully");
           setWsConnected(true);
 
           // Start ping interval to keep connection alive
           pingIntervalRef.current = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
-              console.log("[useMessages] 🏓 Sending WebSocket ping");
               ws.send(JSON.stringify({ action: "ping" }));
             }
           }, 30000); // Ping every 30 seconds
         };
 
         ws.onerror = (error) => {
-          console.error("[useMessages] ❌ WebSocket ERROR:", {
-            type: error.type,
-            target: error.target,
-            readyState: ws.readyState,
-            url: wsUrlWithParams,
-          });
+          console.error("[useMessages] WebSocket error:", error.type);
         };
 
-        ws.onclose = (event) => {
-          console.log("[useMessages] 🔌 WebSocket CLOSED:", {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean,
-          });
+        ws.onclose = () => {
           setWsConnected(false);
 
           // Clear ping interval
@@ -851,11 +750,6 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            console.log("[useMessages] 📨 WebSocket received data:", {
-              type: data.type,
-              message: data.message ? "present" : "absent",
-              messageId: data.message?.id,
-            });
 
             // Handle pong response from ping action
             if (data.message === "pong") {
@@ -906,34 +800,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
               const msgConvId = message.conversationId;
 
-              console.log("[useMessages] Received WebSocket message", {
-                messageId: message.id,
-                msgConvId,
-                currentConvId: conversationId,
-                authorPhone: message.authorPhone,
-                matches: msgConvId === conversationId,
-              });
-
               // Only add if it's for this conversation
               if (msgConvId === conversationId) {
-                console.log("[useMessages] Processing WebSocket message", {
-                  id: message.id,
-                  twilioSid: message.twilioSid,
-                  direction: message.direction,
-                  body: message.body?.substring(0, 50),
-                  authorPhone: message.authorPhone,
-                  currentMessageIds: Array.from(messageIdsRef.current),
-                  pendingOptimistic: Array.from(
-                    pendingOptimisticRef.current.entries(),
-                  ),
-                });
-
                 // Check if this message is already in our state by ID (use ref for current state)
                 if (messageIdsRef.current.has(message.id)) {
-                  console.log(
-                    "[useMessages] Message already exists in state, skipping",
-                    message.id,
-                  );
                   return;
                 }
 
@@ -946,13 +816,6 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
                 )?.[1];
 
                 if (optimisticId) {
-                  console.log(
-                    "[useMessages] WebSocket message matches optimistic update, skipping",
-                    {
-                      optimisticId,
-                      realId: message.id,
-                    },
-                  );
                   // This message was already added via optimistic update and API response
                   // Clean up the tracking
                   pendingOptimisticRef.current.delete(message.twilioSid);
@@ -960,10 +823,6 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
                   optimisticIdsRef.current.delete(optimisticId);
                 } else {
                   // This is a genuinely new message (likely from another device or inbound)
-                  console.log(
-                    "[useMessages] Adding new message from WebSocket",
-                    message.id,
-                  );
                   dispatch({ type: "ADD_MESSAGE", payload: message });
                 }
               }
@@ -975,11 +834,6 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
               data.messageId &&
               data.status
             ) {
-              console.log(
-                "[useMessages] Message status update",
-                data.messageId,
-                data.status,
-              );
               dispatch({
                 type: "UPDATE_MESSAGE",
                 payload: {
@@ -998,7 +852,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
 
         wsRef.current = ws;
       } catch (wsError) {
-        console.error("[useMessages] ❌ Failed to create WebSocket:", wsError);
+        console.error(
+          "[useMessages] Failed to create WebSocket:",
+          wsError instanceof Error ? wsError.message : String(wsError),
+        );
         setWsConnected(false);
       }
     };

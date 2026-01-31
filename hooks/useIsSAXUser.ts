@@ -55,10 +55,6 @@ export function useIsSAXUser() {
     }
 
     if (!userRolesList || !allRolesList) {
-      console.log("[useIsSAXUser] No roles loaded yet:", {
-        hasUserRoles: !!userRolesList,
-        hasAllRoles: !!allRolesList,
-      });
       return false;
     }
 
@@ -69,19 +65,11 @@ export function useIsSAXUser() {
     );
 
     if (!saxRole) {
-      console.log("[useIsSAXUser] SAX role not found in all roles");
       return false;
     }
 
     // Filter to only active user roles
     const activeUserRoles = userRolesList.filter((r: UserRole) => r.active);
-
-    console.log("[useIsSAXUser] DEBUG - Role check:", {
-      totalUserRoles: userRolesList.length,
-      activeUserRoles: activeUserRoles.length,
-      saxRoleId: saxRole.role_id,
-      saxRoleName: saxRole.name,
-    });
 
     // Check if user has the SAX role by ID (looked up dynamically)
     // NOTE: We do NOT bypass for Super Admin here - must have explicit Sax role
@@ -89,7 +77,6 @@ export function useIsSAXUser() {
       (ur: UserRole) => ur.role_id === saxRole.role_id,
     );
 
-    console.log("[useIsSAXUser] Final result:", { hasSax });
     return hasSax;
   }, [userRoles, allRoles]);
 
@@ -115,7 +102,6 @@ export function checkIsSAXUserFromStorage(): boolean {
     const cachedAllRoles = localStorage.getItem("all_roles");
 
     if (!cachedUserRoles || !cachedAllRoles) {
-      console.log("[checkIsSAXUserFromStorage] Missing roles in localStorage");
       return false;
     }
 
@@ -128,19 +114,11 @@ export function checkIsSAXUserFromStorage(): boolean {
     );
 
     if (!saxRole) {
-      console.log("[checkIsSAXUserFromStorage] SAX role not found");
       return false;
     }
 
     const activeRoles = userRoles.filter((r) => r.active);
     const hasSax = activeRoles.some((r) => r.role_id === saxRole.role_id);
-
-    console.log("[checkIsSAXUserFromStorage] Result:", {
-      totalRoles: userRoles.length,
-      activeRoles: activeRoles.length,
-      saxRoleId: saxRole.role_id,
-      hasSax,
-    });
 
     return hasSax;
   } catch (error) {

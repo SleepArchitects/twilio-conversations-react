@@ -1,4 +1,4 @@
-import { jwtVerify } from "jose";
+import { jwtVerify, decodeJwt } from "jose";
 
 /**
  * User context data stored in JWT
@@ -24,6 +24,26 @@ function getJwtSecret(): Uint8Array {
 }
 
 /**
+ * Decode JWT without verification (for diagnostics only)
+ * This allows inspecting the payload structure without validating the signature
+ *
+ * @param token - JWT token to decode
+ * @returns Decoded payload or null if invalid format
+ */
+export function decodeJwtWithoutVerification(token: string): unknown {
+  try {
+    const payload = decodeJwt(token);
+    return payload;
+  } catch (error) {
+    console.error(
+      "[JWT] Failed to decode JWT without verification:",
+      error instanceof Error ? error.message : String(error),
+    );
+    throw error;
+  }
+}
+
+/**
  * Verify and decode a user context JWT token
  * Uses jose library which is compatible with Edge Runtime
  *
@@ -41,55 +61,38 @@ export async function verifyUserContextToken(
       audience: "outreach",
     });
 
-    // DIAGNOSTIC: Log the complete payload structure to understand what we're receiving
-    const suppressPiiLogs = typeof process.env.SUPPRESS_PII_LOGS === "string";
-    if (!suppressPiiLogs) {
-      console.log("[JWT] ===== JWT PAYLOAD DIAGNOSTIC =====");
-      console.log(
-        "[JWT] Full payload structure:",
-        JSON.stringify(payload, null, 2),
-      );
-      console.log("[JWT] Payload keys:", Object.keys(payload));
-      console.log("[JWT] =====================================");
-    }
-
     const decoded = payload as unknown as UserContext;
-
-    // DIAGNOSTIC: Log what fields we found and what we expected
-    console.log("[JWT] Field validation:");
-    console.log(
-      "[JWT]   - sax_id:",
-      decoded.sax_id,
-      "(exists:",
-      !!decoded.sax_id,
-      ")",
-    );
-    console.log(
-      "[JWT]   - tenant_id:",
-      decoded.tenant_id,
-      "(exists:",
-      !!decoded.tenant_id,
-      ")",
-    );
-    console.log(
-      "[JWT]   - practice_id:",
-      decoded.practice_id,
-      "(exists:",
-      !!decoded.practice_id,
-      ")",
-    );
 
     // Validate required fields
     if (!decoded.sax_id || !decoded.tenant_id || !decoded.practice_id) {
-      console.error("[JWT] Missing required fields in token");
-      console.error("[JWT] Expected fields: sax_id, tenant_id, practice_id");
-      console.error("[JWT] Received fields:", Object.keys(payload).join(", "));
+      console.error(
+        "[JWT] Missing required fields: sax_id, tenant_id, practice_id",
+      );
       return null;
     }
 
     return decoded;
   } catch (error) {
-    console.error("[JWT] Token verification failed:", error);
+    if (error instanceof Error) {
+      const errorMessage = error.message;
+
+      if (errorMessage.includes("signature")) {
+        console.error("[JWT] Verification failed: invalid signature");
+      } else if (errorMessage.includes("issuer")) {
+        console.error("[JWT] Verification failed: invalid issuer");
+      } else if (errorMessage.includes("audience")) {
+        console.error("[JWT] Verification failed: invalid audience");
+      } else if (errorMessage.includes("expired")) {
+        console.error("[JWT] Verification failed: token expired");
+      } else if (errorMessage.includes("malformed")) {
+        console.error("[JWT] Verification failed: malformed token");
+      } else {
+        console.error("[JWT] Verification failed:", errorMessage);
+      }
+    } else {
+      console.error("[JWT] Verification failed:", String(error));
+    }
+
     return null;
   }
 }
