@@ -19,9 +19,6 @@ import type {
 } from "../types/worker";
 import { POLLING_CONFIG } from "../config/polling";
 
-// Log worker initialization
-console.log("[Worker] Message poller worker initialized");
-
 // Internal state for tracking conversations being polled
 const conversationStates = new Map<string, WorkerState>();
 
@@ -112,8 +109,6 @@ function buildApiUrl(conversationSid: string): string {
   const baseUrl = `/outreach/api/outreach/conversations/${conversationSid}/messages`;
   const params = new URLSearchParams();
 
-  console.log(`[Worker] Building API URL for ${conversationSid}: ${baseUrl}`);
-
   // "Safety Net" strategy: fetch the latest messages
   params.append("limit", POLLING_CONFIG.defaultFetchLimit.toString());
   params.append("order", "desc");
@@ -144,14 +139,12 @@ async function fetchMessagesWithRetry(
 
     if (!response.ok) {
       console.error(
-        `[Worker] Fetch failed: ${response.status} ${response.statusText} for URL: ${url}`,
+        `[Worker] Fetch failed: ${response.status} ${response.statusText}`,
       );
 
       // Handle 401 Unauthorized - notify main thread for graceful logout
       if (response.status === 401) {
-        console.log(
-          "[Worker] 🔐 Received 401 - notifying main thread for logout",
-        );
+        console.error("[Worker] 401 Unauthorized - stopping polling");
         self.postMessage({ type: "AUTH_ERROR", status: 401 });
         // Stop polling and clean up state
         state.isPolling = false;
@@ -164,7 +157,6 @@ async function fetchMessagesWithRetry(
     }
 
     const data = await response.json();
-    console.log(`[Worker] Fetched ${data.messages?.length || 0} messages`);
 
     // Safety Net: we fetch in desc order (newest first) but the main thread expects asc (oldest first)
     if (data.messages && data.messages.length > 0) {

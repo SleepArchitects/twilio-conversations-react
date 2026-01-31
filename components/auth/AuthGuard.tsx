@@ -46,19 +46,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
         // First, try to set the cookie from the header (in case rewrite didn't forward it)
-        const setCookieResponse = await fetch(
-          `${basePath}/api/auth/set-cookie`,
-          {
-            method: "GET",
-            credentials: "include",
-            cache: "no-store",
-          },
-        );
-
-        console.log(
-          "[AuthGuard] set-cookie response status:",
-          setCookieResponse.status,
-        );
+        await fetch(`${basePath}/api/auth/set-cookie`, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
 
         // Then call our local API endpoint which can read the HttpOnly cookie
         const response = await fetch(`${basePath}/api/auth/session`, {
@@ -67,11 +59,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           cache: "no-store",
         });
 
-        console.log("[AuthGuard] session response status:", response.status);
-
         if (response.ok) {
           const data = await response.json();
-          console.log("[AuthGuard] session data:", data);
 
           if (
             data.authenticated &&
@@ -79,14 +68,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             data.tenant_id &&
             data.practice_id
           ) {
-            console.log("[AuthGuard] ✅ Valid session found");
             // Session is valid, now check SAX role
             // Do a quick localStorage check first while the hook loads
             const hasSaxFromStorage = checkIsSAXUserFromStorage();
-            console.log(
-              "[AuthGuard] SAX role from storage:",
-              hasSaxFromStorage,
-            );
 
             if (hasSaxFromStorage) {
               setAuthState("authenticated");
@@ -99,7 +83,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         }
 
         // No valid session - redirect to login
-        console.log("[AuthGuard] ❌ No valid session - redirecting to login");
         redirectToLogin();
       } catch (error) {
         console.error("[AuthGuard] ❌ Auth check failed:", error);
@@ -113,7 +96,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         process.env.NEXT_PUBLIC_SLEEPCONNECT_URL || "http://localhost:3000";
       const returnTo = encodeURIComponent(`/outreach${pathname}`);
       const loginUrl = `${sleepconnectUrl}/login?returnTo=${returnTo}`;
-      console.log("[AuthGuard] 🔀 Redirecting to:", loginUrl);
       window.location.href = loginUrl;
     };
 
@@ -123,7 +105,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Once role loading is done, check if user has SAX role
   useEffect(() => {
     if (authState === "loading" && !isRoleLoading) {
-      console.log("[AuthGuard] Role loading complete, hasSaxRole:", hasSaxRole);
       if (hasSaxRole) {
         setAuthState("authenticated");
       } else {
