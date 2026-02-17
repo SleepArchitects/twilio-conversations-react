@@ -34,21 +34,6 @@ export default function RootLayout({
 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                if (localStorage.getItem('color-theme') === 'light' ||
-                    (!localStorage.getItem('color-theme') && 
-                     window.matchMedia('(prefers-color-scheme: light)').matches)) {
-                  document.documentElement.classList.remove('dark');
-                }
-              } catch (_) {}
-            `,
-          }}
-        />
-      </head>
       <body
         className={`${inter.className} bg-white dark:bg-gray-900 overflow-x-hidden`}
       >
