@@ -1,0 +1,2 @@
+# Un-ignore for OpenCode/ripgrep (overrides gitignore for file scanning tools)
+!.sisyphus/
