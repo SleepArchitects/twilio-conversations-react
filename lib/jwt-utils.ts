@@ -10,6 +10,8 @@ export interface UserContext {
   practice_name?: string;
   sax_id: number;
   tenant_id: string;
+  /** SAX role flag — set by SleepConnect in JWT, optional for backward compat */
+  is_sax_user?: boolean;
 }
 
 /**

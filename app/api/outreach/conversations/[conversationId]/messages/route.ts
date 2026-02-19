@@ -263,6 +263,14 @@ function parsePaginationParams(searchParams: URLSearchParams): {
  */
 export const GET = withUserContext(
   async (req: Request, userContext: UserContext) => {
+    console.log("\n========================================");
+    console.log(
+      "[MESSAGES ROUTE] ✅ HIT: app/api/outreach/conversations/[conversationId]/messages/route.ts",
+    );
+    console.log("[MESSAGES ROUTE] Method: GET");
+    console.log("[MESSAGES ROUTE] URL:", req.url);
+    console.log("========================================\n");
+
     // Extract conversationId from URL path
     const url = new URL(req.url);
     const pathParts = url.pathname.split("/");
@@ -301,6 +309,7 @@ export const GET = withUserContext(
 
       // Get access token for Authorization header
       const accessToken = await getAccessToken();
+
       const headers: Record<string, string> = {
         "x-tenant-id": userContext.tenantId,
         "x-practice-id": userContext.practiceId,
