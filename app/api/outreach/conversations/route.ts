@@ -44,7 +44,7 @@ interface ConversationSummary {
   tenantId: string | null;
   latestBookingStatus: string | null;
   latestBookingStartTime: string | null;
-  coordinatorSaxId: number | string;
+  coordinatorSaxId: number;
 }
 
 /**
@@ -189,7 +189,11 @@ function toConversationSummary(conv: Conversation): ConversationSummary {
     tenantId: conv.tenantId ?? null,
     latestBookingStatus: conv.latestBookingStatus ?? null,
     latestBookingStartTime: conv.latestBookingStartTime ?? null,
-    coordinatorSaxId: conv.coordinatorSaxId,
+    coordinatorSaxId: Number(
+      conv.coordinatorSaxId ??
+        (conv as unknown as Record<string, unknown>).coordinator_sax_id ??
+        0,
+    ),
   };
 }
 
@@ -360,7 +364,7 @@ async function handleGet(
       // Regular users: include tenant/practice/coordinator filters
       queryParams.tenant_id = userContext.tenantId;
       queryParams.practice_id = userContext.practiceId;
-      queryParams.coordinator_sax_id = userContext.saxId;
+      queryParams.coordinator_sax_id = String(userContext.saxId);
     } else {
       console.log(
         "[CONVERSATIONS API] SAX admin access - showing all conversations",
