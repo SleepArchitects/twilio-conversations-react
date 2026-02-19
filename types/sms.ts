@@ -87,7 +87,7 @@ export interface Conversation extends TenantScope, AuditFields {
   /** Twilio Conversation SID (34 characters) */
   twilioSid: string;
   /** SAX ID of the coordinator managing this conversation */
-  coordinatorSaxId: number | string;
+  coordinatorSaxId: number;
   /** Patient phone number in E.164 format (+1XXXXXXXXXX) */
   patientPhone: string;
   /** Display name for the conversation */

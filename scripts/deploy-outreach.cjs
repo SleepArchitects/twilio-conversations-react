@@ -69,10 +69,8 @@ const loadEnvOverride = (file) => {
 };
 
 // Load in priority order — last writer wins:
-//   .env.local  (lowest)  — local secrets, never deployed
 //   .env        (base)    — shared defaults across all environments
 //   .env.<env>  (highest) — environment-specific values, always wins
-loadEnvOverride(".env.local");
 loadEnvOverride(".env");
 loadEnvOverride(`.env.${environment}`);
 
