@@ -238,9 +238,8 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
   // Best-effort session refresh placeholder to keep API compatibility.
   const refreshSession = useCallback(async () => {
     try {
-      // Auth routes must NOT use base path - they need to be at root level
-      // to share cookies with SleepConnect proxy at localhost:3000
-      const profileRoute = "http://localhost:3000/api/auth/profile";
+      const baseUrl = process.env.NEXT_PUBLIC_SLEEPCONNECT_URL ?? "";
+      const profileRoute = `${baseUrl}/api/auth/profile`;
 
       await fetch(profileRoute, {
         method: "GET",
