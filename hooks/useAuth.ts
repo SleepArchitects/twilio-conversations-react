@@ -238,8 +238,7 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthResult {
   // Best-effort session refresh placeholder to keep API compatibility.
   const refreshSession = useCallback(async () => {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_SLEEPCONNECT_URL ?? "";
-      const profileRoute = `${baseUrl}/api/auth/profile`;
+      const profileRoute = `/api/auth/profile`;
 
       await fetch(profileRoute, {
         method: "GET",
