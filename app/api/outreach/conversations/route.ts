@@ -44,6 +44,7 @@ interface ConversationSummary {
   tenantId: string | null;
   latestBookingStatus: string | null;
   latestBookingStartTime: string | null;
+  coordinatorSaxId: number;
 }
 
 /**
@@ -188,6 +189,7 @@ function toConversationSummary(conv: Conversation): ConversationSummary {
     tenantId: conv.tenantId ?? null,
     latestBookingStatus: conv.latestBookingStatus ?? null,
     latestBookingStartTime: conv.latestBookingStartTime ?? null,
+    coordinatorSaxId: conv.coordinatorSaxId,
   };
 }
 

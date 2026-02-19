@@ -4,7 +4,6 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { getUserFriendlyError } from "@/lib/errors";
-import { useAuth } from "@/hooks/useAuth";
 import { ConversationListItem } from "./ConversationListItem";
 import type { ConversationFilterValue } from "./ConversationFilter";
 import type {
@@ -34,6 +33,12 @@ export interface ConversationListProps {
   slaFilter?: SlaStatus;
   /** Search query for filtering */
   searchQuery?: string;
+  /** Whether to show only conversations assigned to the current user */
+  showOnlyMine?: boolean;
+  /** Callback when the "My assignments" toggle should be changed (Fix C) */
+  onToggleShowOnlyMine?: () => void;
+  /** Current user's SAX ID for filtering */
+  currentUserSaxId?: string;
   /** Custom class name */
   className?: string;
 }
@@ -147,10 +152,12 @@ export function ConversationList({
   statusFilter,
   slaFilter,
   searchQuery,
+  showOnlyMine,
+  onToggleShowOnlyMine,
+  currentUserSaxId,
   className,
 }: ConversationListProps) {
   // State
-  const { user } = useAuth();
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -185,8 +192,8 @@ export function ConversationList({
           offset: currentOffset,
         };
 
-        if (user?.saxId) {
-          params.coordinator_sax_id = user.saxId;
+        if (showOnlyMine && currentUserSaxId) {
+          params.coordinator_sax_id = currentUserSaxId;
         }
 
         // Use new filterStatus parameter (FR-014c) if provided
@@ -231,15 +238,22 @@ export function ConversationList({
         setIsLoadingMore(false);
       }
     },
-    [offset, filterStatus, statusFilter, slaFilter, user],
+    [
+      offset,
+      filterStatus,
+      statusFilter,
+      slaFilter,
+      showOnlyMine,
+      currentUserSaxId,
+    ],
   );
 
   // Initial load and filter changes
   React.useEffect(() => {
-    if (user?.saxId) {
+    if (currentUserSaxId) {
       fetchConversations(true);
     }
-  }, [filterStatus, statusFilter, slaFilter, user?.saxId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filterStatus, statusFilter, slaFilter, showOnlyMine, currentUserSaxId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ==========================================================================
   // Infinite Scroll
@@ -273,16 +287,23 @@ export function ConversationList({
   // ==========================================================================
 
   const filteredConversations = React.useMemo(() => {
-    const base = searchQuery?.trim()
-      ? (() => {
-          const query = searchQuery.toLowerCase().trim();
-          return conversations.filter(
-            (conv) =>
-              conv.friendlyName.toLowerCase().includes(query) ||
-              conv.patientPhone.includes(query),
-          );
-        })()
-      : conversations;
+    let base = conversations;
+
+    if (searchQuery?.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      base = base.filter(
+        (conv) =>
+          conv.friendlyName.toLowerCase().includes(query) ||
+          conv.patientPhone.includes(query),
+      );
+    }
+
+    if (showOnlyMine && currentUserSaxId) {
+      const saxIdNum = Number(currentUserSaxId);
+      if (!isNaN(saxIdNum)) {
+        base = base.filter((conv) => conv.coordinatorSaxId === saxIdNum);
+      }
+    }
 
     const slaPriority: Record<SlaStatus, number> = {
       breached: 0,
@@ -309,7 +330,7 @@ export function ConversationList({
 
       return byRecencyDesc(a, b);
     });
-  }, [conversations, searchQuery]);
+  }, [conversations, searchQuery, showOnlyMine, currentUserSaxId]);
 
   // ==========================================================================
   // Handlers
@@ -406,27 +427,41 @@ export function ConversationList({
             <p className="text-sm text-gray-400 text-center">
               {searchQuery
                 ? "No conversations match your search"
-                : statusFilter === "archived"
-                  ? "No archived conversations"
-                  : "No conversations yet"}
+                : showOnlyMine
+                  ? "No conversations assigned to you"
+                  : statusFilter === "archived"
+                    ? "No archived conversations"
+                    : "No conversations yet"}
             </p>
-            {!searchQuery && !statusFilter && onNewConversation && (
-              <Tooltip content="Create a new conversation" placement="top">
-                <button
-                  type="button"
-                  onClick={onNewConversation}
-                  className={cn(
-                    "mt-4 px-4 py-2 rounded-lg text-sm font-medium",
-                    "bg-purple-600 text-white",
-                    "hover:bg-purple-500",
-                    "focus:outline-none focus:ring-2 focus:ring-purple-500",
-                    "transition-colors",
-                  )}
-                >
-                  Start a Conversation
-                </button>
-              </Tooltip>
+            {showOnlyMine && onToggleShowOnlyMine && (
+              <button
+                type="button"
+                onClick={onToggleShowOnlyMine}
+                className="mt-4 px-4 py-2 rounded-lg text-sm font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-750 transition-colors"
+              >
+                Show all conversations
+              </button>
             )}
+            {!searchQuery &&
+              !statusFilter &&
+              !showOnlyMine &&
+              onNewConversation && (
+                <Tooltip content="Create a new conversation" placement="top">
+                  <button
+                    type="button"
+                    onClick={onNewConversation}
+                    className={cn(
+                      "mt-4 px-4 py-2 rounded-lg text-sm font-medium",
+                      "bg-purple-600 text-white",
+                      "hover:bg-purple-500",
+                      "focus:outline-none focus:ring-2 focus:ring-purple-500",
+                      "transition-colors",
+                    )}
+                  >
+                    Start a Conversation
+                  </button>
+                </Tooltip>
+              )}
           </div>
         )}
 
