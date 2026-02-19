@@ -189,7 +189,8 @@ function toConversationSummary(conv: Conversation): ConversationSummary {
     tenantId: conv.tenantId ?? null,
     latestBookingStatus: conv.latestBookingStatus ?? null,
     latestBookingStartTime: conv.latestBookingStartTime ?? null,
-    coordinatorSaxId: conv.coordinatorSaxId,
+    coordinatorSaxId:
+      conv.coordinatorSaxId ?? (conv as any).coordinator_sax_id ?? 0,
   };
 }
 

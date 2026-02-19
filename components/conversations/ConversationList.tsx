@@ -301,7 +301,11 @@ export function ConversationList({
     if (showOnlyMine && currentUserSaxId) {
       const saxIdNum = Number(currentUserSaxId);
       if (!isNaN(saxIdNum)) {
-        base = base.filter((conv) => conv.coordinatorSaxId === saxIdNum);
+        base = base.filter((conv) => {
+          const coordinatorId =
+            conv.coordinatorSaxId ?? (conv as any).coordinator_sax_id;
+          return coordinatorId === saxIdNum;
+        });
       }
     }
 
