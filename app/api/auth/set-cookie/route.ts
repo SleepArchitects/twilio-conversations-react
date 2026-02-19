@@ -63,7 +63,7 @@ async function setCookie() {
           .setIssuedAt()
           .setIssuer("sleepconnect")
           .setAudience("outreach")
-          .setExpirationTime("8h")
+          .setExpirationTime("7d")
           .sign(encoder.encode(secret));
       } catch (fallbackError) {
         console.error("[SetCookie] Auth0 fallback failed:", fallbackError);
@@ -89,7 +89,7 @@ async function setCookie() {
     // Set the JWT as a cookie
     cookieStore.set("x-sax-user-context", jwtToken, {
       httpOnly: true,
-      maxAge: 60 * 60 * 8, // 8 hours
+      maxAge: 60 * 60 * 24 * 7, // 7 days
       path: "/",
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
