@@ -57,13 +57,10 @@ console.log("━━━━━━━━━━━━━━━━━━━━━━�
 console.log(`🚀 Deploying to [${environment}]`);
 console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-// Load .env (base)
-dotenv.config({ path: ".env" });
-
-// Helper to load env file overrides
+// Helper to load env file overrides (always overwrites)
 const loadEnvOverride = (file) => {
   if (fs.existsSync(file)) {
-    console.log(`Tb Loading ${file} overrides`);
+    console.log(`   Loading ${file}`);
     const envConfig = dotenv.parse(fs.readFileSync(file));
     for (const k in envConfig) {
       process.env[k] = envConfig[k];
@@ -71,12 +68,12 @@ const loadEnvOverride = (file) => {
   }
 };
 
-// Load .env.local (local overrides/secrets)
-// Loaded BEFORE env-specific config so that target environment config (e.g. URLs) takes precedence
+// Load in priority order — last writer wins:
+//   .env.local  (lowest)  — local secrets, never deployed
+//   .env        (base)    — shared defaults across all environments
+//   .env.<env>  (highest) — environment-specific values, always wins
 loadEnvOverride(".env.local");
-
-// Load environment-specific .env (e.g. .env.staging)
-// This overwrites .env.local for defined keys (crucial for URLs)
+loadEnvOverride(".env");
 loadEnvOverride(`.env.${environment}`);
 
 // Get resource names for this environment
