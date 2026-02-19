@@ -41,6 +41,8 @@ export interface SaxClaims extends Claims {
   practice_id: string;
   email: string;
   name: string;
+  /** Set by SleepConnect in x-sax-user-context JWT. Optional for backward compat. */
+  is_sax_user?: boolean;
 }
 
 /**
@@ -136,6 +138,7 @@ async function getUserFromForwardedCookie(): Promise<SaxClaims | null> {
       practice_id: userContext.practice_id,
       email: userContext.email || "",
       name: userContext.name || "",
+      is_sax_user: userContext.is_sax_user,
       sub: String(userContext.sax_id),
     };
   } catch (error) {
@@ -257,8 +260,12 @@ export async function getUserContext(): Promise<UserContext | null> {
     if (!session?.user) return null;
     const user = session.user as SaxClaims;
 
-    // Check if user has SAX role (cached, 5 min TTL)
-    const { isSAXUser } = await fetchUserRolesServerSide(user.sax_id);
+    // Use is_sax_user from JWT claim (set by SleepConnect) — no API round-trip
+    // Falls back to API check for standalone mode or pre-migration tokens
+    const isSAXUser =
+      typeof user.is_sax_user === "boolean"
+        ? user.is_sax_user
+        : (await fetchUserRolesServerSide(user.sax_id)).isSAXUser;
 
     return {
       saxId: user.sax_id,
@@ -292,11 +299,15 @@ export async function getAccessToken(): Promise<string | null> {
       cookieHeader.length,
     );
 
+    const contextHeader = headersList.get("x-sax-user-context");
+    const fetchHeaders: Record<string, string> = { cookie: cookieHeader };
+    if (contextHeader) {
+      fetchHeaders["x-sax-user-context"] = contextHeader;
+    }
+
     const response = await fetch(tokenUrl, {
       method: "GET",
-      headers: {
-        cookie: cookieHeader,
-      },
+      headers: fetchHeaders,
     });
 
     console.log("[AUTH] getAccessToken - response status:", response.status);
@@ -377,12 +388,18 @@ async function fetchAllRolesServerSide(): Promise<Role[]> {
     const headersList = headers();
     const cookieHeader = headersList.get("cookie") || "";
 
+    const contextHeader = headersList.get("x-sax-user-context");
+    const fetchHeaders: Record<string, string> = {
+      cookie: cookieHeader,
+      "Content-Type": "application/json",
+    };
+    if (contextHeader) {
+      fetchHeaders["x-sax-user-context"] = contextHeader;
+    }
+
     const response = await fetch(rolesUrl, {
       method: "GET",
-      headers: {
-        cookie: cookieHeader,
-        "Content-Type": "application/json",
-      },
+      headers: fetchHeaders,
     });
 
     if (!response.ok) {
@@ -441,31 +458,51 @@ async function fetchUserRolesServerSide(
       "http://localhost:3000";
 
     const rolesUrl = `${baseUrl}/api/users/${saxId}/roles`;
-    console.debug("[AUTH] Fetching roles from:", rolesUrl);
+    console.log("[AUTH] Fetching roles from:", rolesUrl, "baseUrl:", baseUrl);
 
     const headersList = headers();
     const cookieHeader = headersList.get("cookie") || "";
 
+    const contextHeader = headersList.get("x-sax-user-context");
+    const fetchHeaders: Record<string, string> = { cookie: cookieHeader };
+    if (contextHeader) {
+      fetchHeaders["x-sax-user-context"] = contextHeader;
+    }
+
     const response = await fetch(rolesUrl, {
-      method: "POST",
-      headers: {
-        cookie: cookieHeader,
-        "Content-Type": "application/json",
-      },
+      method: "GET",
+      headers: fetchHeaders,
     });
 
     if (!response.ok) {
       console.warn(
-        "[AUTH] Failed to fetch user roles, status:",
+        "[AUTH] ❌ Failed to fetch user roles, status:",
         response.status,
+        "url:",
+        rolesUrl,
+        "response:",
+        await response.text().catch(() => "unreadable"),
       );
-      // Cache empty result to avoid repeated failed requests
-      const emptyResult = { roles: [], isSAXUser: false };
-      userRolesCache.set(saxId, { ...emptyResult, timestamp: Date.now() });
-      return emptyResult;
+      // Do NOT cache failures — let them retry on next request
+      return { roles: [], isSAXUser: false };
     }
 
-    const roles: UserRole[] = await response.json();
+    const rolesData = await response.json();
+
+    // Normalize response — API may return array directly or wrapped { roles: [...] }
+    const roles: UserRole[] = Array.isArray(rolesData)
+      ? rolesData
+      : Array.isArray(rolesData?.roles)
+        ? rolesData.roles
+        : [];
+
+    if (!Array.isArray(rolesData) && !Array.isArray(rolesData?.roles)) {
+      console.warn(
+        "[AUTH] Unexpected roles response shape:",
+        typeof rolesData,
+        Object.keys(rolesData || {}),
+      );
+    }
 
     // Extract active role IDs
     const activeRoleIds = roles.filter((r) => r.active).map((r) => r.role_id);
@@ -476,8 +513,9 @@ async function fetchUserRolesServerSide(
     // Check if user has SAX role
     const isSAXUser = saxRoleId ? activeRoleIds.includes(saxRoleId) : false;
 
-    console.debug("[AUTH] Fetched roles for saxId:", saxId, {
+    console.log("[AUTH] Fetched roles for saxId:", saxId, {
       roleCount: activeRoleIds.length,
+      activeRoleIds,
       saxRoleId,
       isSAXUser,
     });
@@ -502,7 +540,8 @@ async function fetchUserRolesServerSide(
  * @returns true if user has SAX role
  */
 export async function checkIsSAXUser(saxId: number): Promise<boolean> {
-  const { isSAXUser } = await fetchUserRolesServerSide(saxId);
+  const { isSAXUser, ...rest } = await fetchUserRolesServerSide(saxId);
+  console.log("[AUTH] checkIsSAXUser:", saxId, isSAXUser, rest);
   return isSAXUser;
 }
 
@@ -573,11 +612,14 @@ export function withUserContext(
         );
       }
 
-      // Check if user has SAX role (cached, 5 min TTL)
-      const { isSAXUser } = await fetchUserRolesServerSide(user.sax_id);
+      // Use is_sax_user from JWT claim (set by SleepConnect) — no API round-trip
+      // Falls back to API check for standalone mode or pre-migration tokens
+      const isSAXUser =
+        typeof user.is_sax_user === "boolean"
+          ? user.is_sax_user
+          : (await fetchUserRolesServerSide(user.sax_id)).isSAXUser;
       console.debug("[AUTH] withUserContext - isSAXUser:", isSAXUser);
 
-      // console.debug("[AUTH] withUserContext - calling handler with context");
       return handler(
         req,
         {
