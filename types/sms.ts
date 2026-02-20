@@ -165,6 +165,46 @@ export interface Message extends TenantScope {
   readAt: string | null;
   /** Soft delete flag */
   active: boolean;
+  /** Whether the message has media attachments */
+  hasMedia?: boolean;
+  /** Media attachments (null for text-only, never empty array) */
+  media?: MediaAttachment[] | null;
+}
+
+/**
+ * Media attachment metadata for MMS messages.
+ * Stored in S3 and referenced by key (not full URL).
+ */
+export interface MediaAttachment {
+  /** S3 key for the stored media file */
+  s3Key: string;
+  /** MIME content type (e.g., image/jpeg, video/mp4) */
+  contentType: string;
+  /** File size in bytes */
+  size: number;
+  /** Original filename from user upload */
+  originalFilename: string;
+}
+
+/**
+ * Pending attachment during upload process.
+ * Tracks local file state before server commit.
+ */
+export interface PendingAttachment {
+  /** Unique identifier for this pending attachment */
+  fileId: string;
+  /** The local File object */
+  file: File;
+  /** S3 key after successful upload (undefined while uploading) */
+  s3Key?: string;
+  /** Current upload status */
+  status: "pending" | "uploading" | "complete" | "error";
+  /** Upload progress percentage (0-100) */
+  progress: number;
+  /** Error message if status is 'error' */
+  error?: string;
+  /** AbortController for cancelling the upload */
+  abortController: AbortController;
 }
 
 /**
@@ -292,8 +332,8 @@ export interface SendMessageRequest {
   body: string;
   /** Optional template ID to track template usage */
   templateId?: string;
-  /** Optional MMS media URLs (max 10) */
-  mediaUrls?: string[];
+  /** Array of S3 keys (not URLs) for media attachments (max 10) */
+  mediaKeys?: string[];
 }
 
 /**

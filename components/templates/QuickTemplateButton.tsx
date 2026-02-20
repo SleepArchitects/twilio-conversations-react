@@ -75,8 +75,6 @@ export function QuickTemplateButton({
     return null;
   }
 
-  console.log("QuickTemplateButton rendering with templates:", templates);
-
   return (
     <div className={cn("relative inline-flex", className)} ref={dropdownRef}>
       <Tooltip content="Quick templates" placement="top">
@@ -117,6 +115,7 @@ export function QuickTemplateButton({
               if (!template) return null;
               return (
                 <button
+                  type="button"
                   key={template.id || `template-${index}`}
                   onClick={() => handleSelect(template)}
                   className={cn(
