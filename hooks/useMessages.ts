@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback, useReducer } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import type {
   Message,
   PaginatedResponse,
   SendMessageRequest,
+  PendingAttachment,
 } from "@/types/sms";
 import type { WorkerMessage, WorkerCommand } from "../types/worker";
 
@@ -26,6 +28,23 @@ export interface UseMessagesOptions {
 }
 
 /**
+ * Return type for media upload API
+ */
+interface MediaUploadResponse {
+  s3Key: string;
+  presignedUrl: string;
+  expiresAt: string;
+}
+
+/**
+ * Result type for uploadAttachment function
+ */
+interface UploadResult {
+  fileId: string;
+  s3Key: string;
+}
+
+/**
  * Return type for useMessages hook
  */
 export interface UseMessagesReturn {
@@ -36,7 +55,10 @@ export interface UseMessagesReturn {
   /** Error from fetch or send operations */
   error: Error | null;
   /** Send a new message (supports optimistic updates) */
-  sendMessage: (body: string, templateId?: string) => Promise<void>;
+  sendMessage: (
+    body: string,
+    options?: { templateId?: string; attachmentIds?: string[] },
+  ) => Promise<void>;
   /** Load older messages (pagination) */
   loadMore: () => Promise<void>;
   /** Whether more messages are available to load */
@@ -47,6 +69,14 @@ export interface UseMessagesReturn {
   isSending: boolean;
   /** Whether WebSocket is connected for real-time updates */
   wsConnected: boolean;
+  /** Map of pending attachments currently being uploaded or ready */
+  pendingAttachments: Map<string, PendingAttachment>;
+  /** Upload a file and track its progress */
+  uploadAttachment: (file: File) => Promise<UploadResult>;
+  /** Cancel an in-flight upload */
+  cancelUpload: (fileId: string) => void;
+  /** Remove a completed or failed attachment */
+  removeAttachment: (fileId: string) => void;
 }
 
 // =============================================================================
@@ -337,6 +367,9 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const [wsConnected, setWsConnected] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<
+    Map<string, PendingAttachment>
+  >(new Map());
 
   // Refs for cleanup and race condition prevention
   const isMountedRef = useRef(true);
@@ -347,11 +380,17 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const pingIntervalRef = useRef<NodeJS.Timeout>();
   const workerRef = useRef<Worker | null>(null);
+  const pendingAttachmentsRef = useRef(pendingAttachments);
 
   // Keep messageIdsRef in sync with state
   useEffect(() => {
     messageIdsRef.current = state.messageIds;
   }, [state.messageIds]);
+
+  // Keep pendingAttachmentsRef in sync with state
+  useEffect(() => {
+    pendingAttachmentsRef.current = pendingAttachments;
+  }, [pendingAttachments]);
 
   // Initial fetch with TanStack Query (no polling)
   // Fetch the LAST page of messages first to show recent messages
@@ -477,7 +516,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
    * Send a message with optimistic update
    */
   const sendMessage = useCallback(
-    async (body: string, templateId?: string) => {
+    async (
+      body: string,
+      options?: { templateId?: string; attachmentIds?: string[] },
+    ) => {
       if (!body.trim()) {
         throw new Error("Message body cannot be empty");
       }
@@ -499,10 +541,24 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         );
         dispatch({ type: "ADD_MESSAGE", payload: optimisticMessage });
 
+        // Extract S3 keys from completed attachments
+        const mediaKeys: string[] = [];
+        if (options?.attachmentIds && options.attachmentIds.length > 0) {
+          options.attachmentIds.forEach((fileId) => {
+            const attachment = pendingAttachments.get(fileId);
+            if (attachment?.status === "complete" && attachment.s3Key) {
+              mediaKeys.push(attachment.s3Key);
+            }
+          });
+        }
+
         // Send via API
         const payload: SendMessageRequest = { body };
-        if (templateId) {
-          payload.templateId = templateId;
+        if (options?.templateId) {
+          payload.templateId = options.templateId;
+        }
+        if (mediaKeys.length > 0) {
+          payload.mediaKeys = mediaKeys;
         }
 
         const response = await api.post<Message>(
@@ -571,12 +627,155 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         }
       }
     },
-    [conversationId, queryClient],
+    [conversationId, queryClient, pendingAttachments],
   );
 
-  /**
-   * Track mounted state for cleanup
-   */
+  const uploadAttachment = useCallback(
+    async (file: File): Promise<UploadResult> => {
+      const fileId = crypto.randomUUID();
+      const abortController = new AbortController();
+
+      const pendingAttachment: PendingAttachment = {
+        fileId,
+        file,
+        progress: 0,
+        status: "pending",
+        abortController,
+      };
+
+      setPendingAttachments((prev) =>
+        new Map(prev).set(fileId, pendingAttachment),
+      );
+
+      try {
+        const uploadResponse = await api.post<MediaUploadResponse>(
+          "/api/outreach/media/upload",
+          {
+            filename: file.name,
+            contentType: file.type,
+            conversationId,
+          },
+        );
+
+        if (!isMountedRef.current) {
+          abortController.abort();
+          throw new Error("Component unmounted during upload");
+        }
+
+        setPendingAttachments((prev) => {
+          const updated = new Map(prev);
+          const current = updated.get(fileId);
+          if (current) {
+            updated.set(fileId, { ...current, status: "uploading" });
+          }
+          return updated;
+        });
+
+        await axios.put(uploadResponse.presignedUrl, file, {
+          headers: {
+            "Content-Type": file.type,
+          },
+          signal: abortController.signal,
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const progress = Math.round(
+                (progressEvent.loaded * 100) / progressEvent.total,
+              );
+              setPendingAttachments((prev) => {
+                const updated = new Map(prev);
+                const current = updated.get(fileId);
+                if (current) {
+                  updated.set(fileId, { ...current, progress });
+                }
+                return updated;
+              });
+            }
+          },
+        });
+
+        if (!isMountedRef.current) {
+          throw new Error("Component unmounted after upload");
+        }
+
+        setPendingAttachments((prev) => {
+          const updated = new Map(prev);
+          const current = updated.get(fileId);
+          if (current) {
+            updated.set(fileId, {
+              ...current,
+              status: "complete",
+              s3Key: uploadResponse.s3Key,
+              progress: 100,
+            });
+          }
+          return updated;
+        });
+
+        return { fileId, s3Key: uploadResponse.s3Key };
+      } catch (error) {
+        if (!isMountedRef.current) {
+          throw new Error("Component unmounted during upload");
+        }
+
+        let errorMessage = "Upload failed";
+
+        if (axios.isCancel(error)) {
+          errorMessage = "Upload cancelled";
+        } else if (error instanceof Error) {
+          if (
+            error.name === "AbortError" ||
+            error.message.includes("aborted")
+          ) {
+            errorMessage = "Upload cancelled";
+          } else {
+            errorMessage = error.message;
+          }
+        }
+
+        setPendingAttachments((prev) => {
+          const updated = new Map(prev);
+          const current = updated.get(fileId);
+          if (current) {
+            updated.set(fileId, {
+              ...current,
+              status: "error",
+              error: errorMessage,
+            });
+          }
+          return updated;
+        });
+
+        throw new Error(errorMessage);
+      }
+    },
+    [conversationId],
+  );
+
+  const cancelUpload = useCallback((fileId: string): void => {
+    setPendingAttachments((prev) => {
+      const attachment = prev.get(fileId);
+      if (attachment && attachment.status === "uploading") {
+        attachment.abortController.abort();
+        const updated = new Map(prev);
+        updated.set(fileId, {
+          ...attachment,
+          status: "error",
+          error: "Upload cancelled",
+        });
+        return updated;
+      }
+      return prev;
+    });
+  }, []);
+
+  const removeAttachment = useCallback((fileId: string): void => {
+    setPendingAttachments((prev) => {
+      const updated = new Map(prev);
+      updated.delete(fileId);
+      return updated;
+    });
+  }, []);
+
   useEffect(() => {
     isMountedRef.current = true;
     const pendingOptimistic = pendingOptimisticRef.current;
@@ -585,19 +784,15 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       isMountedRef.current = false;
       pendingOptimistic.clear();
 
-      // Cleanup WebSocket
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (pingIntervalRef.current) {
-        clearInterval(pingIntervalRef.current);
-      }
+      pendingAttachmentsRef.current.forEach((attachment) => {
+        attachment.abortController.abort();
+      });
+      setPendingAttachments(new Map());
 
-      // Cleanup Worker
+      // WebSocket lifecycle is owned by the WS useEffect (deps: saxId/tenantId/practiceId).
+      // Closing wsRef here would race with a mid-handshake connection and cause
+      // "WebSocket closed before connection established". Let that effect own cleanup.
+
       if (workerRef.current) {
         workerRef.current.terminate();
         workerRef.current = null;
@@ -616,17 +811,29 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     // Create worker if it doesn't exist
     if (!workerRef.current) {
       try {
+        // Use self.location.href as base for worker URL resolution
+        // This avoids import.meta which can cause issues in SSR/build contexts
+        const workerBaseUrl =
+          typeof self !== "undefined" && self.location?.href
+            ? self.location.origin
+            : "http://localhost:3000";
         const workerUrl = new URL(
-          "../workers/message-poller.worker.js",
-          import.meta.url,
+          "/_next/static/chunks/workers/message-poller.worker.js",
+          workerBaseUrl,
         );
 
         // Use native Worker API with pure JavaScript worker (no TypeScript imports)
         const worker = new Worker(workerUrl);
 
         // Add error handler for worker creation
-        worker.onerror = (e) => {
-          console.error("[useMessages] Worker error:", e.message);
+        worker.onerror = (e: ErrorEvent) => {
+          console.error("[useMessages] Worker error:", {
+            message: e.message || "(no message)",
+            filename: e.filename || "(no filename)",
+            lineno: e.lineno,
+            colno: e.colno,
+            error: e.error,
+          });
         };
 
         // Handle 401 auth errors from worker
@@ -713,16 +920,25 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     }
 
     const connectWebSocket = () => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
+      if (
+        wsRef.current?.readyState === WebSocket.OPEN ||
+        wsRef.current?.readyState === WebSocket.CONNECTING
+      ) {
         return;
       }
 
       const wsUrlWithParams = `${WS_URL}?coordinatorId=${saxId}&tenantId=${tenantId}&practiceId=${practiceId}`;
 
+      console.log("[useMessages] Connecting to WebSocket:", wsUrlWithParams);
+
       try {
         const ws = new WebSocket(wsUrlWithParams);
 
+        // Set binary type for handling blob/binary data if needed
+        ws.binaryType = "arraybuffer";
+
         ws.onopen = () => {
+          console.log("[useMessages] WebSocket connected successfully");
           setWsConnected(true);
 
           // Start ping interval to keep connection alive
@@ -734,16 +950,59 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         };
 
         ws.onerror = (error) => {
-          console.error("[useMessages] WebSocket error:", error.type);
+          // WebSocket error events intentionally contain no detail (browser security policy).
+          // The close event that follows will have the code (1006 = abnormal closure,
+          // usually means the server rejected the handshake or the network dropped).
+          console.error(
+            "[useMessages] WebSocket error (see close event for code)",
+            {
+              type: error.type,
+              url: wsUrlWithParams,
+            },
+          );
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
+          const closeReasons: Record<number, string> = {
+            1000: "Normal closure",
+            1001: "Going away (page navigation)",
+            1005: "No status (page refresh)",
+            1006: "Abnormal closure - server rejected or network dropped",
+            1011: "Server internal error",
+            1012: "Server restart",
+            1013: "Server overloaded",
+          };
+          const reason =
+            event.reason ||
+            closeReasons[event.code] ||
+            `Unknown (code ${event.code})`;
+          const logFn =
+            event.code === 1000 || event.code === 1001 || event.code === 1005
+              ? console.log
+              : console.warn;
+          logFn("[useMessages] WebSocket closed", {
+            code: event.code,
+            reason,
+            url: wsUrlWithParams,
+          });
           setWsConnected(false);
 
           // Clear ping interval
           if (pingIntervalRef.current) {
             clearInterval(pingIntervalRef.current);
             pingIntervalRef.current = undefined;
+          }
+
+          // Attempt reconnection after a delay if not intentionally closed
+          if (event.code !== 1000 && isMountedRef.current) {
+            console.log(
+              "[useMessages] Scheduling WebSocket reconnection in 3 seconds...",
+            );
+            reconnectTimeoutRef.current = setTimeout(() => {
+              if (isMountedRef.current) {
+                connectWebSocket();
+              }
+            }, 3000);
           }
         };
 
@@ -796,6 +1055,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
                 tenantId: rawMessage.tenantId || rawMessage.tenant_id || "",
                 practiceId:
                   rawMessage.practiceId || rawMessage.practice_id || "",
+                media: rawMessage.media || null,
               };
 
               const msgConvId = message.conversationId;
@@ -889,6 +1149,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
     refresh,
     isSending,
     wsConnected,
+    pendingAttachments,
+    uploadAttachment,
+    cancelUpload,
+    removeAttachment,
   };
 }
 

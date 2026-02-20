@@ -82,20 +82,20 @@ export default function ConversationPage(): React.ReactElement {
   // Mark as Read (T040)
   // ==========================================================================
 
+  const unreadCount = conversation?.unreadCount ?? 0;
+
   React.useEffect(() => {
-    async function markAsRead() {
-      if (!conversation || conversation.unreadCount === 0) return;
+    if (!conversationId || unreadCount === 0) return;
 
-      try {
-        await api.post(`/api/outreach/conversations/${conversationId}/read`);
+    api
+      .post(`/api/outreach/conversations/${conversationId}/read`)
+      .then(() => {
         setConversation((prev) => (prev ? { ...prev, unreadCount: 0 } : prev));
-      } catch (err) {
+      })
+      .catch((err) => {
         console.error("Error marking conversation as read:", err);
-      }
-    }
-
-    markAsRead();
-  }, [conversationId, conversation]);
+      });
+  }, [conversationId, unreadCount]);
 
   // ==========================================================================
   // Render States

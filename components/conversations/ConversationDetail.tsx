@@ -8,6 +8,7 @@ import { MessageComposer } from "@/components/conversations/MessageComposer";
 import { PatientContextHeader } from "@/components/conversations/PatientContextHeader";
 import { LinkPatientButton } from "@/components/conversations/LinkPatientButton";
 import { SlaIndicator } from "@/components/conversations/SlaIndicator";
+import { ImageLightbox } from "@/components/conversations/ImageLightbox";
 import { useMessages } from "@/hooks/useMessages";
 import { usePracticeName } from "@/hooks/usePracticeName";
 import { useAuth } from "@/hooks/useAuth";
@@ -348,6 +349,10 @@ export function ConversationDetail({
     hasMore,
     refresh,
     isSending,
+    pendingAttachments,
+    uploadAttachment,
+    cancelUpload,
+    removeAttachment,
   } = useMessages({
     conversationId,
   });
@@ -375,6 +380,19 @@ export function ConversationDetail({
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const scrollRestorationRef = React.useRef<number | null>(null);
   const lastMessageIdRef = React.useRef<string | null>(null);
+
+  const [lightboxOpen, setLightboxOpen] = React.useState(false);
+  const [lightboxImages, setLightboxImages] = React.useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = React.useState(0);
+
+  const handleImageClick = React.useCallback(
+    (index: number, images: string[]) => {
+      setLightboxImages(images);
+      setLightboxIndex(index);
+      setLightboxOpen(true);
+    },
+    [],
+  );
 
   // Handle scroll restoration when loading older messages
   // We use useLayoutEffect to adjust the scroll position before the browser paints
@@ -458,8 +476,8 @@ export function ConversationDetail({
 
   // Handle sending messages with optional template tracking
   const handleSendMessage = React.useCallback(
-    async (body: string, templateId?: string) => {
-      await sendMessage(body, templateId);
+    async (body: string, templateId?: string, attachmentIds?: string[]) => {
+      await sendMessage(body, { templateId, attachmentIds });
       // Auto-scroll to bottom after sending
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -484,11 +502,17 @@ export function ConversationDetail({
         lastDate = messageDate;
       }
 
-      elements.push(<MessageBubble key={message.id} message={message} />);
+      elements.push(
+        <MessageBubble
+          key={message.id}
+          message={message}
+          onImageClick={handleImageClick}
+        />,
+      );
     });
 
     return elements;
-  }, [messages]);
+  }, [messages, handleImageClick]);
 
   // Extract display name from conversation
   const displayName = conversationData.friendlyName || "Unknown Patient";
@@ -704,8 +728,20 @@ export function ConversationDetail({
               : "Type a message..."
           }
           variableValues={templateVariableValues}
+          pendingAttachments={pendingAttachments}
+          onUploadAttachment={uploadAttachment}
+          onCancelUpload={cancelUpload}
+          onRemoveAttachment={removeAttachment}
         />
       </div>
+
+      <ImageLightbox
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        images={lightboxImages}
+        currentIndex={lightboxIndex}
+        onNavigate={setLightboxIndex}
+      />
     </div>
   );
 }
