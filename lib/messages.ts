@@ -68,6 +68,7 @@ export function transformMessage(
     active: msg.active ?? true,
     tenantId: tenantId,
     practiceId: practiceId,
+    hasMedia: !!(msg.media_keys && msg.media_keys.length > 0),
     media: msg.media_keys
       ? msg.media_keys.map((key) => ({
           s3Key: key,

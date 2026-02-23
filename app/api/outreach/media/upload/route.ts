@@ -132,6 +132,14 @@ function validateContentType(contentType: string): boolean {
  */
 export const POST = withUserContext(
   async (req: NextRequest, userContext: UserContext) => {
+    if (!MEDIA_BUCKET_NAME) {
+      console.error("[media/upload] MEDIA_BUCKET_NAME is not configured");
+      return NextResponse.json(
+        { error: "Server configuration error: S3 bucket not configured" },
+        { status: 500 },
+      );
+    }
+
     let body: unknown;
     try {
       body = await req.json();

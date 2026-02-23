@@ -105,9 +105,22 @@ export const GET = withUserContext(
 
 export const POST = withUserContext(
   async (req: Request, userContext: UserContext) => {
+    const debugTs = () => new Date().toISOString();
     const url = new URL(req.url);
     const pathParts = url.pathname.split("/");
     const conversationId = pathParts[pathParts.indexOf("conversations") + 1];
+
+    console.log(`[POST /messages][${debugTs()}] === REQUEST RECEIVED ===`, {
+      conversationId,
+      conversationIdType: typeof conversationId,
+      tenantId: userContext.tenantId,
+      tenantIdType: typeof userContext.tenantId,
+      practiceId: userContext.practiceId,
+      practiceIdType: typeof userContext.practiceId,
+      saxId: userContext.saxId,
+      saxIdType: typeof userContext.saxId,
+      isSAXUser: userContext.isSAXUser,
+    });
 
     if (!conversationId) {
       return NextResponse.json(
@@ -126,6 +139,14 @@ export const POST = withUserContext(
           { status: 400 },
         );
       }
+
+      console.log(`[POST /messages][${debugTs()}] Request body parsed`, {
+        conversationId,
+        bodyLength: body.body?.length ?? 0,
+        bodyPreview: body.body?.substring(0, 50),
+        mediaKeysCount: body.mediaKeys?.length ?? 0,
+        templateId: body.templateId ?? "none",
+      });
 
       const hasMediaKeys =
         Array.isArray(body.mediaKeys) && body.mediaKeys.length > 0;
@@ -146,6 +167,12 @@ export const POST = withUserContext(
         );
       }
 
+      console.log(`[POST /messages][${debugTs()}] Media processed`, {
+        conversationId,
+        mediaKeysCount: mediaProcessing.mediaKeys?.length ?? 0,
+        presignedUrlsCount: mediaProcessing.presignedUrls?.length ?? 0,
+      });
+
       const conversation = await validateConversationAccess(
         conversationId,
         userContext,
@@ -158,6 +185,18 @@ export const POST = withUserContext(
         );
       }
 
+      console.log(`[POST /messages][${debugTs()}] Conversation validated`, {
+        conversationId,
+        conversationPracticeId: conversation.practiceId,
+        conversationPracticeIdType: typeof conversation.practiceId,
+        conversationPracticeIdAlt: (conversation as { practice_id?: string })
+          .practice_id,
+        conversationPracticeIdAltType: typeof (
+          conversation as { practice_id?: string }
+        ).practice_id,
+        optedOut: conversation.optedOut,
+      });
+
       if (conversation.optedOut) {
         return NextResponse.json(
           { error: "Cannot send message: patient has opted out" },
@@ -166,29 +205,77 @@ export const POST = withUserContext(
       }
 
       const messageBody = bodyValidation.trimmedBody ?? "";
+
+      console.log(`[POST /messages][${debugTs()}] Sending via Twilio...`, {
+        conversationId,
+        messageBodyLength: messageBody.length,
+        mediaUrlCount: mediaProcessing.presignedUrls?.length ?? 0,
+      });
+
       const twilioMessage = await sendMessageViaTwilio(
         conversation,
         messageBody,
         mediaProcessing.presignedUrls,
       );
 
+      console.log(`[POST /messages][${debugTs()}] Twilio response received`, {
+        conversationId,
+        twilioSid: twilioMessage.sid,
+        twilioSidType: typeof twilioMessage.sid,
+      });
+
       const effectivePracticeId = userContext.isSAXUser
         ? (conversation.practiceId ??
           (conversation as { practice_id?: string }).practice_id)
         : userContext.practiceId;
 
+      const lambdaPayload = {
+        practiceId: effectivePracticeId,
+        twilioSid: twilioMessage.sid,
+        saxId: userContext.saxId,
+        body: messageBody,
+        segmentCount: Math.ceil(messageBody.length / 160) || 1,
+        templateId: body.templateId,
+        mediaKeys: mediaProcessing.mediaKeys,
+      };
+
+      console.log(
+        `[POST /messages][${debugTs()}] === BEFORE LAMBDA/DB CALL ===`,
+        {
+          conversationId,
+          conversationIdType: typeof conversationId,
+          effectivePracticeId,
+          effectivePracticeIdType: typeof effectivePracticeId,
+          tenantId: userContext.tenantId,
+          tenantIdType: typeof userContext.tenantId,
+          saxId: userContext.saxId,
+          saxIdType: typeof userContext.saxId,
+          twilioSid: twilioMessage.sid,
+          twilioSidType: typeof twilioMessage.sid,
+          segmentCount: lambdaPayload.segmentCount,
+          segmentCountType: typeof lambdaPayload.segmentCount,
+          templateId: lambdaPayload.templateId,
+          templateIdType: typeof lambdaPayload.templateId,
+          mediaKeysCount: lambdaPayload.mediaKeys?.length ?? 0,
+          bodyLength: lambdaPayload.body.length,
+        },
+      );
+
       const lambdaMessage = await storeMessageInLambda(
         conversationId,
-        {
-          practiceId: effectivePracticeId,
-          twilioSid: twilioMessage.sid,
-          saxId: userContext.saxId,
-          body: messageBody,
-          segmentCount: Math.ceil(messageBody.length / 160) || 1,
-          templateId: body.templateId,
-          mediaKeys: mediaProcessing.mediaKeys,
-        },
+        lambdaPayload,
         userContext,
+      );
+
+      console.log(
+        `[POST /messages][${debugTs()}] Lambda/DB response received`,
+        {
+          conversationId,
+          lambdaMessageId: lambdaMessage?.id,
+          lambdaMessageKeys: lambdaMessage
+            ? Object.keys(lambdaMessage)
+            : "null",
+        },
       );
 
       const storedMessage = transformMessage(
@@ -213,9 +300,15 @@ export const POST = withUserContext(
 
       return NextResponse.json(storedMessage, { status: 201 });
     } catch (error) {
-      console.error("Failed to send message", {
+      console.error(`[POST /messages][${debugTs()}] === ERROR CAUGHT ===`, {
         conversationId,
-        error: error instanceof Error ? error.message : "Unknown",
+        errorName: error instanceof Error ? error.name : "Unknown",
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorCode: error instanceof ApiError ? error.code : undefined,
+        errorStatus: error instanceof ApiError ? error.status : undefined,
+        errorType: Object.prototype.toString.call(error),
+        errorKeys: error && typeof error === "object" ? Object.keys(error) : [],
       });
 
       if (error instanceof ApiError) {

@@ -9,6 +9,13 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const MEDIA_BUCKET_NAME = process.env.MEDIA_BUCKET_NAME ?? "";
 
+if (!MEDIA_BUCKET_NAME) {
+  throw new Error(
+    "MEDIA_BUCKET_NAME environment variable is not set. " +
+      "Set it to your S3 bucket name, e.g. 'sax-nextjs-us-east-1-develop-outreach-assets'.",
+  );
+}
+
 export const s3 = new S3Client({ region: "us-east-1" });
 
 /** Browser PUT upload – default 15 min TTL */

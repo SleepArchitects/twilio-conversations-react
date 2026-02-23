@@ -520,7 +520,8 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
       body: string,
       options?: { templateId?: string; attachmentIds?: string[] },
     ) => {
-      if (!body.trim()) {
+      const hasAttachments = (options?.attachmentIds?.length ?? 0) > 0;
+      if (!body.trim() && !hasAttachments) {
         throw new Error("Message body cannot be empty");
       }
 
@@ -553,7 +554,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
         }
 
         // Send via API
-        const payload: SendMessageRequest = { body };
+        const payload: SendMessageRequest = { body: body || undefined };
         if (options?.templateId) {
           payload.templateId = options.templateId;
         }
