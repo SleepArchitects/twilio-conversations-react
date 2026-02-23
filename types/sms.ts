@@ -328,8 +328,8 @@ export interface UpdateConversationRequest {
  * Request payload for sending a message.
  */
 export interface SendMessageRequest {
-  /** Message content (max 1600 chars for multi-segment) */
-  body: string;
+  /** Message content (max 1600 chars for multi-segment). Optional when mediaKeys are provided. */
+  body?: string;
   /** Optional template ID to track template usage */
   templateId?: string;
   /** Array of S3 keys (not URLs) for media attachments (max 10) */

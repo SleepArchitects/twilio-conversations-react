@@ -197,7 +197,7 @@ export function MessageBubble({
     Promise.all(
       message.media!.map(async (m) => {
         const res = await fetch(
-          `/api/outreach/media/view?s3Key=${encodeURIComponent(m.s3Key)}`,
+          `/outreach/api/outreach/media/view?s3Key=${encodeURIComponent(m.s3Key)}`,
         );
         if (!res.ok) throw new Error("Failed to fetch URL");
         const data = await res.json();

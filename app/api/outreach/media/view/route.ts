@@ -198,3 +198,77 @@ export const POST = withUserContext(
     });
   },
 );
+
+/**
+ * GET /api/outreach/media/view?s3Key=<key>
+ *
+ * Generate a presigned GET URL for viewing a single media file in S3.
+ *
+ * Query Parameters:
+ * - s3Key: string (required, the S3 key for the media file)
+ *
+ * @returns { presignedUrl: string } on success (200)
+ */
+export const GET = withUserContext(
+  async (request: NextRequest, userContext: UserContext) => {
+    const s3Key = request.nextUrl.searchParams.get("s3Key");
+
+    if (!s3Key) {
+      return NextResponse.json(
+        { error: "Missing required query parameter: s3Key" },
+        { status: 400 },
+      );
+    }
+
+    if (!isValidS3Key(s3Key)) {
+      return NextResponse.json(
+        { error: "Invalid S3 key format" },
+        { status: 400 },
+      );
+    }
+
+    let hasAccess: boolean;
+    try {
+      hasAccess = await validateKeyAccess(s3Key, userContext);
+    } catch {
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500 },
+      );
+    }
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Media item not found or access denied" },
+        { status: 404 },
+      );
+    }
+
+    let presignedUrl: string;
+    try {
+      presignedUrl = await generateViewPresignedUrl(
+        MEDIA_BUCKET_NAME,
+        s3Key,
+        VIEW_URL_TTL_SECONDS,
+      );
+    } catch {
+      return NextResponse.json(
+        { error: "Failed to generate presigned URL" },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json(
+      { presignedUrl },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control":
+            "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      },
+    );
+  },
+);

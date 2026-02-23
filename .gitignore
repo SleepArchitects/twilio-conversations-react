@@ -55,3 +55,4 @@ dynamicConfig.yml
 # mise local config
 mise.local.toml
 .credentials
+.agents

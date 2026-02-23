@@ -1,15 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { useIsSAXUser, checkIsSAXUserFromStorage } from "@/hooks/useIsSAXUser";
 import { useSessionHeartbeat } from "@/hooks/useSessionHeartbeat";
+import { useQuery } from "@tanstack/react-query";
 
 type AuthState =
   | "loading"
   | "authenticated"
   | "unauthenticated"
   | "unauthorized";
+
+const fetchSession = async () => {
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+  // First, try to set the cookie from the header (in case rewrite didn't forward it)
+  await fetch(`${basePath}/api/auth/set-cookie`, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  // Then call our local API endpoint which can read the HttpOnly cookie
+  const response = await fetch(`${basePath}/api/auth/session`, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch session");
+  }
+
+  const data = await response.json();
+  if (data.authenticated && data.sax_id && data.tenant_id && data.practice_id) {
+    return data;
+  }
+  throw new Error("Invalid session data");
+};
 
 /**
  * AuthGuard component that verifies user authentication AND authorization on the client side.
@@ -27,80 +56,49 @@ type AuthState =
  * Renders children once authentication AND authorization are confirmed.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+  // const router = useRouter();
   const pathname = usePathname();
   const [authState, setAuthState] = useState<AuthState>("loading");
   const { data: hasSaxRole, isLoading: isRoleLoading } = useIsSAXUser();
   useSessionHeartbeat();
 
+  const isAuthRoute = pathname?.includes("/auth");
+
+  const { data: sessionData, error: sessionError } = useQuery({
+    queryKey: ["session"],
+    queryFn: fetchSession,
+    enabled: !isAuthRoute,
+    retry: false,
+  });
+
+  const redirectToLogin = useCallback(() => {
+    const sleepconnectUrl =
+      process.env.NEXT_PUBLIC_SLEEPCONNECT_URL || "http://localhost:3000";
+    const returnTo = encodeURIComponent(`/outreach${pathname}`);
+    const loginUrl = `${sleepconnectUrl}/login?returnTo=${returnTo}`;
+    window.location.href = loginUrl;
+  }, [pathname]);
+
   useEffect(() => {
-    // Don't check auth on auth routes (they're handled by middleware)
-    if (pathname?.includes("/auth")) {
+    if (isAuthRoute) {
       setAuthState("authenticated");
       return;
     }
 
-    // Verify session by calling our session API endpoint
-    const checkAuth = async () => {
-      try {
-        const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+    if (sessionError) {
+      redirectToLogin();
+      return;
+    }
 
-        // First, try to set the cookie from the header (in case rewrite didn't forward it)
-        await fetch(`${basePath}/api/auth/set-cookie`, {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        // Then call our local API endpoint which can read the HttpOnly cookie
-        const response = await fetch(`${basePath}/api/auth/session`, {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-
-          if (
-            data.authenticated &&
-            data.sax_id &&
-            data.tenant_id &&
-            data.practice_id
-          ) {
-            // Session is valid, now check SAX role
-            // Do a quick localStorage check first while the hook loads
-            const hasSaxFromStorage = checkIsSAXUserFromStorage();
-
-            if (hasSaxFromStorage) {
-              setAuthState("authenticated");
-            } else {
-              // Wait for the hook to confirm (it might still be loading)
-              setAuthState("loading");
-            }
-            return;
-          }
-        }
-
-        // No valid session - redirect to login
-        redirectToLogin();
-      } catch (error) {
-        console.error("[AuthGuard] ❌ Auth check failed:", error);
-        // On error, redirect to login as fallback
-        redirectToLogin();
+    if (sessionData) {
+      const hasSaxFromStorage = checkIsSAXUserFromStorage();
+      if (hasSaxFromStorage) {
+        setAuthState("authenticated");
+      } else {
+        setAuthState("loading");
       }
-    };
-
-    const redirectToLogin = () => {
-      const sleepconnectUrl =
-        process.env.NEXT_PUBLIC_SLEEPCONNECT_URL || "http://localhost:3000";
-      const returnTo = encodeURIComponent(`/outreach${pathname}`);
-      const loginUrl = `${sleepconnectUrl}/login?returnTo=${returnTo}`;
-      window.location.href = loginUrl;
-    };
-
-    checkAuth();
-  }, [pathname, router]);
+    }
+  }, [isAuthRoute, sessionData, sessionError, redirectToLogin]);
 
   // Once role loading is done, check if user has SAX role
   useEffect(() => {
@@ -143,6 +141,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
+              <title>Access Denied</title>
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
