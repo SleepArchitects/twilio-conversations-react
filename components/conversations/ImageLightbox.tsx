@@ -57,7 +57,12 @@ export function ImageLightbox({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
 
-        <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center outline-none">
+        <Dialog.Content
+          className="fixed inset-0 z-50 flex items-center justify-center outline-none cursor-pointer"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
+        >
           <Dialog.Title className="sr-only">Image Lightbox</Dialog.Title>
           <Dialog.Description className="sr-only">
             Viewing attachment {currentIndex + 1} of {images.length}
@@ -91,7 +96,10 @@ export function ImageLightbox({
             </button>
           )}
 
-          <div className="relative max-h-[85vh] max-w-[90vw]">
+          <div
+            role="presentation"
+            className="relative max-h-[85vh] max-w-[90vw] cursor-default"
+          >
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/30 border-t-white" />
@@ -106,6 +114,8 @@ export function ImageLightbox({
                 isLoading ? "opacity-0" : "opacity-100",
               )}
               onLoad={() => setIsLoading(false)}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
             />
           </div>
 
