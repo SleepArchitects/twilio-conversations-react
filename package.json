@@ -5,6 +5,7 @@
   "scripts": {
     "debug": "NODE_OPTIONS=\"$NODE_OPTIONS --inspect\" next dev",
     "dev": "next dev",
+    "prebuild": "cp workers/message-poller.worker.js public/workers/message-poller.worker.js",
     "build": "next build",
     "build:open-next": "NODE_ENV=production NODE_OPTIONS='--max-old-space-size=4096' open-next build --dangerously-use-unsupported-next-version && node scripts/fix-opennext-pnpm-symlinks.mjs",
     "build:open-next:debug": "NODE_OPTIONS='--max-old-space-size=4096' OPEN_NEXT_DEBUG=true open-next build && node scripts/fix-opennext-pnpm-symlinks.mjs",

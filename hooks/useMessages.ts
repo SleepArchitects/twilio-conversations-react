@@ -818,8 +818,10 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
           typeof self !== "undefined" && self.location?.href
             ? self.location.origin
             : "http://localhost:3000";
+        const assetPrefix =
+          process.env.NEXT_PUBLIC_ASSET_PREFIX?.replace(/\/$/, "") ?? "";
         const workerUrl = new URL(
-          "/_next/static/chunks/workers/message-poller.worker.js",
+          `${assetPrefix}/workers/message-poller.worker.js`,
           workerBaseUrl,
         );
 
