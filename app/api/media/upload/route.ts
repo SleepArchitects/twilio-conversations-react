@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withUserContext } from "@/lib/auth";
-import { generateUploadPresignedUrl, getPendingKey, MEDIA_BUCKET_NAME } from "@/lib/s3";
+import {
+  generateUploadPresignedUrl,
+  getPendingKey,
+  MEDIA_BUCKET_NAME,
+} from "@/lib/s3";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -29,7 +33,8 @@ async function handleUpload(request: NextRequest) {
         {
           error: {
             code: "VALIDATION_ERROR",
-            message: "Missing required fields: filename, contentType, conversationId",
+            message:
+              "Missing required fields: filename, contentType, conversationId",
           },
         },
         { status: 400 },
@@ -37,13 +42,14 @@ async function handleUpload(request: NextRequest) {
     }
 
     // Validate content type (only allow images)
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
     if (!allowedTypes.includes(contentType)) {
       return NextResponse.json(
         {
           error: {
             code: "VALIDATION_ERROR",
-            message: "Invalid content type. Only JPEG, PNG, GIF, and WebP images are allowed.",
+            message:
+              "Invalid content type. Only JPEG, PNG, GIF, and WebP images are allowed.",
           },
         },
         { status: 400 },
@@ -68,7 +74,12 @@ async function handleUpload(request: NextRequest) {
     const uuid = crypto.randomUUID();
     const key = getPendingKey(conversationId, uuid, filename);
 
-    const uploadUrl = await generateUploadPresignedUrl(bucket, key, contentType, 3600);
+    const uploadUrl = await generateUploadPresignedUrl(
+      bucket,
+      key,
+      contentType,
+      3600,
+    );
 
     const response: UploadResponse = {
       uploadUrl,
