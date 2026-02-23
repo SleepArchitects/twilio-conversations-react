@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { formatMessageTime } from "@/lib/datetime";
 import type { Message, MessageStatus } from "@/types/sms";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ImageLightbox } from "@/components/conversations/ImageLightbox";
 
 // =============================================================================
 // Status Icon Components
@@ -190,6 +191,9 @@ export function MessageBubble({
   const [imageUrls, setImageUrls] = React.useState<string[]>([]);
   const [isLoadingUrls, setIsLoadingUrls] = React.useState(false);
 
+  const [lightboxOpen, setLightboxOpen] = React.useState(false);
+  const [lightboxIndex, setLightboxIndex] = React.useState(0);
+
   React.useEffect(() => {
     if (!hasMedia) return;
 
@@ -208,6 +212,12 @@ export function MessageBubble({
       .catch((err) => console.error("Failed to fetch image URLs:", err))
       .finally(() => setIsLoadingUrls(false));
   }, [message.media, hasMedia]);
+
+  function handleImageClick(index: number) {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+    onImageClick?.(index, imageUrls);
+  }
 
   // Determine sender display name
   const displaySender = React.useMemo(() => {
@@ -262,7 +272,7 @@ export function MessageBubble({
               <div className="flex gap-1">
                 {Array.from({ length: Math.min(mediaCount, 4) }).map((_, i) => {
                   const key = `skeleton-${i}`;
-                  return <Skeleton key={key} className="h-24 w-24" />;
+                  return <Skeleton key={key} className="h-[120px] w-[120px]" />;
                 })}
               </div>
             ) : (
@@ -278,8 +288,9 @@ export function MessageBubble({
                   <button
                     key={url}
                     type="button"
-                    className="relative aspect-square cursor-pointer overflow-hidden rounded-md hover:opacity-90 transition-opacity p-0 border-none bg-transparent"
-                    onClick={() => onImageClick?.(index, imageUrls)}
+                    className="relative h-[120px] w-[120px] cursor-pointer overflow-hidden rounded-md hover:opacity-90 transition-opacity p-0 border-none bg-transparent"
+                    onClick={() => handleImageClick(index)}
+                    aria-label={`View attachment ${index + 1} full size`}
                   >
                     <img
                       src={url}
@@ -326,6 +337,16 @@ export function MessageBubble({
           </div>
         )}
       </div>
+
+      {imageUrls.length > 0 && (
+        <ImageLightbox
+          isOpen={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+          images={imageUrls}
+          currentIndex={lightboxIndex}
+          onNavigate={setLightboxIndex}
+        />
+      )}
     </article>
   );
 }
