@@ -16,7 +16,10 @@ if (!MEDIA_BUCKET_NAME) {
   );
 }
 
-export const s3 = new S3Client({ region: "us-east-1" });
+export const s3 = new S3Client({
+  region: "us-east-1",
+  requestChecksumCalculation: "WHEN_REQUIRED",
+});
 
 /** Browser PUT upload – default 15 min TTL */
 export async function generateUploadPresignedUrl(
@@ -75,9 +78,10 @@ export function getCommittedKey(
   return `media/committed/${conversationId}/${uuid}-${filename}`;
 }
 
-// Regex: media/(pending|committed)/{path up to 400 chars}.{image ext}
+// Regex: media/(pending|committed)/{path up to 400 chars} with optional image extension
+// Extension is optional because inbound Twilio MMS keys have no file extension
 const S3_KEY_RE =
-  /^media\/(pending|committed)\/[a-zA-Z0-9/_-]{1,400}\.(jpg|jpeg|png|gif)$/;
+  /^media\/(pending|committed)\/[a-zA-Z0-9/_-]{1,400}(\.(?:jpg|jpeg|png|gif|webp))?$/;
 
 export function isValidS3Key(key: string): boolean {
   return S3_KEY_RE.test(key);

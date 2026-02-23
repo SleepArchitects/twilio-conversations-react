@@ -70,12 +70,24 @@ export function transformMessage(
     practiceId: practiceId,
     hasMedia: !!(msg.media_keys && msg.media_keys.length > 0),
     media: msg.media_keys
-      ? msg.media_keys.map((key) => ({
-          s3Key: key,
-          contentType: "image/jpeg", // Fallback for type compatibility
-          size: 0, // Fallback for type compatibility
-          originalFilename: key.split("/").pop() || key,
-        }))
+      ? msg.media_keys.map((item) => {
+          if (typeof item === "string") {
+            return {
+              s3Key: item,
+              contentType: "image/jpeg",
+              size: 0,
+              originalFilename: item.split("/").pop() || item,
+            };
+          }
+          // Inbound MMS: rich object from DB { s3Key, contentType, size, filename, url, s3Bucket }
+          const obj = item as { s3Key?: string; contentType?: string; size?: number; filename?: string };
+          return {
+            s3Key: obj.s3Key ?? "",
+            contentType: obj.contentType ?? "image/jpeg",
+            size: obj.size ?? 0,
+            originalFilename: obj.filename ?? obj.s3Key?.split("/").pop() ?? "",
+          };
+        })
       : null,
   };
 }

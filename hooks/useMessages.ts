@@ -562,6 +562,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
           payload.mediaKeys = mediaKeys;
         }
 
+
         const response = await api.post<Message>(
           `${API_BASE_PATH}/conversations/${conversationId}/messages`,
           payload,
@@ -590,6 +591,9 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
               createdOn: response.createdOn,
               body: response.body,
               authorPhone: response.authorPhone,
+              mediaUrls: response.mediaUrls,
+              hasMedia: response.hasMedia,
+              media: response.media,
             },
           },
         });
@@ -818,8 +822,13 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
           typeof self !== "undefined" && self.location?.href
             ? self.location.origin
             : "http://localhost:3000";
+        // Derive asset prefix the same way next.config.mjs does — evaluated at
+        // build time via NODE_ENV so it's baked into the client bundle correctly.
+        // NEXT_PUBLIC_ASSET_PREFIX is intentionally NOT used here: it's a Lambda
+        // runtime env var and has no effect on client-side bundles (NEXT_PUBLIC_*
+        // vars must be set during `next build`, not on the server at runtime).
         const assetPrefix =
-          process.env.NEXT_PUBLIC_ASSET_PREFIX?.replace(/\/$/, "") ?? "";
+          process.env.NODE_ENV === "production" ? "/outreach-static" : "/outreach";
         const workerUrl = new URL(
           `${assetPrefix}/workers/message-poller.worker.js`,
           workerBaseUrl,
@@ -1056,8 +1065,7 @@ export function useMessages(options: UseMessagesOptions): UseMessagesReturn {
                 readAt: rawMessage.readAt || rawMessage.read_at || null,
                 active: rawMessage.active ?? true,
                 tenantId: rawMessage.tenantId || rawMessage.tenant_id || "",
-                practiceId:
-                  rawMessage.practiceId || rawMessage.practice_id || "",
+                practiceId: rawMessage.practiceId || rawMessage.practice_id || "",
                 media: rawMessage.media || null,
               };
 

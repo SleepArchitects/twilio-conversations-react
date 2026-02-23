@@ -265,6 +265,20 @@ export function MessageBubble({
         <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-pretty">
           {message.body}
         </p>
+        {/* Media attachments */}
+        {message.mediaUrls && message.mediaUrls.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {message.mediaUrls.map((url, index) => (
+              <img
+                key={index}
+                src={url}
+                alt={`Attachment ${index + 1}`}
+                className="max-w-full h-auto rounded-lg border"
+                loading="lazy"
+              />
+            ))}
+          </div>
+        )}
 
         {hasMedia && (
           <div className="mt-2 grid gap-1 rounded-lg overflow-hidden">

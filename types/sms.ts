@@ -141,6 +141,8 @@ export interface Message extends TenantScope {
   authorPhone: string | null;
   /** Message content */
   body: string;
+  /** Optional MMS media URLs */
+  mediaUrls?: string[];
   /** Current delivery status from Twilio */
   status: MessageStatus;
   /** Number of SMS segments (based on message length) */

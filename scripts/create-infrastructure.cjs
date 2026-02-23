@@ -14,6 +14,7 @@ const {
   PutPublicAccessBlockCommand,
   HeadBucketCommand,
   PutBucketPolicyCommand,
+  PutBucketCorsCommand,
 } = require("@aws-sdk/client-s3");
 const {
   CloudFrontClient,
@@ -140,6 +141,33 @@ async function createInfrastructure() {
       );
     } else throw e;
   }
+
+  // 2b. S3 CORS Configuration (idempotent - always applied to ensure policy is current)
+  console.log("⚡ Configuring S3 CORS...");
+  const corsOrigins = [
+    "http://localhost:3000",
+    "https://dev.mydreamconnect.com",
+    "https://outreach-dev.mydreamconnect.com",
+    "https://outreach-stage.mydreamconnect.com",
+    "https://outreach.mydreamconnect.com",
+  ];
+  await s3.send(
+    new PutBucketCorsCommand({
+      Bucket: resources.bucketName,
+      CORSConfiguration: {
+        CORSRules: [
+          {
+            AllowedOrigins: corsOrigins,
+            AllowedMethods: ["PUT", "GET", "HEAD", "POST", "DELETE"],
+            AllowedHeaders: ["*"],
+            ExposeHeaders: ["ETag"],
+            MaxAgeSeconds: 3000,
+          },
+        ],
+      },
+    }),
+  );
+  console.log("✅ S3 CORS configured");
 
   // 3. Lambda Function (Stub)
   let lambdaArn;
