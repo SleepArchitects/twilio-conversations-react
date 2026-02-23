@@ -179,6 +179,9 @@ if (missingOptional.length > 0) {
             ...process.env,
             NODE_ENV: "production",
             NODE_OPTIONS: "--max-old-space-size=4096",
+            // Pass asset prefix at build time so any NEXT_PUBLIC_ASSET_PREFIX
+            // references in client bundles are baked in correctly.
+            NEXT_PUBLIC_ASSET_PREFIX: "/outreach-static",
           },
           stdio: ["ignore", "pipe", "pipe"],
         });
@@ -279,6 +282,11 @@ if (missingOptional.length > 0) {
       ENVIRONMENT: environment,
       MULTI_ZONE_MODE: "true",
       NEXT_PUBLIC_BASE_PATH: "/outreach",
+      // Always set asset prefix so worker/static URLs resolve correctly.
+      // Without this, NEXT_PUBLIC_ASSET_PREFIX is undefined at runtime and the
+      // worker URL falls back to the basePath (/outreach) instead of the S3
+      // path (/outreach-static), causing a 404 for message-poller.worker.js.
+      NEXT_PUBLIC_ASSET_PREFIX: "/outreach-static",
       // Required vars from process.env
       ...requiredVars.reduce((acc, k) => ({ ...acc, [k]: process.env[k] }), {}),
       // Optional vars - only set if provided in process.env
