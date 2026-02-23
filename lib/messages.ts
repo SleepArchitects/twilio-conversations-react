@@ -80,7 +80,12 @@ export function transformMessage(
             };
           }
           // Inbound MMS: rich object from DB { s3Key, contentType, size, filename, url, s3Bucket }
-          const obj = item as { s3Key?: string; contentType?: string; size?: number; filename?: string };
+          const obj = item as {
+            s3Key?: string;
+            contentType?: string;
+            size?: number;
+            filename?: string;
+          };
           return {
             s3Key: obj.s3Key ?? "",
             contentType: obj.contentType ?? "image/jpeg",

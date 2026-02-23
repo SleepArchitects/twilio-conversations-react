@@ -24,9 +24,25 @@ interface ViewResponse {
   urls: Record<string, string>;
 }
 
+const UUID_RE =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
 function extractConversationIdFromKey(key: string): string | null {
-  const match = key.match(/^media\/(pending|committed)\/([^/]+)\/[^/]+$/);
-  return match?.[2] ?? null;
+  const parts = key.split("/");
+
+  if (parts.length < 4 || parts[0] !== "media") return null;
+  if (parts[1] !== "pending" && parts[1] !== "committed") return null;
+
+  if (UUID_RE.test(parts[2])) return parts[2];
+
+  if (
+    parts.length >= 5 &&
+    (parts[2] === "inbound" || parts[2] === "outbound")
+  ) {
+    return UUID_RE.test(parts[3]) ? parts[3] : null;
+  }
+
+  return null;
 }
 
 async function validateKeyAccess(
