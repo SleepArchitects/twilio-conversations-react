@@ -38,10 +38,13 @@ export function TemplateList({
 
   const { categories } = useTemplateCategories();
 
-  const categoryOptions = useMemo(() => [
-    { value: "all", label: "All Categories" },
-    ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
-  ], [categories]);
+  const categoryOptions = useMemo(
+    () => [
+      { value: "all", label: "All Categories" },
+      ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
+    ],
+    [categories],
+  );
 
   const handleDeleteClick = (template: Template) => {
     setTemplateToDelete(template);
@@ -131,11 +134,12 @@ export function TemplateList({
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                    {template.name }
+                    {template.name}
                   </h3>
                   <div className="mt-1 flex gap-2">
                     <span className="inline-flex items-center rounded bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                      {template.category.name.charAt(0).toUpperCase() + template.category.name.slice(1)}
+                      {template.category.name.charAt(0).toUpperCase() +
+                        template.category.name.slice(1)}
                     </span>
                   </div>
                 </div>

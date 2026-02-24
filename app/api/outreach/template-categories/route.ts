@@ -86,7 +86,7 @@ export const GET = withUserContext(
       );
 
       return NextResponse.json(
-        { data: lambdaResponse.data || [] },
+        { data: lambdaResponse.categories || [] },
         { status: 200 },
       );
     } catch (error) {
