@@ -69,28 +69,56 @@ export function CategorySelect({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
-          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-          "disabled:cursor-not-allowed disabled:opacity-50",
-          isOpen && "ring-2 ring-ring ring-offset-2",
+          // Layout
+          "flex h-10 w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm",
+          // Visual - light mode
+          "border border-gray-300 bg-gray-50 text-gray-900",
+          // Visual - dark mode
+          "dark:border-gray-600 dark:bg-gray-700 dark:text-white",
+          // Focus states
+          "focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:focus:border-blue-500 dark:focus:ring-blue-500",
+          // Interactive states
+          "disabled:cursor-not-allowed disabled:opacity-50 transition-colors",
+          isOpen && "ring-2 ring-blue-500 border-blue-500",
         )}
       >
-        <span className={cn(!value && "text-muted-foreground")}>
+        <span className={cn(!value && "text-gray-500 dark:text-gray-400")}>
           {value ? capitalizeFirstLetter(selectedLabel) : selectedLabel}
         </span>
-        <ChevronDown className="h-4 w-4 opacity-50" />
+        <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
       </button>
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+        <div className={cn(
+          // Layout
+          "absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl p-1",
+          // Visual - shadow and colors
+          "shadow-xl bg-white dark:bg-gray-800",
+          // Border
+          "border border-gray-200 dark:border-gray-700",
+          // Text
+          "text-sm text-gray-700 dark:text-gray-200",
+        )}>
           {/* Search Input */}
           <input
             type="text"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             placeholder="Search..."
-            className="h-9 w-full rounded-sm bg-transparent px-2 py-1 text-sm outline-none placeholder:text-muted-foreground"
+            className={cn(
+              // Layout
+              "h-9 w-full rounded-lg px-3 py-2 text-sm",
+              // Visual - light mode
+              "bg-gray-50 text-gray-900 border border-gray-300",
+              // Visual - dark mode
+              "dark:bg-gray-700 dark:text-white dark:border-gray-600",
+              // Placeholder
+              "placeholder:text-gray-500 dark:placeholder:text-gray-400",
+              // Focus
+              "focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none",
+              "dark:focus:border-blue-500 dark:focus:ring-blue-500",
+            )}
             autoFocus
           />
 
@@ -101,13 +129,23 @@ export function CategorySelect({
                 type="button"
                 onClick={() => handleSelect(option.value)}
                 className={cn(
-                  "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  value === option.value && "bg-accent text-accent-foreground",
+                  // Layout
+                  "relative flex w-full cursor-pointer select-none items-center rounded-lg px-3 py-2.5 text-sm",
+                  // Default state
+                  "text-gray-700 dark:text-gray-200",
+                  // Hover/focus states - purple accent
+                  "hover:bg-purple-50 focus:bg-purple-50 focus:outline-none",
+                  "dark:hover:bg-purple-900/30 dark:focus:bg-purple-900/30",
+                  // Transition
+                  "transition-colors duration-150",
+                  // Selected state
+                  value === option.value && "bg-purple-50 dark:bg-purple-900/20",
                 )}
               >
                 <span>{capitalizeFirstLetter(option.label)}</span>
-                {value === option.value && <span className="ml-auto">✓</span>}
+                {value === option.value && (
+                  <span className="ml-auto text-purple-600 dark:text-purple-400">✓</span>
+                )}
               </button>
             ))}
 
@@ -119,14 +157,24 @@ export function CategorySelect({
                   setSearchValue("");
                   setIsOpen(false);
                 }}
-                className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                className={cn(
+                  // Layout
+                  "relative flex w-full cursor-pointer select-none items-center rounded-lg px-3 py-2.5 text-sm",
+                  // Default state
+                  "text-gray-700 dark:text-gray-200",
+                  // Hover/focus states - purple accent
+                  "hover:bg-purple-50 focus:bg-purple-50 focus:outline-none",
+                  "dark:hover:bg-purple-900/30 dark:focus:bg-purple-900/30",
+                  // Transition
+                  "transition-colors duration-150",
+                )}
               >
                 {`Create "${searchValue}"`}
               </button>
             )}
 
             {filteredOptions.length === 0 && !canCreateNew && (
-              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+              <div className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
                 No options found.
               </div>
             )}

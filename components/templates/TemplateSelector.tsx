@@ -31,24 +31,6 @@ export interface TemplateSelectorProps {
   className?: string;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // =============================================================================
 // Component
 // =============================================================================
@@ -75,10 +57,13 @@ export function TemplateSelector({
 }: TemplateSelectorProps): React.ReactElement {
   const { categories } = useTemplateCategories();
 
-  const categoryOptions = React.useMemo(() => [
-    { value: "all", label: "All" },
-    ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
-  ], [categories]);
+  const categoryOptions = React.useMemo(
+    () => [
+      { value: "all", label: "All" },
+      ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
+    ],
+    [categories],
+  );
 
   // Filter templates by category
   const filteredByCategory = React.useMemo(() => {

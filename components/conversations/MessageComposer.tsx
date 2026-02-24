@@ -27,10 +27,7 @@ import {
   renderTemplate,
   validateTemplateVariables,
 } from "@/lib/templates";
-import type {
-  Template,
-  PendingAttachment,
-} from "@/types/sms";
+import type { Template, PendingAttachment } from "@/types/sms";
 
 // =============================================================================
 // Types & Interfaces

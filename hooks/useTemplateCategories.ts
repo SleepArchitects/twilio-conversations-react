@@ -111,7 +111,8 @@ export function useTemplateCategories(): UseTemplateCategoriesReturn {
   const createMutation = useMutation({
     mutationFn: async (name: string): Promise<TemplateCategory> => {
       const body: CreateTemplateCategoryRequest = { name };
-      return api.post<TemplateCategory>(API_BASE_PATH, body);
+      const response = await api.post<{ data: TemplateCategory }>(API_BASE_PATH, body);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -172,20 +173,10 @@ export function useTemplateCategories(): UseTemplateCategoriesReturn {
     : null;
 
 
-  // Debug logging - REMOVE AFTER FIXING
-  useEffect(() => {
-    console.log('[useTemplateCategories] State:', {
-      isPending,
-      hasData: !!categoriesData,
-      dataLength: categoriesData?.length,
-      error: queryError?.message,
-    });
-  }, [isPending, categoriesData, queryError]);
-
   return {
     categories: categoriesData ?? [],
     isLoading: isPending,
-    
+
     error,
     createCategory,
     deleteCategory,

@@ -89,7 +89,8 @@ function transformTemplate(template: LambdaTemplate): Template {
     ownerSaxId: null,
     name: template.name ?? template.out_name ?? "",
     category: (() => {
-      const catName = template.category ?? template.out_category_name ?? "general";
+      const catName =
+        template.category ?? template.out_category_name ?? "general";
       const catId = template.out_category_id ?? catName;
       return { id: catId, name: catName };
     })(),
