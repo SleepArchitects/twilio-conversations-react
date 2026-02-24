@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { api, ApiError } from "@/lib/api";
 import type {
   TemplateCategory,
@@ -111,7 +111,10 @@ export function useTemplateCategories(): UseTemplateCategoriesReturn {
   const createMutation = useMutation({
     mutationFn: async (name: string): Promise<TemplateCategory> => {
       const body: CreateTemplateCategoryRequest = { name };
-      const response = await api.post<{ data: TemplateCategory }>(API_BASE_PATH, body);
+      const response = await api.post<{ data: TemplateCategory }>(
+        API_BASE_PATH,
+        body,
+      );
       return response.data;
     },
     onSuccess: () => {
@@ -171,7 +174,6 @@ export function useTemplateCategories(): UseTemplateCategoriesReturn {
             "Failed to fetch template categories",
         )
     : null;
-
 
   return {
     categories: categoriesData ?? [],

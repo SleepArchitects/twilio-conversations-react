@@ -90,16 +90,18 @@ export function CategorySelect({
 
       {/* Dropdown */}
       {isOpen && (
-        <div className={cn(
-          // Layout
-          "absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl p-1",
-          // Visual - shadow and colors
-          "shadow-xl bg-white dark:bg-gray-800",
-          // Border
-          "border border-gray-200 dark:border-gray-700",
-          // Text
-          "text-sm text-gray-700 dark:text-gray-200",
-        )}>
+        <div
+          className={cn(
+            // Layout
+            "absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl p-1",
+            // Visual - shadow and colors
+            "shadow-xl bg-white dark:bg-gray-800",
+            // Border
+            "border border-gray-200 dark:border-gray-700",
+            // Text
+            "text-sm text-gray-700 dark:text-gray-200",
+          )}
+        >
           {/* Search Input */}
           <input
             type="text"
@@ -139,12 +141,15 @@ export function CategorySelect({
                   // Transition
                   "transition-colors duration-150",
                   // Selected state
-                  value === option.value && "bg-purple-50 dark:bg-purple-900/20",
+                  value === option.value &&
+                    "bg-purple-50 dark:bg-purple-900/20",
                 )}
               >
                 <span>{capitalizeFirstLetter(option.label)}</span>
                 {value === option.value && (
-                  <span className="ml-auto text-purple-600 dark:text-purple-400">✓</span>
+                  <span className="ml-auto text-purple-600 dark:text-purple-400">
+                    ✓
+                  </span>
                 )}
               </button>
             ))}

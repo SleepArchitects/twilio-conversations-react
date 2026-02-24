@@ -25,7 +25,7 @@ interface LambdaCategory {
  * Lambda list-categories response format
  */
 interface LambdaCategoriesResponse {
-  categories: LambdaCategory[];
+  data: LambdaCategory[];
 }
 
 /**
@@ -86,7 +86,7 @@ export const GET = withUserContext(
       );
 
       return NextResponse.json(
-        { data: lambdaResponse.categories || [] },
+        { data: lambdaResponse.data || [] },
         { status: 200 },
       );
     } catch (error) {
