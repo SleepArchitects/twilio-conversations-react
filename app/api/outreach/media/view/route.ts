@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { type UserContext, withUserContext } from "@/lib/auth";
 import { ApiError, api, buildPath } from "@/lib/api";
-import {
-  bucketForKey,
-  generateViewPresignedUrl,
-  isValidS3Key,
-} from "@/lib/s3";
+import { bucketForKey, generateViewPresignedUrl, isValidS3Key } from "@/lib/s3";
 import type { Conversation } from "@/types/sms";
 
 export const dynamic = "force-dynamic";

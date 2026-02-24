@@ -6,7 +6,6 @@ import { formatMessageTime } from "@/lib/datetime";
 import type { Message, MessageStatus } from "@/types/sms";
 import { Skeleton } from "@/components/ui/skeleton";
 
-
 // =============================================================================
 // Status Icon Components
 // =============================================================================
@@ -190,8 +189,6 @@ export function MessageBubble({
   const [imageUrls, setImageUrls] = React.useState<string[]>([]);
   const [isLoadingUrls, setIsLoadingUrls] = React.useState(false);
 
-
-
   React.useEffect(() => {
     if (!hasMedia) return;
 
@@ -333,8 +330,6 @@ export function MessageBubble({
           </div>
         )}
       </div>
-
-
     </article>
   );
 }
