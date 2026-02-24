@@ -161,17 +161,11 @@ export function TemplatePreview({
             {template.name}
           </h3>
           <div className="mt-1 flex items-center gap-2 text-xs text-gray-400">
-            <span className="capitalize">{template.category}</span>
+            <span className="capitalize">{template.category.name}</span>
             {template.usageCount > 0 && (
               <>
                 <span>•</span>
                 <span>{template.usageCount} uses</span>
-              </>
-            )}
-            {template.practiceId === null && (
-              <>
-                <span>•</span>
-                <span className="text-blue-400">Global template</span>
               </>
             )}
           </div>
