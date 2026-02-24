@@ -29,13 +29,11 @@ export type MessageStatus =
 /** Sentiment analysis result from AWS Comprehend */
 export type Sentiment = "positive" | "neutral" | "negative" | "mixed";
 
-/** Template categorization for organization */
-export type TemplateCategory =
-  | "welcome"
-  | "reminder"
-  | "follow-up"
-  | "education"
-  | "general";
+export interface TemplateCategory {
+  id: string;
+  name: string;
+  displayOrder?: number;
+}
 
 // =============================================================================
 // Common Interfaces
@@ -346,8 +344,8 @@ export interface CreateTemplateRequest {
   name: string;
   /** Template body with {{variable}} placeholders */
   body: string;
-  /** Template category */
-  category?: TemplateCategory;
+  /** Template category ID */
+  categoryId?: string;
   /** Variable names used in template */
   variables?: string[];
   /** Make template available tenant-wide (admin only) */
@@ -364,10 +362,24 @@ export interface UpdateTemplateRequest {
   body?: string;
   /** Updated template content */
   content?: string;
-  /** Updated template category */
-  category?: TemplateCategory;
+  /** Updated template category ID */
+  categoryId?: string;
   /** Updated variable names */
   variables?: string[];
+}
+
+/**
+ * Request payload for creating a new template category.
+ */
+export interface CreateTemplateCategoryRequest {
+  name: string;
+}
+
+/**
+ * Response payload for template category list.
+ */
+export interface TemplateCategoryListResponse {
+  data: TemplateCategory[];
 }
 
 /**

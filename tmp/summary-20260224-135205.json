@@ -1,0 +1,4 @@
+{
+  "summary": "Verified template-categories Lambda/API Gateway setup. Root cause of 403s identified: the add-category-routes.sh script deployed routes to the 'dev' stage, but develop-api.mydreamconnect.com is mapped to the 'develop' stage (deployment kzlp5i from Feb 13). All Lambdas exist, routes exist with correct integrations, permissions are set — but the 'develop' stage still points to the old Feb 13 deployment and doesn't know about the new routes. Fix: create a new deployment targeting the 'develop' stage.",
+  "current_status": "VERIFICATION COMPLETE. Root cause found: wrong stage deployed. All infrastructure is correct except the 'develop' stage needs to be redeployed with the new category routes."
+}

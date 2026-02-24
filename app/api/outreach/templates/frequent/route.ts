@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
 import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
-import type { Template, TemplateCategory } from "@/types/sms";
+import type { Template } from "@/types/sms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -88,9 +88,11 @@ function transformTemplate(template: LambdaTemplate): Template {
     practiceId: template.practiceId ?? template.out_practice_id ?? null,
     ownerSaxId: null,
     name: template.name ?? template.out_name ?? "",
-    category: (template.category ??
-      template.out_category_name ??
-      "general") as TemplateCategory,
+    category: (() => {
+      const catName = template.category ?? template.out_category_name ?? "general";
+      const catId = template.out_category_id ?? catName;
+      return { id: catId, name: catName };
+    })(),
     content: content,
     variables: template.variables ?? extractVariables(content),
     usageCount: template.usageCount ?? template.out_usage_count ?? 0,

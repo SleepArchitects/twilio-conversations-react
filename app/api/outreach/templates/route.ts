@@ -3,7 +3,6 @@ import { ApiError, api, buildPath } from "@/lib/api";
 import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
 import type {
   Template,
-  TemplateCategory,
   CreateTemplateRequest,
 } from "@/types/sms";
 
@@ -25,7 +24,8 @@ interface LambdaTemplate {
   practiceId: string | null;
   ownerSaxId: string | null;
   name: string;
-  category: string;
+  categoryId: string;
+  categoryName?: string;
   content: string;
   variables: string[];
   usageCount: number;
@@ -52,7 +52,7 @@ function transformTemplate(template: LambdaTemplate): Template {
     practiceId: template.practiceId,
     ownerSaxId: template.ownerSaxId ? Number(template.ownerSaxId) : null,
     name: template.name,
-    category: template.category as TemplateCategory,
+    category: { id: template.categoryId, name: template.categoryName || template.categoryId },
     content: template.content,
     variables: template.variables,
     usageCount: template.usageCount || 0,
@@ -113,7 +113,7 @@ export const GET = withUserContext(
     console.log(`[TEMPLATES API] START`);
     try {
       const { searchParams } = new URL(req.url);
-      const category = searchParams.get("category");
+      const categoryId = searchParams.get("categoryId");
       // const includeGlobalParam = searchParams.get("includeGlobal");
       // const includeGlobal =
       //   includeGlobalParam === null || includeGlobalParam === "true";
@@ -154,24 +154,8 @@ export const GET = withUserContext(
       // Note: Backend stored procedure accepts category_id (UUID), not category name
       // For now, we'll omit category filtering until we have category mapping
       // TODO: Add category name -> category_id lookup when implementing full template management
-      if (category) {
-        // Validate category name
-        const validCategories: TemplateCategory[] = [
-          "welcome",
-          "reminder",
-          "follow-up",
-          "education",
-          "general",
-        ];
-        if (!validCategories.includes(category as TemplateCategory)) {
-          return errorResponse(
-            "INVALID_CATEGORY",
-            `Invalid category. Must be one of: ${validCategories.join(", ")}`,
-            400,
-          );
-        }
-        // TODO: Map category name to category_id UUID and add to queryParams
-        // queryParams.category_id = categoryNameToId(category);
+      if (categoryId) {
+        queryParams.category_id = categoryId;
       }
 
       // Call Lambda API to get templates
@@ -244,7 +228,7 @@ export const POST = withUserContext(
         {
           name: body.name,
           content: body.body,
-          category: body.category || "general",
+          categoryId: body.categoryId || undefined,
           variables: body.variables || [],
           isGlobal: body.isGlobal || false,
         },
