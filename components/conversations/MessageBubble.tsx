@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { formatMessageTime } from "@/lib/datetime";
 import type { Message, MessageStatus } from "@/types/sms";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ImageLightbox } from "@/components/conversations/ImageLightbox";
+
 
 // =============================================================================
 // Status Icon Components
@@ -190,8 +190,7 @@ export function MessageBubble({
   const [imageUrls, setImageUrls] = React.useState<string[]>([]);
   const [isLoadingUrls, setIsLoadingUrls] = React.useState(false);
 
-  const [lightboxOpen, setLightboxOpen] = React.useState(false);
-  const [lightboxIndex, setLightboxIndex] = React.useState(0);
+
 
   React.useEffect(() => {
     if (!hasMedia) return;
@@ -213,8 +212,6 @@ export function MessageBubble({
   }, [message.media, hasMedia]);
 
   function handleImageClick(index: number) {
-    setLightboxIndex(index);
-    setLightboxOpen(true);
     onImageClick?.(index, imageUrls);
   }
 
@@ -337,15 +334,7 @@ export function MessageBubble({
         )}
       </div>
 
-      {imageUrls.length > 0 && (
-        <ImageLightbox
-          isOpen={lightboxOpen}
-          onClose={() => setLightboxOpen(false)}
-          images={imageUrls}
-          currentIndex={lightboxIndex}
-          onNavigate={setLightboxIndex}
-        />
-      )}
+
     </article>
   );
 }

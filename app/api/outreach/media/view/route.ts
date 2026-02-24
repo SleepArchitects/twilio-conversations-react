@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { type UserContext, withUserContext } from "@/lib/auth";
 import { ApiError, api, buildPath } from "@/lib/api";
 import {
-  MEDIA_BUCKET_NAME,
+  bucketForKey,
   generateViewPresignedUrl,
   isValidS3Key,
 } from "@/lib/s3";
@@ -187,7 +187,7 @@ export const POST = withUserContext(
 
     const urlPromises = authorizedKeys.map(async (key) => {
       const url = await generateViewPresignedUrl(
-        MEDIA_BUCKET_NAME,
+        bucketForKey(key),
         key,
         VIEW_URL_TTL_SECONDS,
       );
@@ -263,7 +263,7 @@ export const GET = withUserContext(
     let presignedUrl: string;
     try {
       presignedUrl = await generateViewPresignedUrl(
-        MEDIA_BUCKET_NAME,
+        bucketForKey(s3Key),
         s3Key,
         VIEW_URL_TTL_SECONDS,
       );
