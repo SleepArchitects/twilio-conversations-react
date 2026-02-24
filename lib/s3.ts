@@ -8,12 +8,24 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const MEDIA_BUCKET_NAME = process.env.MEDIA_BUCKET_NAME ?? "";
-
+export const INBOUND_MEDIA_BUCKET_NAME =
+  process.env.INBOUND_MEDIA_BUCKET_NAME ?? MEDIA_BUCKET_NAME;
 if (!MEDIA_BUCKET_NAME) {
   throw new Error(
     "MEDIA_BUCKET_NAME environment variable is not set. " +
       "Set it to your S3 bucket name, e.g. 'sax-nextjs-us-east-1-develop-outreach-assets'.",
   );
+}
+
+/** Pick the correct bucket for a given S3 key.
+ *  Inbound Twilio MMS keys are stored in INBOUND_MEDIA_BUCKET_NAME.
+ *  All other keys (outbound uploads) use MEDIA_BUCKET_NAME.
+ */
+export function bucketForKey(key: string): string {
+  return key.startsWith("media/committed/inbound/") ||
+    key.startsWith("media/pending/inbound/")
+    ? INBOUND_MEDIA_BUCKET_NAME
+    : MEDIA_BUCKET_NAME;
 }
 
 export const s3 = new S3Client({
