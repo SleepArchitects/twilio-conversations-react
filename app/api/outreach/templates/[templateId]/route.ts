@@ -48,7 +48,10 @@ function transformTemplate(template: LambdaTemplate): Template {
     practiceId: template.practiceId,
     ownerSaxId: template.ownerSaxId ? Number(template.ownerSaxId) : null,
     name: template.name,
-    category: { id: template.categoryId, name: template.categoryName || template.categoryId },
+    category: {
+      id: template.categoryId,
+      name: template.categoryName || template.categoryId,
+    },
     content: template.content,
     variables: template.variables,
     usageCount: template.usageCount || 0,
@@ -206,7 +209,12 @@ async function handlePatch(
     // Lambda returns minimal response: { id, updated_on }
     // Return confirmation — frontend should refetch templates list
     return NextResponse.json(
-      { data: { id: lambdaResponse.id || templateId, updatedOn: lambdaResponse.updatedAt || lambdaResponse.updated_on } },
+      {
+        data: {
+          id: lambdaResponse.id || templateId,
+          updatedOn: lambdaResponse.updatedAt || lambdaResponse.updated_on,
+        },
+      },
       { status: 200 },
     );
   } catch (error) {
