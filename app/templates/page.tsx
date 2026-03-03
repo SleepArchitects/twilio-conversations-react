@@ -44,7 +44,7 @@ export default function TemplatesPage() {
 
   const handleSave = async (data: {
     name: string;
-    category: string;
+    categoryId: string;
     content: string;
   }) => {
     setIsSaving(true);
@@ -64,7 +64,7 @@ export default function TemplatesPage() {
         await api.post("/api/outreach/templates", {
           name: data.name,
           body: data.content, // API expects body, not content
-          category: data.category,
+          categoryId: data.categoryId,
           variables,
           isGlobal: false, // Default to private templates for now
         });

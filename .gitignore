@@ -56,3 +56,5 @@ dynamicConfig.yml
 mise.local.toml
 .credentials
 .agents
+.opencode/worktree.jsonc
+tsconfig.tsbuildinfo

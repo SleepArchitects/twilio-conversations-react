@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useCallback, useMemo } from "react";
 import { api } from "@/lib/api";
-import type { Template, TemplateCategory } from "@/types/sms";
+import type { Template } from "@/types/sms";
 
 // =============================================================================
 // Types & Interfaces
@@ -11,7 +11,9 @@ import type { Template, TemplateCategory } from "@/types/sms";
 
 /**
  * API response type for templates list
- * Note: API returns `body` but TypeScript type uses `content`
+ * Note: The Next.js route handler at app/api/outreach/templates/route.ts
+ * transforms the Lambda response into Template objects before returning,
+ * so the response already has a nested `category: { id, name }` object.
  */
 interface TemplateApiResponse {
   id: string;
@@ -21,11 +23,9 @@ interface TemplateApiResponse {
   // API currently returns camelCase `content`; older shape used `body`. Support both defensively.
   content?: string;
   body?: string;
-  category: TemplateCategory;
+  category: { id: string; name: string };
   variables: string[];
-  isGlobal: boolean;
   usageCount: number;
-  lastUsedAt: string | null;
   createdOn: string;
   updatedOn: string;
   active: boolean;
@@ -39,8 +39,8 @@ interface TemplatesListResponse {
  * Options for the useTemplates hook
  */
 export interface UseTemplatesOptions {
-  /** Filter by template category */
-  category?: TemplateCategory | "all";
+  /** Filter by template category ID */
+  category?: string | "all";
   /** Whether to include global templates (default: true) */
   includeGlobal?: boolean;
   /** Search query for filtering templates */
@@ -73,15 +73,15 @@ export interface UseTemplatesReturn {
 // Constants
 // =============================================================================
 
-const API_BASE_PATH = "/api/outreach/templates";
+const API_BASE_PATH = `/outreach/api/outreach/templates`;
 
 /**
  * Query key factory for templates
  */
 const templatesQueryKey = (
-  category?: TemplateCategory | "all",
+  categoryId?: string | "all",
   includeGlobal?: boolean,
-) => ["templates", category, includeGlobal] as const;
+) => ["templates", categoryId, includeGlobal] as const;
 
 /**
  * Map API response to Template type
@@ -112,13 +112,13 @@ function mapApiTemplateToTemplate(apiTemplate: TemplateApiResponse): Template {
  * Fetch templates from API
  */
 async function fetchTemplates(
-  category?: TemplateCategory | "all",
+  categoryId?: string | "all",
   includeGlobal: boolean = true,
 ): Promise<Template[]> {
   const params: Record<string, string | boolean> = {};
 
-  if (category && category !== "all") {
-    params.category = category;
+  if (categoryId && categoryId !== "all") {
+    params.categoryId = categoryId;
   }
 
   if (includeGlobal !== undefined) {

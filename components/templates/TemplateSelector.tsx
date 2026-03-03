@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import type { Template, TemplateCategory } from "@/types/sms";
+import type { Template } from "@/types/sms";
 import SearchIcon from "@/components/icons/SearchIcon";
+import { useTemplateCategories } from "@/hooks/useTemplateCategories";
 
 // =============================================================================
 // Types & Interfaces
@@ -17,9 +18,9 @@ export interface TemplateSelectorProps {
   /** Callback when template is selected */
   onSelect: (template: Template) => void;
   /** Currently selected category filter */
-  categoryFilter?: TemplateCategory | "all";
+  categoryFilter?: string | "all";
   /** Callback when category filter changes */
-  onCategoryChange?: (category: TemplateCategory | "all") => void;
+  onCategoryChange?: (category: string | "all") => void;
   /** Search query */
   searchQuery?: string;
   /** Callback when search query changes */
@@ -29,24 +30,6 @@ export interface TemplateSelectorProps {
   /** Custom class name */
   className?: string;
 }
-
-interface CategoryOption {
-  value: TemplateCategory | "all";
-  label: string;
-}
-
-// =============================================================================
-// Constants
-// =============================================================================
-
-const CATEGORY_OPTIONS: CategoryOption[] = [
-  { value: "all", label: "All" },
-  { value: "welcome", label: "Welcome" },
-  { value: "reminder", label: "Reminder" },
-  { value: "follow-up", label: "Follow-up" },
-  { value: "education", label: "Education" },
-  { value: "general", label: "General" },
-];
 
 // =============================================================================
 // Component
@@ -72,10 +55,20 @@ export function TemplateSelector({
   isLoading = false,
   className,
 }: TemplateSelectorProps): React.ReactElement {
+  const { categories } = useTemplateCategories();
+
+  const categoryOptions = React.useMemo(
+    () => [
+      { value: "all", label: "All" },
+      ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
+    ],
+    [categories],
+  );
+
   // Filter templates by category
   const filteredByCategory = React.useMemo(() => {
     if (categoryFilter === "all") return templates;
-    return templates.filter((t) => t.category === categoryFilter);
+    return templates.filter((t) => t.category.id === categoryFilter);
   }, [templates, categoryFilter]);
 
   // Filter templates by search query
@@ -104,7 +97,7 @@ export function TemplateSelector({
           role="tablist"
           aria-label="Template category filters"
         >
-          {CATEGORY_OPTIONS.map((option) => (
+          {categoryOptions.map((option) => (
             <button
               key={option.value}
               type="button"
@@ -180,11 +173,6 @@ export function TemplateSelector({
                   {template.usageCount > 0 && (
                     <span className="text-xs text-gray-500">
                       {template.usageCount} uses
-                    </span>
-                  )}
-                  {template.practiceId === null && (
-                    <span className="rounded bg-blue-900/50 px-1.5 py-0.5 text-[10px] font-medium text-blue-300">
-                      Global
                     </span>
                   )}
                 </div>

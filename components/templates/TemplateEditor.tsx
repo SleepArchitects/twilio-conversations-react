@@ -6,19 +6,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button, Card, Badge } from "flowbite-react";
 import { HiInformationCircle } from "react-icons/hi";
-import { type Template, type TemplateCategory } from "@/types/sms";
+import { type Template } from "@/types/sms";
 import { cn } from "@/lib/utils";
-
+import { useTemplateCategories } from "@/hooks/useTemplateCategories";
+import { CategorySelect } from "@/components/ui/CategorySelect";
 // Schema for template validation
 const templateSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name too long"),
-  category: z.enum([
-    "welcome",
-    "reminder",
-    "follow-up",
-    "education",
-    "general",
-  ] as const),
+  categoryId: z.string().min(1, "Category is required"),
   content: z.string().min(1, "Content is required"),
 });
 
@@ -31,14 +26,6 @@ interface TemplateEditorProps {
   isSaving?: boolean;
 }
 
-const CATEGORIES: { value: TemplateCategory; label: string }[] = [
-  { value: "welcome", label: "Welcome" },
-  { value: "reminder", label: "Reminder" },
-  { value: "follow-up", label: "Follow-up" },
-  { value: "education", label: "Education" },
-  { value: "general", label: "General" },
-];
-
 export function TemplateEditor({
   template,
   onSave,
@@ -48,6 +35,11 @@ export function TemplateEditor({
   const [detectedVariables, setDetectedVariables] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const cursorPositionRef = useRef<number | null>(null);
+  const {
+    categories,
+    isLoading: categoriesLoading,
+    createCategory,
+  } = useTemplateCategories();
 
   const {
     register,
@@ -59,7 +51,7 @@ export function TemplateEditor({
     resolver: zodResolver(templateSchema),
     defaultValues: {
       name: template?.name || "",
-      category: template?.category || "general",
+      categoryId: template?.category?.id ?? "",
       content: template?.content || "",
     },
   });
@@ -161,25 +153,27 @@ export function TemplateEditor({
 
         <div>
           <label
-            htmlFor="category"
+            htmlFor="categoryId"
             className="mb-2 block text-sm font-medium text-gray-900 dark:text-white"
           >
             Category
           </label>
-          <select
-            id="category"
-            {...register("category")}
-            className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500"
-          >
-            {CATEGORIES.map((cat) => (
-              <option key={cat.value} value={cat.value}>
-                {cat.label}
-              </option>
-            ))}
-          </select>
-          {errors.category && (
+          <CategorySelect
+            options={categories.map((c) => ({ value: c.id, label: c.name }))}
+            value={watch("categoryId")}
+            onSelect={(value) =>
+              setValue("categoryId", value, { shouldValidate: true })
+            }
+            onCreateNew={async (name) => {
+              const newCategory = await createCategory(name);
+              setValue("categoryId", newCategory.id, { shouldValidate: true });
+            }}
+            placeholder="Select or create a category..."
+            disabled={categoriesLoading}
+          />
+          {errors.categoryId && (
             <p className="mt-2 text-sm text-red-600 dark:text-red-500">
-              {errors.category.message}
+              {errors.categoryId.message}
             </p>
           )}
         </div>

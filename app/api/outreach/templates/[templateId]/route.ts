@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, api, buildPath } from "@/lib/api";
 import { type UserContext, withUserContext, getAccessToken } from "@/lib/auth";
-import type {
-  Template,
-  TemplateCategory,
-  UpdateTemplateRequest,
-} from "@/types/sms";
+import type { Template, UpdateTemplateRequest } from "@/types/sms";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,13 +20,22 @@ interface LambdaTemplate {
   practiceId: string | null;
   ownerSaxId: string | null;
   name: string;
-  category: string;
+  categoryId: string;
+  categoryName?: string;
   content: string;
   variables: string[];
   usageCount: number;
   createdAt: string;
   updatedAt: string;
   active: boolean;
+}
+/**
+ * Lambda update response (minimal — only id and timestamp)
+ */
+interface LambdaUpdateResponse {
+  id: string;
+  updated_on: string;
+  updatedAt?: string;
 }
 
 /**
@@ -43,7 +48,10 @@ function transformTemplate(template: LambdaTemplate): Template {
     practiceId: template.practiceId,
     ownerSaxId: template.ownerSaxId ? Number(template.ownerSaxId) : null,
     name: template.name,
-    category: template.category as TemplateCategory,
+    category: {
+      id: template.categoryId,
+      name: template.categoryName || template.categoryId,
+    },
     content: template.content,
     variables: template.variables,
     usageCount: template.usageCount || 0,
@@ -185,12 +193,12 @@ async function handlePatch(
     }
 
     // Call Lambda API to update template
-    const lambdaResponse = await api.patch<LambdaTemplate>(
+    const lambdaResponse = await api.patch<LambdaUpdateResponse>(
       buildPath(LAMBDA_API_BASE, "templates", templateId),
       {
         name: body.name,
         content: body.content ?? body.body,
-        category: body.category,
+        categoryId: body.categoryId,
         variables: body.variables,
       },
       {
@@ -198,10 +206,17 @@ async function handlePatch(
       },
     );
 
-    // Transform Lambda response to frontend format
-    const template = transformTemplate(lambdaResponse);
-
-    return NextResponse.json({ data: template }, { status: 200 });
+    // Lambda returns minimal response: { id, updated_on }
+    // Return confirmation — frontend should refetch templates list
+    return NextResponse.json(
+      {
+        data: {
+          id: lambdaResponse.id || templateId,
+          updatedOn: lambdaResponse.updatedAt || lambdaResponse.updated_on,
+        },
+      },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Failed to update template", {
       saxId: userContext.saxId,

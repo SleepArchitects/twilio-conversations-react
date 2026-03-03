@@ -27,11 +27,7 @@ import {
   renderTemplate,
   validateTemplateVariables,
 } from "@/lib/templates";
-import type {
-  Template,
-  TemplateCategory,
-  PendingAttachment,
-} from "@/types/sms";
+import type { Template, PendingAttachment } from "@/types/sms";
 
 // =============================================================================
 // Types & Interfaces
@@ -329,9 +325,9 @@ export function MessageComposer({
   const [showEmojiPicker, setShowEmojiPicker] = React.useState(false);
   const [showVariablePrompt, setShowVariablePrompt] = React.useState(false);
   const [pendingSend, setPendingSend] = React.useState<string | null>(null);
-  const [categoryFilter, setCategoryFilter] = React.useState<
-    TemplateCategory | "all"
-  >("all");
+  const [categoryFilter, setCategoryFilter] = React.useState<string | "all">(
+    "all",
+  );
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isPreviewExpanded, setIsPreviewExpanded] = React.useState(false);
   const [isDragging, setIsDragging] = React.useState(false);

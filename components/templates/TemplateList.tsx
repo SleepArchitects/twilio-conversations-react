@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button, Card, Dropdown, Modal } from "flowbite-react";
 import {
   HiDotsVertical,
@@ -10,6 +10,8 @@ import {
   HiPlus,
 } from "react-icons/hi";
 import { type Template } from "@/types/sms";
+import { useTemplateCategories } from "@/hooks/useTemplateCategories";
+import { CategorySelect } from "@/components/ui/CategorySelect";
 
 interface TemplateListProps {
   templates: Template[];
@@ -33,6 +35,16 @@ export function TemplateList({
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  const { categories } = useTemplateCategories();
+
+  const categoryOptions = useMemo(
+    () => [
+      { value: "all", label: "All Categories" },
+      ...categories.map((cat) => ({ value: cat.id, label: cat.name })),
+    ],
+    [categories],
+  );
 
   const handleDeleteClick = (template: Template) => {
     setTemplateToDelete(template);
@@ -65,7 +77,7 @@ export function TemplateList({
       t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.content.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory =
-      categoryFilter === "all" || t.category === categoryFilter;
+      categoryFilter === "all" || t.category.id === categoryFilter;
     return matchesSearch && matchesCategory;
   });
 
@@ -96,18 +108,14 @@ export function TemplateList({
           onChange={(e) => setSearchQuery(e.target.value)}
           className="flex-1 rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500"
         />
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500"
-        >
-          <option value="all">All Categories</option>
-          <option value="welcome">Welcome</option>
-          <option value="reminder">Reminder</option>
-          <option value="follow-up">Follow-up</option>
-          <option value="education">Education</option>
-          <option value="general">General</option>
-        </select>
+        <div className="w-48">
+          <CategorySelect
+            options={categoryOptions}
+            value={categoryFilter}
+            onSelect={setCategoryFilter}
+            placeholder="All Categories"
+          />
+        </div>
       </div>
 
       {/* Templates Grid */}
@@ -130,13 +138,9 @@ export function TemplateList({
                   </h3>
                   <div className="mt-1 flex gap-2">
                     <span className="inline-flex items-center rounded bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                      {template.category}
+                      {template.category.name.charAt(0).toUpperCase() +
+                        template.category.name.slice(1)}
                     </span>
-                    {template.practiceId === null && (
-                      <span className="inline-flex items-center rounded bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900 dark:text-purple-300">
-                        Global
-                      </span>
-                    )}
                   </div>
                 </div>
                 <Dropdown
