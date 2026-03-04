@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, AlertCircle, Inbox } from "lucide-react";
 import { TimelineFilters } from "./TimelineFilters";
 import { TimelineEventCard } from "./TimelineEventCard";
-import { useConversationTimeline } from "@/hooks/useConversationHistory";
+import { useConversationTimeline } from "@/hooks/useConversationMetrics";
 import type { TimelineEvent } from "@/types/sms";
 
 interface TimelineViewProps {
@@ -40,7 +40,7 @@ function TimelineEmpty() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16 text-gray-500">
       <Inbox className="h-10 w-10" />
-      <p className="text-sm">No history events found</p>
+      <p className="text-sm">No timeline events found</p>
     </div>
   );
 }

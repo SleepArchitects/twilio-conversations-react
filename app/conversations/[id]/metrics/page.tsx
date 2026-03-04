@@ -6,17 +6,17 @@ import Link from "next/link";
 import { ArrowLeft, MessageSquare, Send, TrendingUp, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-import { MetricsSummaryCards } from "@/components/conversations/history/MetricsSummaryCards";
+import { MetricsSummaryCards } from "@/components/conversations/metrics/MetricsSummaryCards";
 import {
-  HistoryLoadingSkeleton,
-  HistoryErrorState,
+  MetricsLoadingSkeleton,
+  MetricsErrorState,
   MetricsEmptyBanner,
-} from "@/components/conversations/history/HistoryStates";
-import { TimelineView } from "@/components/conversations/history/TimelineView";
-import { useConversationSummary } from "@/hooks/useConversationHistory";
+} from "@/components/conversations/metrics/MetricsStates";
+import { TimelineView } from "@/components/conversations/metrics/TimelineView";
+import { useConversationSummary } from "@/hooks/useConversationMetrics";
 import { api } from "@/lib/api";
 import type { Conversation } from "@/types/sms";
-import type { MetricCardData } from "@/components/conversations/history/MetricsSummaryCards";
+import type { MetricCardData } from "@/components/conversations/metrics/MetricsSummaryCards";
 
 // =============================================================================
 // Internal Hook
@@ -97,13 +97,13 @@ function BackLink({ conversationId }: { conversationId: string }) {
 // =============================================================================
 
 /**
- * Communication History Page
+ * Communication Metrics Page
  *
- * Displays full communication history for a single conversation, including:
+ * Displays communication metrics for a single conversation, including:
  * - Summary metrics (message counts, delivery rate, response time, duration)
  * - Interactive timeline of all events
  */
-export default function ConversationHistoryPage(): React.ReactElement {
+export default function ConversationMetricsPage(): React.ReactElement {
   const params = useParams();
   const conversationId = params.id as string;
 
@@ -124,7 +124,7 @@ export default function ConversationHistoryPage(): React.ReactElement {
       <div className="min-h-screen bg-gray-900">
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="mb-6 h-8 w-48 animate-pulse rounded bg-gray-700" />
-          <HistoryLoadingSkeleton />
+          <MetricsLoadingSkeleton />
         </div>
       </div>
     );
@@ -138,12 +138,12 @@ export default function ConversationHistoryPage(): React.ReactElement {
 
   if (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to load history";
+      error instanceof Error ? error.message : "Failed to load metrics";
     return (
       <div className="min-h-screen bg-gray-900">
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
           <BackLink conversationId={conversationId} />
-          <HistoryErrorState
+          <MetricsErrorState
             message={message}
             onRetry={() => {
               void conversationQuery.refetch();
@@ -210,7 +210,7 @@ export default function ConversationHistoryPage(): React.ReactElement {
         <div className="mb-6 space-y-1">
           <BackLink conversationId={conversationId} />
           <h1 className="text-2xl font-semibold text-white">
-            Communication History{" "}
+            Communication Metrics{" "}
             <span className="text-gray-400">—</span>{" "}
             <span className="text-blue-300">{patientName}</span>
           </h1>

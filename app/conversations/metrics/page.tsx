@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import { MessageSquare, Send, CheckCircle, Clock } from "lucide-react";
-import { MetricsSummaryCards } from "@/components/conversations/history/MetricsSummaryCards";
+import { MetricsSummaryCards } from "@/components/conversations/metrics/MetricsSummaryCards";
 import {
-  HistoryLoadingSkeleton,
-  HistoryErrorState,
+  MetricsLoadingSkeleton,
+  MetricsErrorState,
   MetricsEmptyBanner,
-} from "@/components/conversations/history/HistoryStates";
+} from "@/components/conversations/metrics/MetricsStates";
 import { useDashboardAnalytics } from "@/hooks/useDashboardAnalytics";
-import type { MetricCardData } from "@/components/conversations/history/MetricsSummaryCards";
+import type { MetricCardData } from "@/components/conversations/metrics/MetricsSummaryCards";
 
 function formatDuration(days: number): string {
   if (days < 1) {
@@ -122,7 +122,7 @@ function TopPatientEventCategories({
   );
 }
 
-export default function CommunicationHistoryPage() {
+export default function CommunicationMetricsPage() {
   const { data, isLoading, isError, error, refetch } = useDashboardAnalytics();
 
   if (isLoading) {
@@ -130,9 +130,9 @@ export default function CommunicationHistoryPage() {
       <main className="min-h-screen bg-gray-900 px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl space-y-6">
           <h1 className="text-2xl font-semibold text-white">
-            Communication History Dashboard
+            Communication Metrics Dashboard
           </h1>
-          <HistoryLoadingSkeleton />
+          <MetricsLoadingSkeleton />
         </div>
       </main>
     );
@@ -148,9 +148,9 @@ export default function CommunicationHistoryPage() {
       <main className="min-h-screen bg-gray-900 px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl space-y-6">
           <h1 className="text-2xl font-semibold text-white">
-            Communication History Dashboard
+            Communication Metrics Dashboard
           </h1>
-          <HistoryErrorState message={message} onRetry={() => void refetch()} />
+          <MetricsErrorState message={message} onRetry={() => void refetch()} />
         </div>
       </main>
     );
@@ -198,7 +198,7 @@ export default function CommunicationHistoryPage() {
     <main className="min-h-screen bg-gray-900 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <h1 className="text-2xl font-semibold text-white">
-          Communication History Dashboard
+          Communication Metrics Dashboard
         </h1>
 
         <MetricsSummaryCards metrics={metrics} />

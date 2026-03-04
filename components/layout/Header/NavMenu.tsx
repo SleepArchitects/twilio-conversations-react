@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { History as HistoryIcon } from "lucide-react";
+import { BarChart3 as MetricsIcon } from "lucide-react";
 import Link from "next/link";
 import {
   useHasRole,
@@ -53,14 +53,14 @@ export default function NavMenu() {
           </a>
         </li>
 
-        {/* Communication History */}
+        {/* Communication Metrics */}
         <li>
           <Link
             className="flex items-center gap-1.5 rounded py-2 pl-3 pr-4 text-gray-900 hover:text-purple-600 dark:text-white dark:hover:text-purple-400 lg:p-0"
-            href="/conversations/history"
+            href="/conversations/metrics"
           >
-            <HistoryIcon className="h-4 w-4" />
-            Communication History
+            <MetricsIcon className="h-4 w-4" />
+            Communication Metrics
           </Link>
         </li>
         {/* 

@@ -2,9 +2,9 @@
 
 import { AlertCircle, Inbox, Info } from "lucide-react";
 
-export function HistoryLoadingSkeleton() {
+export function MetricsLoadingSkeleton() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-label="Loading history">
+    <div className="space-y-6" aria-busy="true" aria-label="Loading metrics">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div
@@ -44,12 +44,12 @@ export function HistoryLoadingSkeleton() {
   );
 }
 
-export function HistoryEmptyState() {
+export function MetricsEmptyState() {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg bg-gray-800 py-12 text-center">
       <Inbox className="h-12 w-12 text-gray-500" aria-hidden="true" />
       <h3 className="mt-4 text-lg font-medium text-white">
-        No communication history yet
+        No communication metrics yet
       </h3>
       <p className="mt-1 max-w-sm text-sm text-gray-400">
         Data collection starts now that delivery tracking is enabled
@@ -58,12 +58,12 @@ export function HistoryEmptyState() {
   );
 }
 
-interface HistoryErrorStateProps {
+interface MetricsErrorStateProps {
   message: string;
   onRetry: () => void;
 }
 
-export function HistoryErrorState({ message, onRetry }: HistoryErrorStateProps) {
+export function MetricsErrorState({ message, onRetry }: MetricsErrorStateProps) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg bg-gray-800 py-12 text-center">
       <AlertCircle className="h-10 w-10 text-red-400" aria-hidden="true" />
