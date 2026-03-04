@@ -63,12 +63,21 @@ function TimelineError({ onRetry }: { onRetry: () => void }) {
 
 function ZigzagEvent({
   event,
-  index,
+  patientEventIndex,
 }: {
   event: TimelineEvent;
-  index: number;
+  patientEventIndex: number;
 }) {
-  const isLeft = index % 2 === 0;
+  const isOutbound = event.direction === "outbound";
+  const isSms = event.type === "sms";
+
+  const isLeft = isSms ? !isOutbound : patientEventIndex % 2 === 0;
+
+  const dotColor = isSms
+    ? isOutbound
+      ? "bg-blue-500"
+      : "bg-green-500"
+    : "bg-purple-500";
 
   return (
     <div
@@ -80,7 +89,7 @@ function ZigzagEvent({
       <div
         className={cn(
           "absolute left-1/2 top-4 h-3 w-3 -translate-x-1/2 rounded-full",
-          event.type === "sms" ? "bg-green-500" : "bg-purple-500",
+          dotColor,
         )}
       />
       <div className="w-full">
@@ -147,9 +156,17 @@ export function TimelineView({ conversationId }: TimelineViewProps) {
         <div className="relative flex flex-col gap-6 py-6">
           <div className="absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 bg-gray-700" />
 
-          {allEvents.map((event, index) => (
-            <ZigzagEvent key={event.id} event={event} index={index} />
-          ))}
+          {allEvents.reduce<{ elements: React.ReactElement[]; patientCount: number }>(
+            (acc, event) => {
+              const idx = event.type !== "sms" ? acc.patientCount : 0;
+              acc.elements.push(
+                <ZigzagEvent key={event.id} event={event} patientEventIndex={idx} />,
+              );
+              if (event.type !== "sms") acc.patientCount++;
+              return acc;
+            },
+            { elements: [], patientCount: 0 },
+          ).elements}
 
           <div ref={sentinelRef} className="h-1" />
 

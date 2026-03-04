@@ -53,7 +53,7 @@ function StatusBadge({ status }: { status: string }) {
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        STATUS_COLORS[status] ?? "bg-gray-500/20 text-gray-400"
+        STATUS_COLORS[status] ?? "bg-gray-500/20 text-gray-400",
       )}
     >
       {status}
@@ -72,7 +72,7 @@ function SmsCard({ event }: { event: TimelineEvent }) {
           <DirectionIcon
             className={cn(
               "h-4 w-4 shrink-0",
-              isOutbound ? "text-blue-400" : "text-green-400"
+              isOutbound ? "text-blue-400" : "text-green-400",
             )}
           />
           <span className="text-xs text-gray-400 truncate">
@@ -126,12 +126,15 @@ function PatientEventCard({ event }: { event: TimelineEvent }) {
 export function TimelineEventCard({ event }: TimelineEventCardProps) {
   const isSms = event.type === "sms";
 
+  const borderColor = isSms
+    ? event.direction === "outbound"
+      ? "border-l-blue-500"
+      : "border-l-green-500"
+    : "border-l-purple-500";
+
   return (
     <div
-      className={cn(
-        "rounded-lg bg-gray-800 p-4 border-l-4",
-        isSms ? "border-l-green-500" : "border-l-purple-500"
-      )}
+      className={cn("rounded-lg bg-gray-800 p-4 border-l-4", borderColor)}
     >
       {isSms ? <SmsCard event={event} /> : <PatientEventCard event={event} />}
 
