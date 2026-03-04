@@ -2,12 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import {
-  Users,
-  TrendingUp,
-  Clock,
-  ArrowRight,
-} from "lucide-react";
+import { Users, TrendingUp, Clock, ArrowRight } from "lucide-react";
 import { Tooltip } from "flowbite-react";
 import { cn } from "@/lib/utils";
 import { useDashboardAnalytics } from "@/hooks/useDashboardAnalytics";

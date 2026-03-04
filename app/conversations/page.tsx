@@ -38,7 +38,9 @@ export default function ConversationsPage(): React.ReactElement {
 
   // State for "My assignments" toggle
   const [showOnlyMine, setShowOnlyMine] = React.useState(true);
-  const [activeCountOverride, setActiveCountOverride] = React.useState<number | undefined>(undefined);
+  const [activeCountOverride, setActiveCountOverride] = React.useState<
+    number | undefined
+  >(undefined);
 
   // Persistence for the toggle (FR-014c-extension)
   React.useEffect(() => {
@@ -281,7 +283,11 @@ export default function ConversationsPage(): React.ReactElement {
         />
       </div>
 
-      <MetricsSummaryStrip showOnlyMine={showOnlyMine} saxId={user?.saxId ? Number(user.saxId) : undefined} activeCountOverride={activeCountOverride} />
+      <MetricsSummaryStrip
+        showOnlyMine={showOnlyMine}
+        saxId={user?.saxId ? Number(user.saxId) : undefined}
+        activeCountOverride={activeCountOverride}
+      />
 
       {/* Main Content - ConversationList handles its own data fetching */}
       <main className="flex-1 overflow-hidden flex">

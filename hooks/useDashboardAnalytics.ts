@@ -18,9 +18,7 @@ export function useDashboardAnalytics({
     queryFn: () =>
       api.get<DashboardAnalytics>("/api/outreach/analytics/dashboard", {
         params:
-          showOnlyMine && saxId
-            ? { assigned_to: String(saxId) }
-            : undefined,
+          showOnlyMine && saxId ? { assigned_to: String(saxId) } : undefined,
       }),
     staleTime: 5 * 60 * 1000,
   });
