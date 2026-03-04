@@ -3,7 +3,13 @@
 import * as React from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MessageSquare, Send, TrendingUp, Clock } from "lucide-react";
+import {
+  ArrowLeft,
+  MessageSquare,
+  Send,
+  TrendingUp,
+  Clock,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { MetricsSummaryCards } from "@/components/conversations/metrics/MetricsSummaryCards";
@@ -210,8 +216,7 @@ export default function ConversationMetricsPage(): React.ReactElement {
         <div className="mb-6 space-y-1">
           <BackLink conversationId={conversationId} />
           <h1 className="text-2xl font-semibold text-white">
-            Communication Metrics{" "}
-            <span className="text-gray-400">—</span>{" "}
+            Communication Metrics <span className="text-gray-400">—</span>{" "}
             <span className="text-blue-300">{patientName}</span>
           </h1>
         </div>

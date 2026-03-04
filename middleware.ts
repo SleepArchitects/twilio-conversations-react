@@ -91,11 +91,18 @@ export async function middleware(request: NextRequest) {
       `[OUTREACH MIDDLEWARE] ❌ No valid session - redirecting to login: ${pathname}`,
     );
 
-    // Redirect to sleepconnect login with return URL
     const sleepconnectUrl =
       process.env.NEXT_PUBLIC_SLEEPCONNECT_URL || "http://localhost:3000";
-    const returnTo = encodeURIComponent(`/outreach${pathname}`);
-    const loginUrl = `${sleepconnectUrl}/login?returnTo=${returnTo}`;
+    const appBaseUrl =
+      process.env.NEXT_PUBLIC_APP_BASE_URL || "http://localhost:3001";
+    
+    // 🔧 FIX: Redirect to callback handler first so it can set the JWT cookie,
+    // then callback will redirect to the original page
+    const finalRedirect = encodeURIComponent(`${appBaseUrl}/outreach${pathname}`);
+    const callbackUrl = encodeURIComponent(`${appBaseUrl}/auth/callback?redirect=${finalRedirect}`);
+    const loginUrl = `${sleepconnectUrl}/login?returnTo=${callbackUrl}`;
+
+    console.log(`[OUTREACH MIDDLEWARE] 🔀 Redirecting to: ${loginUrl}`);
 
     return NextResponse.redirect(loginUrl);
   }

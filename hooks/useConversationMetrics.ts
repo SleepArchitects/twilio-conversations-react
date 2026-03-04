@@ -119,7 +119,12 @@ interface MessageWithMedia {
 
 interface MessagesResponse {
   data: MessageWithMedia[];
-  pagination?: { total: number; limit: number; offset: number; hasMore: boolean };
+  pagination?: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
 }
 
 export function useMessageMediaMap(conversationId: string) {

@@ -156,14 +156,11 @@ export function TimelineView({ conversationId }: TimelineViewProps) {
     [data],
   );
 
-  const handleMediaClick = React.useCallback(
-    (presignedUrl: string) => {
-      setLightboxImages([presignedUrl]);
-      setLightboxIndex(0);
-      setLightboxOpen(true);
-    },
-    [],
-  );
+  const handleMediaClick = React.useCallback((presignedUrl: string) => {
+    setLightboxImages([presignedUrl]);
+    setLightboxIndex(0);
+    setLightboxOpen(true);
+  }, []);
 
   return (
     <div className="flex flex-col gap-4">

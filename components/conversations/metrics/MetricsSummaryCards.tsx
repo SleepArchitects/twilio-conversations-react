@@ -52,7 +52,13 @@ function isEmptyValue(value: string | number): boolean {
   return !value || value === "" || value === "—" || value === "N/A";
 }
 
-function MetricCard({ title, value, icon: Icon, color, subtitle }: MetricCardData) {
+function MetricCard({
+  title,
+  value,
+  icon: Icon,
+  color,
+  subtitle,
+}: MetricCardData) {
   const empty = isEmptyValue(value);
 
   return (

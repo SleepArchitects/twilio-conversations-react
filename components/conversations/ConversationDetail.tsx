@@ -653,7 +653,7 @@ export function ConversationDetail({
             <span>{phoneNumber}</span>
           </div>
         </div>
-        
+
         {/* Metrics Link */}
         <Link
           href={`/conversations/${conversationId}/metrics`}

@@ -63,7 +63,10 @@ interface MetricsErrorStateProps {
   onRetry: () => void;
 }
 
-export function MetricsErrorState({ message, onRetry }: MetricsErrorStateProps) {
+export function MetricsErrorState({
+  message,
+  onRetry,
+}: MetricsErrorStateProps) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg bg-gray-800 py-12 text-center">
       <AlertCircle className="h-10 w-10 text-red-400" aria-hidden="true" />

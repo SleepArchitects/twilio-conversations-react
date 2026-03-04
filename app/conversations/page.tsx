@@ -16,6 +16,7 @@ import {
 import { NewConversationModal } from "@/components/conversations/NewConversationModal";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SearchInput } from "@/components/ui/search-input";
+import { MetricsSummaryStrip } from "@/components/conversations/MetricsSummaryStrip";
 import type { Conversation } from "@/types/sms";
 
 // =============================================================================
@@ -278,6 +279,8 @@ export default function ConversationsPage(): React.ReactElement {
           className="w-full"
         />
       </div>
+
+      <MetricsSummaryStrip />
 
       {/* Main Content - ConversationList handles its own data fetching */}
       <main className="flex-1 overflow-hidden flex">

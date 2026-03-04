@@ -140,9 +140,7 @@ export default function CommunicationMetricsPage() {
 
   if (isError || !data) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to load analytics data.";
+      error instanceof Error ? error.message : "Failed to load analytics data.";
 
     return (
       <main className="min-h-screen bg-gray-900 px-4 py-8 sm:px-6 lg:px-8">
@@ -177,7 +175,10 @@ export default function CommunicationMetricsPage() {
     },
     {
       title: "Delivery Rate",
-      value: data.deliveryRate > 0 ? formatDeliveryRate(data.deliveryRate) : "\u2014",
+      value:
+        data.deliveryRate > 0
+          ? formatDeliveryRate(data.deliveryRate)
+          : "\u2014",
       icon: CheckCircle,
       color: "green",
       subtitle: "Successful deliveries",

@@ -150,9 +150,7 @@ function SmsCard({
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {hasMedia && (
-            <Paperclip className="h-3.5 w-3.5 text-gray-500" />
-          )}
+          {hasMedia && <Paperclip className="h-3.5 w-3.5 text-gray-500" />}
           {event.status && <StatusBadge status={event.status} />}
         </div>
       </div>

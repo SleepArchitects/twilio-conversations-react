@@ -513,12 +513,12 @@ export interface SlaMetrics {
 /**
  * Channel for a timeline event.
  */
-export type TimelineChannel = 'sms' | 'system';
+export type TimelineChannel = "sms" | "system";
 
 /**
  * Type of a timeline event.
  */
-export type TimelineEventType = 'sms' | 'patient_event';
+export type TimelineEventType = "sms" | "patient_event";
 
 /**
  * A single event in the communication timeline.
