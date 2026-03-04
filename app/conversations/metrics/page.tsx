@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { MessageSquare, Send, CheckCircle, Clock } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, MessageSquare, Send, CheckCircle, Clock } from "lucide-react";
 import { MetricsSummaryCards } from "@/components/conversations/metrics/MetricsSummaryCards";
 import {
   MetricsLoadingSkeleton,
@@ -9,6 +10,7 @@ import {
   MetricsEmptyBanner,
 } from "@/components/conversations/metrics/MetricsStates";
 import { useDashboardAnalytics } from "@/hooks/useDashboardAnalytics";
+import { PageHeader } from "@/components/layout/PageHeader";
 import type { MetricCardData } from "@/components/conversations/metrics/MetricsSummaryCards";
 
 function formatDuration(days: number): string {
@@ -125,16 +127,28 @@ function TopPatientEventCategories({
 export default function CommunicationMetricsPage() {
   const { data, isLoading, isError, error, refetch } = useDashboardAnalytics();
 
+  const backLink = (
+    <Link
+      href="/conversations"
+      className="inline-flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white"
+      aria-label="Back to conversations"
+    >
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+      Back
+    </Link>
+  );
+
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-gray-900 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl space-y-6">
-          <h1 className="text-2xl font-semibold text-white">
-            Communication Metrics Dashboard
-          </h1>
+      <div className="min-h-screen bg-gray-900">
+        <PageHeader
+          title="Communication Metrics Dashboard"
+          startAction={backLink}
+        />
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
           <MetricsLoadingSkeleton />
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -143,14 +157,15 @@ export default function CommunicationMetricsPage() {
       error instanceof Error ? error.message : "Failed to load analytics data.";
 
     return (
-      <main className="min-h-screen bg-gray-900 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl space-y-6">
-          <h1 className="text-2xl font-semibold text-white">
-            Communication Metrics Dashboard
-          </h1>
+      <div className="min-h-screen bg-gray-900">
+        <PageHeader
+          title="Communication Metrics Dashboard"
+          startAction={backLink}
+        />
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
           <MetricsErrorState message={message} onRetry={() => void refetch()} />
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -196,12 +211,13 @@ export default function CommunicationMetricsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-gray-900 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <h1 className="text-2xl font-semibold text-white">
-          Communication Metrics Dashboard
-        </h1>
+    <div className="min-h-screen bg-gray-900">
+      <PageHeader
+        title="Communication Metrics Dashboard"
+        startAction={backLink}
+      />
 
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
         <MetricsSummaryCards metrics={metrics} />
 
         {data.deliveryRate === 0 && <MetricsEmptyBanner />}
@@ -233,7 +249,7 @@ export default function CommunicationMetricsPage() {
             <TopPatientEventCategories categories={data.topPatientEvents} />
           </section>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

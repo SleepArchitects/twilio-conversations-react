@@ -20,6 +20,7 @@ import {
 } from "@/components/conversations/metrics/MetricsStates";
 import { TimelineView } from "@/components/conversations/metrics/TimelineView";
 import { useConversationSummary } from "@/hooks/useConversationMetrics";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { api } from "@/lib/api";
 import type { Conversation } from "@/types/sms";
 import type { MetricCardData } from "@/components/conversations/metrics/MetricsSummaryCards";
@@ -82,23 +83,6 @@ function formatDeliveryRate(rate: number): string {
 }
 
 // =============================================================================
-// Sub-components
-// =============================================================================
-
-function BackLink({ conversationId }: { conversationId: string }) {
-  return (
-    <Link
-      href={`/conversations/${conversationId}`}
-      className="inline-flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white"
-      aria-label="Back to conversation"
-    >
-      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      Back to conversation
-    </Link>
-  );
-}
-
-// =============================================================================
 // Page Component
 // =============================================================================
 
@@ -121,6 +105,17 @@ export default function ConversationMetricsPage(): React.ReactElement {
 
   const patientName = formatPatientName(conversation);
 
+  const backLink = (
+    <Link
+      href={`/conversations/${conversationId}`}
+      className="inline-flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-white"
+      aria-label="Back to conversation"
+    >
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+      Back
+    </Link>
+  );
+
   // ==========================================================================
   // Loading State
   // ==========================================================================
@@ -128,8 +123,11 @@ export default function ConversationMetricsPage(): React.ReactElement {
   if (conversationQuery.isLoading || summaryQuery.isLoading) {
     return (
       <div className="min-h-screen bg-gray-900">
+        <PageHeader
+          title="Communication Metrics"
+          startAction={backLink}
+        />
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mb-6 h-8 w-48 animate-pulse rounded bg-gray-700" />
           <MetricsLoadingSkeleton />
         </div>
       </div>
@@ -147,8 +145,11 @@ export default function ConversationMetricsPage(): React.ReactElement {
       error instanceof Error ? error.message : "Failed to load metrics";
     return (
       <div className="min-h-screen bg-gray-900">
+        <PageHeader
+          title="Communication Metrics"
+          startAction={backLink}
+        />
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-          <BackLink conversationId={conversationId} />
           <MetricsErrorState
             message={message}
             onRetry={() => {
@@ -211,27 +212,19 @@ export default function ConversationMetricsPage(): React.ReactElement {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-6 space-y-1">
-          <BackLink conversationId={conversationId} />
-          <h1 className="text-2xl font-semibold text-white">
-            Communication Metrics <span className="text-gray-400">—</span>{" "}
-            <span className="text-blue-300">{patientName}</span>
-          </h1>
-        </div>
+      <PageHeader
+        title={`Communication Metrics — ${patientName}`}
+        startAction={backLink}
+      />
 
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
         {/* Metrics cards */}
-        <section aria-label="Conversation metrics" className="mb-6">
+        <section aria-label="Conversation metrics">
           <MetricsSummaryCards metrics={metrics} />
         </section>
 
         {/* Empty metrics banner (deliveryRate 0 but messages exist) */}
-        {showMetricsEmptyBanner && (
-          <div className="mb-6">
-            <MetricsEmptyBanner />
-          </div>
-        )}
+        {showMetricsEmptyBanner && <MetricsEmptyBanner />}
 
         {/* Event timeline */}
         <section aria-label="Event timeline">
