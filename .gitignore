@@ -58,3 +58,4 @@ mise.local.toml
 .agents
 .opencode/worktree.jsonc
 tsconfig.tsbuildinfo
+.pnpm-store/
