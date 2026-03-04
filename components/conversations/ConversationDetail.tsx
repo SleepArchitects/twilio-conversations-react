@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { History as HistoryIcon } from "lucide-react";
 import { formatDateHeader, isSameDay } from "@/lib/datetime";
 import { MessageBubble } from "@/components/conversations/MessageBubble";
 import { MessageComposer } from "@/components/conversations/MessageComposer";
@@ -651,6 +653,17 @@ export function ConversationDetail({
             <span>{phoneNumber}</span>
           </div>
         </div>
+        
+        {/* History Link */}
+        <Link
+          href={`/conversations/${conversationId}/history`}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
+          title="View Conversation History"
+        >
+          <HistoryIcon className="h-4 w-4" />
+          <span>History</span>
+        </Link>
+
         {/* SLA Status - show prominently in header */}
         {conversationData.status !== "archived" &&
           conversationData.slaStatus !== "ok" && (

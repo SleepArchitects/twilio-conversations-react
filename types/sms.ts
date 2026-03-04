@@ -505,3 +505,88 @@ export interface SlaMetrics {
     over10min: number;
   };
 }
+
+// =============================================================================
+// Communication History Types
+// =============================================================================
+
+/**
+ * Channel for a timeline event.
+ */
+export type TimelineChannel = 'sms' | 'system';
+
+/**
+ * Type of a timeline event.
+ */
+export type TimelineEventType = 'sms' | 'patient_event';
+
+/**
+ * A single event in the communication timeline.
+ */
+export interface TimelineEvent {
+  id: string;
+  type: TimelineEventType;
+  timestamp: string;
+  channel: TimelineChannel;
+  direction?: string;
+  body?: string;
+  status?: string;
+  category?: string;
+  eventTitle?: string;
+  eventDetail?: string;
+  mediaUrl?: string;
+  senderName?: string;
+}
+
+/**
+ * Summary statistics for a conversation's history.
+ */
+export interface ConversationHistorySummary {
+  messageCount: number;
+  inboundCount: number;
+  outboundCount: number;
+  deliveryRate: number;
+  avgResponseTimeMinutes: number | null;
+  conversationDurationDays: number;
+  firstMessageAt: string;
+  lastMessageAt: string;
+  mediaCount: number;
+}
+
+/**
+ * Detailed metrics for a single conversation.
+ */
+export interface ConversationMetrics {
+  slaCompliance: number | null;
+  avgResponseTimeMinutes: number | null;
+  responseTimeP90Minutes: number | null;
+  messagesByDay: Record<string, number>;
+  messagesByHour: Record<string, number>;
+  channelBreakdown: Record<TimelineChannel, number>;
+}
+
+/**
+ * Aggregate analytics for the dashboard view.
+ */
+export interface DashboardAnalytics {
+  totalConversations: number;
+  activeConversations: number;
+  totalMessages: number;
+  inboundMessages: number;
+  outboundMessages: number;
+  deliveryRate: number;
+  avgResponseTimeMinutes: number | null;
+  avgConversationDurationDays: number;
+  mediaUsageRate: number;
+  messagesByDay: Record<string, number>;
+  topPatientEvents: Array<{ category: string; count: number }>;
+}
+
+/**
+ * Paginated response for timeline events.
+ */
+export interface TimelineResponse {
+  data: TimelineEvent[];
+  cursor: string | null;
+  hasMore: boolean;
+}
