@@ -5,7 +5,11 @@ import { cn } from "@/lib/utils";
 import { Loader2, AlertCircle, Inbox } from "lucide-react";
 import { TimelineFilters } from "./TimelineFilters";
 import { TimelineEventCard } from "./TimelineEventCard";
-import { useConversationTimeline } from "@/hooks/useConversationMetrics";
+import { ImageLightbox } from "../ImageLightbox";
+import {
+  useConversationTimeline,
+  useMessageMediaMap,
+} from "@/hooks/useConversationMetrics";
 import type { TimelineEvent } from "@/types/sms";
 
 interface TimelineViewProps {
@@ -64,9 +68,13 @@ function TimelineError({ onRetry }: { onRetry: () => void }) {
 function ZigzagEvent({
   event,
   patientEventIndex,
+  mediaS3Keys,
+  onMediaClick,
 }: {
   event: TimelineEvent;
   patientEventIndex: number;
+  mediaS3Keys: string[];
+  onMediaClick?: (presignedUrl: string) => void;
 }) {
   const isOutbound = event.direction === "outbound";
   const isSms = event.type === "sms";
@@ -93,7 +101,11 @@ function ZigzagEvent({
         )}
       />
       <div className="w-full">
-        <TimelineEventCard event={event} />
+        <TimelineEventCard
+          event={event}
+          mediaS3Keys={mediaS3Keys}
+          onMediaClick={onMediaClick}
+        />
       </div>
     </div>
   );
@@ -101,6 +113,9 @@ function ZigzagEvent({
 
 export function TimelineView({ conversationId }: TimelineViewProps) {
   const [activeFilters, setActiveFilters] = React.useState<string[]>([]);
+  const [lightboxOpen, setLightboxOpen] = React.useState(false);
+  const [lightboxImages, setLightboxImages] = React.useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = React.useState(0);
 
   const {
     data,
@@ -114,6 +129,8 @@ export function TimelineView({ conversationId }: TimelineViewProps) {
     conversationId,
     activeFilters.length > 0 ? activeFilters : undefined,
   );
+
+  const { data: mediaMap } = useMessageMediaMap(conversationId);
 
   const sentinelRef = React.useRef<HTMLDivElement>(null);
 
@@ -139,6 +156,15 @@ export function TimelineView({ conversationId }: TimelineViewProps) {
     [data],
   );
 
+  const handleMediaClick = React.useCallback(
+    (presignedUrl: string) => {
+      setLightboxImages([presignedUrl]);
+      setLightboxIndex(0);
+      setLightboxOpen(true);
+    },
+    [],
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <TimelineFilters
@@ -156,17 +182,29 @@ export function TimelineView({ conversationId }: TimelineViewProps) {
         <div className="relative flex flex-col gap-6 py-6">
           <div className="absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 bg-gray-700" />
 
-          {allEvents.reduce<{ elements: React.ReactElement[]; patientCount: number }>(
-            (acc, event) => {
-              const idx = event.type !== "sms" ? acc.patientCount : 0;
-              acc.elements.push(
-                <ZigzagEvent key={event.id} event={event} patientEventIndex={idx} />,
-              );
-              if (event.type !== "sms") acc.patientCount++;
-              return acc;
-            },
-            { elements: [], patientCount: 0 },
-          ).elements}
+          {
+            allEvents.reduce<{
+              elements: React.ReactElement[];
+              patientCount: number;
+            }>(
+              (acc, event) => {
+                const idx = event.type !== "sms" ? acc.patientCount : 0;
+                const s3Keys = mediaMap?.get(event.id) ?? [];
+                acc.elements.push(
+                  <ZigzagEvent
+                    key={event.id}
+                    event={event}
+                    patientEventIndex={idx}
+                    mediaS3Keys={s3Keys}
+                    onMediaClick={handleMediaClick}
+                  />,
+                );
+                if (event.type !== "sms") acc.patientCount++;
+                return acc;
+              },
+              { elements: [], patientCount: 0 },
+            ).elements
+          }
 
           <div ref={sentinelRef} className="h-1" />
 
@@ -177,6 +215,14 @@ export function TimelineView({ conversationId }: TimelineViewProps) {
           )}
         </div>
       )}
+
+      <ImageLightbox
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        images={lightboxImages}
+        currentIndex={lightboxIndex}
+        onNavigate={setLightboxIndex}
+      />
     </div>
   );
 }

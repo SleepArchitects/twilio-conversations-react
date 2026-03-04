@@ -16,7 +16,12 @@ export const conversationHistoryKeys = {
   summary: (conversationId: string) =>
     ["conversationHistory", conversationId, "summary"] as const,
   timeline: (conversationId: string, eventTypes?: string[]) =>
-    ["conversationHistory", conversationId, "timeline", eventTypes ?? []] as const,
+    [
+      "conversationHistory",
+      conversationId,
+      "timeline",
+      eventTypes ?? [],
+    ] as const,
   metrics: (conversationId: string) =>
     ["conversationHistory", conversationId, "metrics"] as const,
 };
@@ -99,6 +104,63 @@ function transformTimeline(raw: RawTimelineResponse): TimelineResponse {
     cursor: raw.cursor,
     hasMore: raw.hasMore,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Timeline events share IDs with sms_messages. Fetch messages → build s3Key
+// lookup → resolve via /media/view presigned URL endpoint. No backend changes.
+// ---------------------------------------------------------------------------
+
+interface MessageWithMedia {
+  id: string;
+  hasMedia: boolean;
+  media: Array<{ s3Key: string; contentType: string }> | null;
+}
+
+interface MessagesResponse {
+  data: MessageWithMedia[];
+  pagination?: { total: number; limit: number; offset: number; hasMore: boolean };
+}
+
+export function useMessageMediaMap(conversationId: string) {
+  return useQuery({
+    queryKey: ["messageMedia", conversationId] as const,
+    queryFn: async () => {
+      const res = await api.get<MessagesResponse>(
+        `/api/outreach/conversations/${conversationId}/messages`,
+        { params: { limit: "200" } },
+      );
+      const messages = res.data ?? [];
+      const mediaMap = new Map<string, string[]>();
+      for (const msg of messages) {
+        if (msg.hasMedia && msg.media && msg.media.length > 0) {
+          mediaMap.set(
+            msg.id,
+            msg.media.map((m) => m.s3Key),
+          );
+        }
+      }
+      return mediaMap;
+    },
+    enabled: !!conversationId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePresignedUrl(s3Key: string | undefined) {
+  return useQuery({
+    queryKey: ["presignedUrl", s3Key] as const,
+    queryFn: async () => {
+      const res = await api.get<{ presignedUrl: string }>(
+        `/api/outreach/media/view`,
+        { params: { s3Key: s3Key! } },
+      );
+      return res.presignedUrl;
+    },
+    enabled: !!s3Key,
+    staleTime: 6 * 60 * 60 * 1000,
+    gcTime: 7 * 60 * 60 * 1000,
+  });
 }
 
 // ---------------------------------------------------------------------------
