@@ -123,10 +123,7 @@ export default function ConversationMetricsPage(): React.ReactElement {
   if (conversationQuery.isLoading || summaryQuery.isLoading) {
     return (
       <div className="min-h-screen bg-gray-900">
-        <PageHeader
-          title="Communication Metrics"
-          startAction={backLink}
-        />
+        <PageHeader title="Communication Metrics" startAction={backLink} />
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
           <MetricsLoadingSkeleton />
         </div>
@@ -145,10 +142,7 @@ export default function ConversationMetricsPage(): React.ReactElement {
       error instanceof Error ? error.message : "Failed to load metrics";
     return (
       <div className="min-h-screen bg-gray-900">
-        <PageHeader
-          title="Communication Metrics"
-          startAction={backLink}
-        />
+        <PageHeader title="Communication Metrics" startAction={backLink} />
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
           <MetricsErrorState
             message={message}

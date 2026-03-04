@@ -2,7 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, MessageSquare, Send, CheckCircle, Clock } from "lucide-react";
+import {
+  ArrowLeft,
+  MessageSquare,
+  Send,
+  CheckCircle,
+  Clock,
+} from "lucide-react";
 import { MetricsSummaryCards } from "@/components/conversations/metrics/MetricsSummaryCards";
 import {
   MetricsLoadingSkeleton,
