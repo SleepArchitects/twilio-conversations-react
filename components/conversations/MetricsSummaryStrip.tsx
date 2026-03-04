@@ -3,12 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  MessageSquare,
   Users,
   TrendingUp,
   Clock,
   ArrowRight,
 } from "lucide-react";
+import { Tooltip } from "flowbite-react";
 import { cn } from "@/lib/utils";
 import { useDashboardAnalytics } from "@/hooks/useDashboardAnalytics";
 
@@ -77,10 +77,21 @@ function SkeletonTile() {
 
 export interface MetricsSummaryStripProps {
   className?: string;
+  showOnlyMine?: boolean;
+  saxId?: number;
+  activeCountOverride?: number;
 }
 
-export function MetricsSummaryStrip({ className }: MetricsSummaryStripProps) {
-  const { data, isLoading, isError } = useDashboardAnalytics();
+export function MetricsSummaryStrip({
+  className,
+  showOnlyMine,
+  saxId,
+  activeCountOverride,
+}: MetricsSummaryStripProps) {
+  const { data, isLoading, isError } = useDashboardAnalytics({
+    showOnlyMine,
+    saxId,
+  });
 
   if (isError) return null;
 
@@ -103,9 +114,6 @@ export function MetricsSummaryStrip({ className }: MetricsSummaryStripProps) {
             <div className="px-5">
               <SkeletonTile />
             </div>
-            <div className="px-5">
-              <SkeletonTile />
-            </div>
             <div className="pl-5">
               <SkeletonTile />
             </div>
@@ -113,33 +121,38 @@ export function MetricsSummaryStrip({ className }: MetricsSummaryStripProps) {
         ) : data ? (
           <>
             <div className="pr-5">
-              <StatTile
-                label="Active"
-                value={data.activeConversations}
-                icon={Users}
-              />
+              <Tooltip
+                content={
+                  showOnlyMine
+                    ? "Conversations currently active and assigned to you"
+                    : "Total conversations currently active across your team"
+                }
+              >
+                <StatTile
+                  label="Active"
+                  value={activeCountOverride ?? data.activeConversations}
+                  icon={Users}
+                />
+              </Tooltip>
             </div>
             <div className="px-5">
-              <StatTile
-                label="Messages"
-                value={data.totalMessages.toLocaleString()}
-                icon={MessageSquare}
-              />
-            </div>
-            <div className="px-5">
-              <StatTile
-                label="Delivery"
-                value={formatDeliveryRate(data.deliveryRate)}
-                icon={TrendingUp}
-                warning={data.deliveryRate === 0}
-              />
+              <Tooltip content="Percentage of messages successfully delivered to patients">
+                <StatTile
+                  label="Delivery"
+                  value={formatDeliveryRate(data.deliveryRate)}
+                  icon={TrendingUp}
+                  warning={data.deliveryRate === 0}
+                />
+              </Tooltip>
             </div>
             <div className="pl-5">
-              <StatTile
-                label="Avg Response"
-                value={formatResponseTime(data.avgResponseTimeMinutes)}
-                icon={Clock}
-              />
+              <Tooltip content="Average time to first response across active conversations">
+                <StatTile
+                  label="Avg Response"
+                  value={formatResponseTime(data.avgResponseTimeMinutes)}
+                  icon={Clock}
+                />
+              </Tooltip>
             </div>
           </>
         ) : null}

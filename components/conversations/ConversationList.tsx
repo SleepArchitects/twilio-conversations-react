@@ -39,6 +39,8 @@ export interface ConversationListProps {
   onToggleShowOnlyMine?: () => void;
   /** Current user's SAX ID for filtering */
   currentUserSaxId?: string;
+  /** Callback fired with the count of active filtered conversations */
+  onActiveCountChange?: (count: number) => void;
   /** Custom class name */
   className?: string;
 }
@@ -155,6 +157,7 @@ export function ConversationList({
   showOnlyMine,
   onToggleShowOnlyMine,
   currentUserSaxId,
+  onActiveCountChange,
   className,
 }: ConversationListProps) {
   // State
@@ -335,6 +338,13 @@ export function ConversationList({
       return byRecencyDesc(a, b);
     });
   }, [conversations, searchQuery, showOnlyMine, currentUserSaxId]);
+
+  React.useEffect(() => {
+    const activeCount = filteredConversations.filter(
+      (c) => c.status === "active",
+    ).length;
+    onActiveCountChange?.(activeCount);
+  }, [filteredConversations, onActiveCountChange]);
 
   // ==========================================================================
   // Handlers

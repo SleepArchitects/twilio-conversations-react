@@ -4,13 +4,24 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { DashboardAnalytics } from "@/types/sms";
 
-const DASHBOARD_ANALYTICS_KEY = ["dashboardAnalytics"] as const;
+interface UseDashboardAnalyticsOptions {
+  showOnlyMine?: boolean;
+  saxId?: number;
+}
 
-export function useDashboardAnalytics() {
+export function useDashboardAnalytics({
+  showOnlyMine,
+  saxId,
+}: UseDashboardAnalyticsOptions = {}) {
   return useQuery({
-    queryKey: DASHBOARD_ANALYTICS_KEY,
+    queryKey: ["dashboardAnalytics", { showOnlyMine, saxId }],
     queryFn: () =>
-      api.get<DashboardAnalytics>("/api/outreach/analytics/dashboard"),
+      api.get<DashboardAnalytics>("/api/outreach/analytics/dashboard", {
+        params:
+          showOnlyMine && saxId
+            ? { assigned_to: String(saxId) }
+            : undefined,
+      }),
     staleTime: 5 * 60 * 1000,
   });
 }
